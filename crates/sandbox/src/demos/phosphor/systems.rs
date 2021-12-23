@@ -17,22 +17,6 @@ use antigen_wgpu::{
 use antigen_winit::{winit::event::WindowEvent, WindowComponent, WindowEventComponent};
 use hecs::World;
 
-#[derive(hecs::Query)]
-struct TextureViews<'a> {
-    beam_buffer: &'a BeamBufferViewComponent,
-    beam_depth: &'a BeamDepthBufferViewComponent,
-    beam_multisample: &'a BeamMultisampleViewComponent,
-    phosphor_front: &'a PhosphorFrontBufferViewComponent,
-    phosphor_back: &'a PhosphorBackBufferViewComponent,
-}
-
-#[derive(hecs::Query)]
-struct BeamPhosphorTextureViews<'a> {
-    beam_buffer: &'a BeamBufferViewComponent,
-    phosphor_front: &'a PhosphorFrontBufferViewComponent,
-    phosphor_back: &'a PhosphorBackBufferViewComponent,
-}
-
 // Initialize the hello triangle render pipeline
 pub fn phosphor_prepare_system(world: &mut World) {
     // Fetch resources
@@ -93,9 +77,6 @@ pub fn phosphor_prepare_uniform_bind_group(
 }
 
 pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent) -> Option<()> {
-    let mut query = world.query_one::<BeamPhosphorTextureViews>(entity).unwrap();
-    let texture_views = query.get().unwrap();
-
     let mut query = world.query_one::<&LinearSamplerComponent>(entity).unwrap();
     let sampler = query.get().unwrap();
 
@@ -129,6 +110,21 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
         .query::<(&LineInstanceBufferComponent,)>()
         .with::<LineInstance>();
     let (_, (line_instance_buffer,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&BeamBufferViewComponent,)>()
+        .with::<BeamBuffer>();
+    let (_, (beam_buffer_view,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&PhosphorFrontBufferViewComponent,)>()
+        .with::<PhosphorFrontBuffer>();
+    let (_, (phosphor_front_buffer_view,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&PhosphorBackBufferViewComponent,)>()
+        .with::<PhosphorBackBuffer>();
+    let (_, (phosphor_back_buffer_view,)) = query.into_iter().next()?;
 
     phosphor_prepare_uniform_bind_group(
         device,
@@ -216,9 +212,9 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
         uniform_bind_group_layout,
         phosphor_decay_shader,
         sampler,
-        texture_views.beam_buffer,
-        texture_views.phosphor_front,
-        texture_views.phosphor_back,
+        beam_buffer_view,
+        phosphor_front_buffer_view,
+        phosphor_back_buffer_view,
     )?;
 
     let mut query = world
@@ -317,24 +313,6 @@ pub fn phosphor_resize_system(world: &mut World) {
     }
 }
 
-#[derive(hecs::Query)]
-struct BufferDescriptorMutQuery<'a> {
-    beam: &'a mut Usage<BeamBuffer, TextureDescriptorComponent<'static>>,
-    beam_depth: &'a mut Usage<BeamDepthBuffer, TextureDescriptorComponent<'static>>,
-    beam_multisample: &'a mut Usage<BeamMultisample, TextureDescriptorComponent<'static>>,
-    phosphor_front: &'a mut Usage<PhosphorFrontBuffer, TextureDescriptorComponent<'static>>,
-    phosphor_back: &'a mut Usage<PhosphorBackBuffer, TextureDescriptorComponent<'static>>,
-}
-
-#[derive(hecs::Query)]
-struct BufferViewDescriptorMutQuery<'a> {
-    beam: &'a mut Usage<BeamBuffer, TextureViewDescriptorComponent<'static>>,
-    beam_depth: &'a mut Usage<BeamDepthBuffer, TextureViewDescriptorComponent<'static>>,
-    beam_multisample: &'a mut Usage<BeamMultisample, TextureViewDescriptorComponent<'static>>,
-    phosphor_front: &'a mut Usage<PhosphorFrontBuffer, TextureViewDescriptorComponent<'static>>,
-    phosphor_back: &'a mut Usage<PhosphorBackBuffer, TextureViewDescriptorComponent<'static>>,
-}
-
 pub fn phosphor_resize(world: &World, entity: Entity) {
     let mut query = world
         .query_one::<&Indirect<SurfaceConfigurationComponent>>(entity)
@@ -351,14 +329,6 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
         height: surface_config.height,
         depth_or_array_layers: 1,
     };
-
-    let mut query = world.query_one::<BufferDescriptorMutQuery>(entity).unwrap();
-    let buffer_descs = query.get().unwrap();
-
-    let mut query = world
-        .query_one::<BufferViewDescriptorMutQuery>(entity)
-        .unwrap();
-    let view_descs = query.get().unwrap();
 
     let mut query = world
         .query::<(&mut BindGroupComponent,)>()
@@ -380,23 +350,64 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
         .with::<Orthographic>();
     let (_, (orthographic_matrix,)) = query.into_iter().next().unwrap();
 
-    buffer_descs.beam.size = extent;
-    buffer_descs.beam_depth.size = extent;
-    buffer_descs.beam_multisample.size = extent;
-    buffer_descs.phosphor_front.size = extent;
-    buffer_descs.phosphor_back.size = extent;
+    let mut query = world
+        .query::<(
+            &mut BeamBufferDescriptorComponent,
+            &mut BeamBufferViewDescriptorComponent,
+        )>()
+        .with::<BeamBuffer>();
+    let (_, (beam_buffer_desc, beam_buffer_view_desc)) = query.into_iter().next().unwrap();
 
-    buffer_descs.beam.set_changed(true);
-    buffer_descs.beam_depth.set_changed(true);
-    buffer_descs.beam_multisample.set_changed(true);
-    buffer_descs.phosphor_front.set_changed(true);
-    buffer_descs.phosphor_back.set_changed(true);
+    let mut query = world
+        .query::<(
+            &mut BeamDepthDescriptorComponent,
+            &mut BeamDepthViewDescriptorComponent,
+        )>()
+        .with::<BeamDepthBuffer>();
+    let (_, (beam_depth_desc, beam_depth_view_desc)) = query.into_iter().next().unwrap();
 
-    view_descs.beam.set_changed(true);
-    view_descs.beam_depth.set_changed(true);
-    view_descs.beam_multisample.set_changed(true);
-    view_descs.phosphor_front.set_changed(true);
-    view_descs.phosphor_back.set_changed(true);
+    let mut query = world
+        .query::<(
+            &mut BeamMultisampleDescriptorComponent,
+            &mut BeamMultisampleViewDescriptorComponent,
+        )>()
+        .with::<BeamMultisample>();
+    let (_, (beam_multisample_desc, beam_multisample_view_desc)) =
+        query.into_iter().next().unwrap();
+
+    let mut query = world
+        .query::<(
+            &mut PhosphorFrontDescriptorComponent,
+            &mut PhosphorFrontViewDescriptorComponent,
+        )>()
+        .with::<PhosphorFrontBuffer>();
+    let (_, (phosphor_front_desc, phosphor_front_view_desc)) = query.into_iter().next().unwrap();
+
+    let mut query = world
+        .query::<(
+            &mut PhosphorBackDescriptorComponent,
+            &mut PhosphorBackViewDescriptorComponent,
+        )>()
+        .with::<PhosphorBackBuffer>();
+    let (_, (phosphor_back_desc, phosphor_back_view_desc)) = query.into_iter().next().unwrap();
+
+    beam_buffer_desc.size = extent;
+    beam_depth_desc.size = extent;
+    beam_multisample_desc.size = extent;
+    phosphor_front_desc.size = extent;
+    phosphor_back_desc.size = extent;
+
+    beam_buffer_desc.set_changed(true);
+    beam_depth_desc.set_changed(true);
+    beam_multisample_desc.set_changed(true);
+    phosphor_front_desc.set_changed(true);
+    phosphor_back_desc.set_changed(true);
+
+    beam_buffer_view_desc.set_changed(true);
+    beam_depth_view_desc.set_changed(true);
+    beam_multisample_view_desc.set_changed(true);
+    phosphor_front_view_desc.set_changed(true);
+    phosphor_back_view_desc.set_changed(true);
 
     front_bind_group.set_pending();
     back_bind_group.set_pending();
@@ -478,9 +489,6 @@ pub fn phosphor_render_system(world: &mut World) {
 }
 
 pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) -> Option<()> {
-    let mut query = world.query_one::<TextureViews>(entity).unwrap();
-    let texture_views = query.get().unwrap();
-
     let mut query = world
         .query_one::<(
             &MeshIndexCountComponent,
@@ -532,6 +540,31 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
     let (_, (line_instance_buffer,)) = query.into_iter().next()?;
 
     let mut query = world
+        .query::<(&mut BeamBufferViewComponent,)>()
+        .with::<BeamBuffer>();
+    let (_, (beam_buffer_view,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut BeamDepthBufferViewComponent,)>()
+        .with::<BeamDepthBuffer>();
+    let (_, (beam_depth_buffer_view,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut BeamMultisampleViewComponent,)>()
+        .with::<BeamMultisample>();
+    let (_, (beam_multisample_view,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut PhosphorFrontBufferViewComponent,)>()
+        .with::<PhosphorFrontBuffer>();
+    let (_, (phosphor_front_buffer_view,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut PhosphorBackBufferViewComponent,)>()
+        .with::<PhosphorBackBuffer>();
+    let (_, (phosphor_back_buffer_view,)) = query.into_iter().next()?;
+
+    let mut query = world
         .query::<(&mut ComputePipelineComponent, &mut BindGroupComponent)>()
         .with::<ComputeLineInstances>();
     let (_, (compute_pipeline, compute_bind_group)) = query.into_iter().next().unwrap();
@@ -577,9 +610,9 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
 
     phosphor_render_beam_meshes(
         &mut encoder,
-        texture_views.beam_multisample,
-        texture_views.beam_buffer,
-        texture_views.beam_depth,
+        beam_multisample_view,
+        beam_buffer_view,
+        beam_depth_buffer_view,
         beam_mesh_pipeline,
         mesh_vertex_buffer,
         mesh_index_buffer,
@@ -589,9 +622,9 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
 
     phosphor_render_beam_lines(
         &mut encoder,
-        texture_views.beam_multisample,
-        texture_views.beam_buffer,
-        texture_views.beam_depth,
+        beam_multisample_view,
+        beam_buffer_view,
+        beam_depth_buffer_view,
         beam_line_pipeline,
         line_vertex_buffer,
         line_instance_buffer,
@@ -602,8 +635,8 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
     phosphor_render_phosphor_decay(
         &mut encoder,
         buffer_flip_flop,
-        texture_views.phosphor_front,
-        texture_views.phosphor_back,
+        phosphor_front_buffer_view,
+        phosphor_back_buffer_view,
         phosphor_decay_pipeline,
         uniform_bind_group,
         front_bind_group,

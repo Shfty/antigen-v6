@@ -2,10 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use std::time::Instant;
 
 use antigen_core::{Changed, Usage};
-use antigen_wgpu::{
-    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, RenderPipelineComponent,
-    SamplerComponent, ShaderModuleComponent, TextureComponent, TextureViewComponent, ToBytes,
-};
+use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, BufferComponent, RenderPipelineComponent, SamplerComponent, ShaderModuleComponent, TextureComponent, TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent, ToBytes};
 
 // Phosphor renderer tag
 pub struct PhosphorRenderer;
@@ -18,9 +15,9 @@ pub enum Timestamp {}
 pub enum TotalTime {}
 pub enum DeltaTime {}
 
-pub enum BeamBuffer {}
-pub enum BeamMultisample {}
-pub enum BeamDepthBuffer {}
+pub struct BeamBuffer;
+pub struct BeamMultisample;
+pub struct BeamDepthBuffer;
 
 pub enum Linear {}
 
@@ -88,6 +85,18 @@ pub type BeamDepthBufferComponent = Usage<BeamDepthBuffer, TextureComponent>;
 pub type BeamMultisampleComponent = Usage<BeamMultisample, TextureComponent>;
 pub type PhosphorFrontBufferComponent = Usage<PhosphorFrontBuffer, TextureComponent>;
 pub type PhosphorBackBufferComponent = Usage<PhosphorBackBuffer, TextureComponent>;
+
+pub type BeamBufferDescriptorComponent = Usage<BeamBuffer, TextureDescriptorComponent<'static>>;
+pub type BeamDepthDescriptorComponent = Usage<BeamDepthBuffer, TextureDescriptorComponent<'static>>;
+pub type BeamMultisampleDescriptorComponent = Usage<BeamMultisample, TextureDescriptorComponent<'static>>;
+pub type PhosphorFrontDescriptorComponent = Usage<PhosphorFrontBuffer, TextureDescriptorComponent<'static>>;
+pub type PhosphorBackDescriptorComponent = Usage<PhosphorBackBuffer, TextureDescriptorComponent<'static>>;
+
+pub type BeamBufferViewDescriptorComponent = Usage<BeamBuffer, TextureViewDescriptorComponent<'static>>;
+pub type BeamDepthViewDescriptorComponent = Usage<BeamDepthBuffer, TextureViewDescriptorComponent<'static>>;
+pub type BeamMultisampleViewDescriptorComponent = Usage<BeamMultisample, TextureViewDescriptorComponent<'static>>;
+pub type PhosphorFrontViewDescriptorComponent = Usage<PhosphorFrontBuffer, TextureViewDescriptorComponent<'static>>;
+pub type PhosphorBackViewDescriptorComponent = Usage<PhosphorBackBuffer, TextureViewDescriptorComponent<'static>>;
 
 pub type BeamBufferViewComponent = Usage<BeamBuffer, TextureViewComponent>;
 pub type BeamDepthBufferViewComponent = Usage<BeamDepthBuffer, TextureViewComponent>;

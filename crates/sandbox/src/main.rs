@@ -4,8 +4,16 @@
 //
 // TODO: [✓] Finish porting phosphor demo
 //
-// TODO: [ ] Refactor prepare function to avoid unnecessary resource creation
+// TODO: [✓] Refactor prepare function to avoid unnecessary resource creation
 //           * Split into specific sub-functions to ease maintenance
+//
+// TODO: [ ] Split texture and view components for phosphor demo
+//
+// TODO: [ ] Refactor wgpu types to remove usage generics
+//
+// TODO: [ ] Finish generalized compute pipeline dispatch
+//
+// TODO: [ ] Implement generalized render pipeline dispatch
 //
 // TODO: [ ] Implement filesystem thread map loading / building
 //           * Need to figure out how to update buffer offsets from entities created off-thread

@@ -389,7 +389,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             },
         ))
         .build();
-    let line_instance_entity = world.spawn(bundle);
+    let _line_instance_entity = world.spawn(bundle);
 
     // Total time entity
     let mut builder = EntityBuilder::new();
@@ -448,6 +448,176 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         ))
         .build();
     let _orthographic_entity = world.spawn(bundle);
+
+    // Beam buffer texture
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(BeamBuffer)
+        .add_bundle(antigen_wgpu::TextureBundle::<BeamBuffer>::new(
+            TextureDescriptor {
+                label: Some("Beam Buffer"),
+                size: Extent3d {
+                    width: 640,
+                    height: 480,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: HDR_TEXTURE_FORMAT,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            },
+        ))
+        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamBuffer>::new(
+            TextureViewDescriptor {
+                label: Some("Beam Buffer View"),
+                format: None,
+                dimension: None,
+                aspect: TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            },
+        ))
+        .build();
+    let _beam_buffer_entity = world.spawn(bundle);
+
+    // Beam depth buffer
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(BeamDepthBuffer)
+        .add_bundle(antigen_wgpu::TextureBundle::<BeamDepthBuffer>::new(
+            TextureDescriptor {
+                label: Some("Beam Depth Buffer"),
+                size: Extent3d {
+                    width: 640,
+                    height: 480,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 4,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Depth32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT,
+            },
+        ))
+        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamDepthBuffer>::new(
+            TextureViewDescriptor {
+                label: Some("Beam Depth Buffer View"),
+                format: None,
+                dimension: None,
+                aspect: TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            },
+        ))
+        .build();
+    let _beam_depth_buffer_entity = world.spawn(bundle);
+
+    // Beam multisample resolve target
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(BeamMultisample)
+        .add_bundle(antigen_wgpu::TextureBundle::<BeamMultisample>::new(
+            TextureDescriptor {
+                label: Some("Beam Multisample"),
+                size: Extent3d {
+                    width: 640,
+                    height: 480,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 4,
+                dimension: TextureDimension::D2,
+                format: HDR_TEXTURE_FORMAT,
+                usage: TextureUsages::RENDER_ATTACHMENT,
+            },
+        ))
+        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamMultisample>::new(
+            TextureViewDescriptor {
+                label: Some("Beam Multisample View"),
+                format: None,
+                dimension: None,
+                aspect: TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            },
+        ))
+        .build();
+    let _beam_multisample_entity = world.spawn(bundle);
+
+    // Phosphor front buffer
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(PhosphorFrontBuffer)
+        .add_bundle(antigen_wgpu::TextureBundle::<PhosphorFrontBuffer>::new(
+            TextureDescriptor {
+                label: Some("Phosphor Front Buffer"),
+                size: Extent3d {
+                    width: 640,
+                    height: 480,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: HDR_TEXTURE_FORMAT,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            },
+        ))
+        .add_bundle(antigen_wgpu::TextureViewBundle::<PhosphorFrontBuffer>::new(
+            TextureViewDescriptor {
+                label: Some("Phosphor Front Buffer View"),
+                format: None,
+                dimension: None,
+                aspect: TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            },
+        ))
+        .build();
+    let _beam_multisample_entity = world.spawn(bundle);
+
+    // Phosphor back buffer
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(PhosphorBackBuffer)
+        .add_bundle(antigen_wgpu::TextureBundle::<PhosphorBackBuffer>::new(
+            TextureDescriptor {
+                label: Some("Phosphor Back Buffer"),
+                size: Extent3d {
+                    width: 640,
+                    height: 480,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: HDR_TEXTURE_FORMAT,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            },
+        ))
+        .add_bundle(antigen_wgpu::TextureViewBundle::<PhosphorBackBuffer>::new(
+            TextureViewDescriptor {
+                label: Some("Phosphor Back Buffer View"),
+                format: None,
+                dimension: None,
+                aspect: TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            },
+        ))
+        .build();
+    let _beam_multisample_entity = world.spawn(bundle);
 
     // Assemble window
     let mut builder = EntityBuilder::new();
@@ -525,147 +695,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     builder.add(PhosphorRenderer);
 
-    // Textures
-    builder
-        .add_bundle(antigen_wgpu::TextureBundle::<BeamBuffer>::new(
-            TextureDescriptor {
-                label: Some("Beam Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureBundle::<BeamDepthBuffer>::new(
-            TextureDescriptor {
-                label: Some("Beam Depth Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 4,
-                dimension: TextureDimension::D2,
-                format: TextureFormat::Depth32Float,
-                usage: TextureUsages::RENDER_ATTACHMENT,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureBundle::<BeamMultisample>::new(
-            TextureDescriptor {
-                label: Some("Beam Multisample"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 4,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureBundle::<PhosphorFrontBuffer>::new(
-            TextureDescriptor {
-                label: Some("Phosphor Front Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureBundle::<PhosphorBackBuffer>::new(
-            TextureDescriptor {
-                label: Some("Phosphor Back Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-            },
-        ));
-
     // Texture views
-    builder
-        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamBuffer>::new(
-            TextureViewDescriptor {
-                label: Some("Beam Buffer View"),
-                format: None,
-                dimension: None,
-                aspect: TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamDepthBuffer>::new(
-            TextureViewDescriptor {
-                label: Some("Beam Depth Buffer View"),
-                format: None,
-                dimension: None,
-                aspect: TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamMultisample>::new(
-            TextureViewDescriptor {
-                label: Some("Beam Multisample View"),
-                format: None,
-                dimension: None,
-                aspect: TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<PhosphorFrontBuffer>::new(
-            TextureViewDescriptor {
-                label: Some("Phosphor Front Buffer View"),
-                format: None,
-                dimension: None,
-                aspect: TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            },
-        ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<PhosphorBackBuffer>::new(
-            TextureViewDescriptor {
-                label: Some("Phosphor Back Buffer View"),
-                format: None,
-                dimension: None,
-                aspect: TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            },
-        ));
-
     // Phosphor sampler
     builder.add_bundle(antigen_wgpu::SamplerBundle::<Linear>::new(
         SamplerDescriptor {
@@ -679,8 +709,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             ..Default::default()
         },
     ));
-
-    // Buffer data
 
     // Misc
     builder
