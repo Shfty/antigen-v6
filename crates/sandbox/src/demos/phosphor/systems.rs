@@ -417,7 +417,7 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
         let window = if let Some(window) = window.get() {
             window
         } else {
-            return;
+            continue;
         };
 
         let mut query = surface_config.get(world);
@@ -434,11 +434,11 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
             {
                 (window_id, position)
             } else {
-                return;
+                continue;
             };
 
         if window.id() != *window_id {
-            return;
+            continue;
         }
 
         let norm_x = ((position.x as f32 / surface_config.width as f32) * 2.0) - 1.0;

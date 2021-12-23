@@ -78,11 +78,11 @@ pub fn reconfigure_surfaces_system(world: &mut World) {
         let surface = if let LazyComponent::Ready(surface) = &*surface {
             surface
         } else {
-            return;
+            continue;
         };
 
         if !surface_config.get_changed() {
-            return;
+            continue;
         }
 
         if surface_config.width > 0 && surface_config.height > 0 {
@@ -189,11 +189,11 @@ pub fn surface_texture_view_drop_system(world: &mut World) {
     )>();
     for (_, (surface_texture, texture_view)) in query.into_iter() {
         if !surface_texture.get_changed() {
-            return;
+            continue;
         }
 
         if surface_texture.is_some() {
-            return;
+            continue;
         }
 
         println!("Dropping texture view for surface texture {:?}", surface_texture);
@@ -233,7 +233,7 @@ pub fn create_shader_modules_spirv_system<T: Send + Sync + 'static>(world: &mut 
     )>();
     for (_, (shader_module_desc, shader_module)) in query.into_iter() {
         if !shader_module.is_pending() && !shader_module_desc.get_changed() {
-            return;
+            continue;
         }
 
         let mut query = world.query::<&DeviceComponent>();
@@ -257,7 +257,7 @@ pub fn create_buffers_system<T: Send + Sync + 'static>(world: &mut World) {
 
     for (_, (buffer_descriptor, buffer)) in query.into_iter() {
         if !buffer.is_pending() && !buffer_descriptor.get_changed() {
-            return;
+            continue;
         }
 
         let mut query = world.query::<&DeviceComponent>();
@@ -279,7 +279,7 @@ pub fn create_buffers_init_system<T: Send + Sync + 'static>(world: &mut World) {
 
     for (_, (buffer_init_descriptor, buffer)) in query.into_iter() {
         if !buffer.is_pending() && !buffer_init_descriptor.get_changed() {
-            return;
+            continue;
         }
 
         let mut query = world.query::<&DeviceComponent>();
@@ -301,7 +301,7 @@ pub fn create_textures_system<T: Send + Sync + 'static>(world: &mut World) {
 
     for (_, (texture_descriptor_component, texture)) in query.into_iter() {
         if !texture.is_pending() && !texture_descriptor_component.get_changed() {
-            return;
+            continue;
         }
 
         let texture_descriptor = texture_descriptor_component;
@@ -309,7 +309,7 @@ pub fn create_textures_system<T: Send + Sync + 'static>(world: &mut World) {
             || texture_descriptor.size.height == 0
             || texture_descriptor.size.depth_or_array_layers == 0
         {
-            return;
+            continue;
         }
 
         let mut query = world.query::<&DeviceComponent>();
@@ -333,13 +333,13 @@ pub fn create_texture_views_system<T: Send + Sync + 'static>(world: &mut World) 
 
     for (_, (texture, texture_view_descriptor, texture_view)) in query.into_iter() {
         if !texture_view.is_pending() && !texture_view_descriptor.get_changed() {
-            return;
+            continue;
         }
 
         let texture = if let LazyComponent::Ready(texture) = &**texture {
             texture
         } else {
-            return;
+            continue;
         };
 
         texture_view.set_ready(texture.create_view(&texture_view_descriptor));
@@ -359,7 +359,7 @@ pub fn create_samplers_system<T: Send + Sync + 'static>(world: &mut World) {
 
     for (_, (sampler_descriptor, sampler)) in query.into_iter() {
         if !sampler.is_pending() && !sampler_descriptor.get_changed() {
-            return;
+            continue;
         }
 
         let mut query = world.query::<&DeviceComponent>();
@@ -402,7 +402,7 @@ pub fn buffer_write_system<
             let buffer = if let LazyComponent::Ready(buffer) = &**buffer {
                 buffer
             } else {
-                return;
+                continue;
             };
 
             let bytes = data_component.to_bytes();
@@ -448,7 +448,7 @@ where
             let texture = if let LazyComponent::Ready(texture) = &**texture_component {
                 texture
             } else {
-                return;
+                continue;
             };
 
             let bytes = texels_component.to_bytes();
@@ -487,7 +487,7 @@ pub fn submit_command_buffers_system(world: &mut World) {
         let (_, queue) = if let Some(queue) = query.into_iter().next() {
             queue
         } else {
-            return;
+            continue;
         };
 
         println!("Submitting command buffers: {:?}", command_buffers);
