@@ -117,54 +117,6 @@ impl WindowSurfaceBundle {
 }
 
 #[derive(hecs::Bundle)]
-pub struct PipelineLayoutBundle<U>(Usage<U, PipelineLayoutComponent>);
-
-impl<U> Default for PipelineLayoutBundle<U> {
-    fn default() -> Self {
-        PipelineLayoutBundle(U::as_usage(PipelineLayoutComponent::default()))
-    }
-}
-
-#[derive(hecs::Bundle)]
-pub struct RenderPipelineBundle<U>(Usage<U, RenderPipelineComponent>);
-
-impl<U> Default for RenderPipelineBundle<U> {
-    fn default() -> Self {
-        RenderPipelineBundle(U::as_usage(RenderPipelineComponent::default()))
-    }
-}
-
-#[derive(hecs::Bundle)]
-pub struct RenderBundleBundle<U>(Usage<U, RenderBundleComponent>);
-
-impl<U> Default for RenderBundleBundle<U> {
-    fn default() -> Self {
-        RenderBundleBundle(U::as_usage(RenderBundleComponent::default()))
-    }
-}
-
-#[derive(hecs::Bundle)]
-pub struct BindGroupLayoutBundle<U>(Usage<U, BindGroupLayoutComponent>);
-
-impl<U> Default for BindGroupLayoutBundle<U> {
-    fn default() -> Self {
-        BindGroupLayoutBundle(U::as_usage(BindGroupLayoutComponent::default()))
-    }
-}
-
-#[derive(hecs::Bundle)]
-pub struct BindGroupBundle<U>(Usage<U, BindGroupComponent>);
-
-impl<U> Default for BindGroupBundle<U> {
-    fn default() -> Self {
-        BindGroupBundle(U::as_usage(BindGroupComponent::default()))
-    }
-}
-
-#[derive(Default, hecs::Bundle)]
-pub struct CommandBuffersBundle(CommandBuffersComponent);
-
-#[derive(hecs::Bundle)]
 pub struct ShaderModuleBundle {
     descriptor: ShaderModuleDescriptorComponent<'static>,
     shader: ShaderModuleComponent,
@@ -237,7 +189,7 @@ impl BufferInitBundle {
 pub struct BufferDataBundle<T> {
     data: Changed<T>,
     buffer_write: BufferWriteComponent<T>,
-    buffer_entity: Usage<BufferWriteComponent<T>, Indirect<BufferComponent>>,
+    buffer_entity: Usage<BufferWriteComponent<T>, Indirect<&'static BufferComponent>>,
 }
 
 impl<T> BufferDataBundle<T> {
@@ -245,7 +197,7 @@ impl<T> BufferDataBundle<T> {
         let data = Changed::<T>::construct(data).with(ChangedFlag(true));
         let buffer_write = BufferWriteComponent::<T>::new(offset);
         let buffer_entity = BufferWriteComponent::<T>::as_usage(
-            Indirect::<BufferComponent>::construct(buffer_entity),
+            Indirect::<&BufferComponent>::construct(buffer_entity),
         );
         BufferDataBundle {
             data,
@@ -256,15 +208,14 @@ impl<T> BufferDataBundle<T> {
 }
 
 #[derive(hecs::Bundle)]
-pub struct TextureBundle<U> {
-    descriptor: Usage<U, TextureDescriptorComponent<'static>>,
-    texture: Usage<U, TextureComponent>,
+pub struct TextureBundle {
+    descriptor: TextureDescriptorComponent<'static>,
+    texture: TextureComponent,
 }
 
-impl<U> TextureBundle<U> {
+impl TextureBundle {
     pub fn new(descriptor: TextureDescriptor<'static>) -> Self {
-        let descriptor =
-            U::as_usage(TextureDescriptorComponent::construct(descriptor).with(ChangedFlag(true)));
+        let descriptor = TextureDescriptorComponent::construct(descriptor).with(ChangedFlag(true));
         TextureBundle {
             descriptor,
             texture: Default::default(),
@@ -273,12 +224,13 @@ impl<U> TextureBundle<U> {
 }
 
 #[derive(hecs::Bundle)]
-pub struct TextureDataBundle<U, T> {
+pub struct TextureDataBundle<T> {
     data: Changed<T>,
-    texture_write: Usage<U, TextureWriteComponent<T>>,
+    texture_write: TextureWriteComponent<T>,
+    texture_entity: Usage<TextureWriteComponent<T>, Indirect<&'static TextureComponent>>,
 }
 
-impl<U, T> TextureDataBundle<U, T>
+impl<T> TextureDataBundle<T>
 where
     T: Component,
 {
@@ -286,30 +238,31 @@ where
         data: T,
         image_copy_texture: ImageCopyTextureBase<()>,
         image_data_layout: ImageDataLayout,
+        texture_entity: Entity,
     ) -> Self {
         let data = Changed::<T>::construct(data).with(ChangedFlag(true));
-        let texture_write = U::as_usage(TextureWriteComponent::<T>::new(
-            image_copy_texture,
-            image_data_layout,
-        ));
+        let texture_write = TextureWriteComponent::<T>::new(image_copy_texture, image_data_layout);
+        let texture_entity = TextureWriteComponent::<T>::as_usage(
+            Indirect::<&TextureComponent>::construct(texture_entity),
+        );
         TextureDataBundle {
             data,
             texture_write,
+            texture_entity,
         }
     }
 }
 
 #[derive(hecs::Bundle)]
-pub struct TextureViewBundle<U> {
-    descriptor: Usage<U, TextureViewDescriptorComponent<'static>>,
-    texture_view: Usage<U, TextureViewComponent>,
+pub struct TextureViewBundle {
+    descriptor: TextureViewDescriptorComponent<'static>,
+    texture_view: TextureViewComponent,
 }
 
-impl<U> TextureViewBundle<U> {
+impl TextureViewBundle {
     pub fn new(descriptor: TextureViewDescriptor<'static>) -> Self {
-        let descriptor = U::as_usage(
-            TextureViewDescriptorComponent::construct(descriptor).with(ChangedFlag(true)),
-        );
+        let descriptor =
+            TextureViewDescriptorComponent::construct(descriptor).with(ChangedFlag(true));
         TextureViewBundle {
             descriptor,
             texture_view: Default::default(),
@@ -318,15 +271,14 @@ impl<U> TextureViewBundle<U> {
 }
 
 #[derive(hecs::Bundle)]
-pub struct SamplerBundle<U> {
-    descriptor: Usage<U, SamplerDescriptorComponent<'static>>,
-    sampler: Usage<U, SamplerComponent>,
+pub struct SamplerBundle {
+    descriptor: SamplerDescriptorComponent<'static>,
+    sampler: SamplerComponent,
 }
 
-impl<U> SamplerBundle<U> {
+impl SamplerBundle {
     pub fn new(descriptor: SamplerDescriptor<'static>) -> Self {
-        let descriptor =
-            U::as_usage(SamplerDescriptorComponent::construct(descriptor).with(ChangedFlag(false)));
+        let descriptor = SamplerDescriptorComponent::construct(descriptor).with(ChangedFlag(false));
         SamplerBundle {
             descriptor,
             sampler: Default::default(),

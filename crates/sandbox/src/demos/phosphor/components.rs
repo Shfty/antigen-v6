@@ -55,8 +55,6 @@ pub enum MeshIndexCount {}
 pub enum LineIndexCount {}
 
 // Usage-tagged components
-pub type PositionComponent = Usage<Position, (f32, f32)>;
-
 pub type StartTimeComponent = Usage<StartTime, Instant>;
 pub type TimestampComponent = Usage<Timestamp, Instant>;
 pub type TotalTimeComponent = Usage<TotalTime, f32>;
@@ -77,26 +75,6 @@ pub struct UniformData {
     _pad: [f32; 2],
 }
 
-pub type BeamBufferDescriptorComponent = Usage<BeamBuffer, TextureDescriptorComponent<'static>>;
-pub type BeamDepthDescriptorComponent = Usage<BeamDepthBuffer, TextureDescriptorComponent<'static>>;
-pub type BeamMultisampleDescriptorComponent = Usage<BeamMultisample, TextureDescriptorComponent<'static>>;
-pub type PhosphorFrontDescriptorComponent = Usage<PhosphorFrontBuffer, TextureDescriptorComponent<'static>>;
-pub type PhosphorBackDescriptorComponent = Usage<PhosphorBackBuffer, TextureDescriptorComponent<'static>>;
-
-pub type BeamBufferViewDescriptorComponent = Usage<BeamBuffer, TextureViewDescriptorComponent<'static>>;
-pub type BeamDepthViewDescriptorComponent = Usage<BeamDepthBuffer, TextureViewDescriptorComponent<'static>>;
-pub type BeamMultisampleViewDescriptorComponent = Usage<BeamMultisample, TextureViewDescriptorComponent<'static>>;
-pub type PhosphorFrontViewDescriptorComponent = Usage<PhosphorFrontBuffer, TextureViewDescriptorComponent<'static>>;
-pub type PhosphorBackViewDescriptorComponent = Usage<PhosphorBackBuffer, TextureViewDescriptorComponent<'static>>;
-
-pub type BeamBufferViewComponent = Usage<BeamBuffer, TextureViewComponent>;
-pub type BeamDepthBufferViewComponent = Usage<BeamDepthBuffer, TextureViewComponent>;
-pub type BeamMultisampleViewComponent = Usage<BeamMultisample, TextureViewComponent>;
-pub type PhosphorFrontBufferViewComponent = Usage<PhosphorFrontBuffer, TextureViewComponent>;
-pub type PhosphorBackBufferViewComponent = Usage<PhosphorBackBuffer, TextureViewComponent>;
-
-pub type LinearSamplerComponent = Usage<Linear, SamplerComponent>;
-
 pub type OriginComponent = Usage<Origin, (f32, f32, f32)>;
 
 #[repr(C)]
@@ -105,8 +83,6 @@ pub struct LineVertexData {
     pub position: [f32; 3],
     pub end: f32,
 }
-
-pub type LineVertexDataComponent =  Vec<LineVertexData>;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
@@ -120,8 +96,6 @@ impl ToBytes for LineInstanceData {
         bytemuck::bytes_of(self)
     }
 }
-
-pub type LineIndexDataComponent =  Vec<u32>;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]

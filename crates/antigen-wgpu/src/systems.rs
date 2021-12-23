@@ -296,11 +296,8 @@ pub fn create_buffers_init_system(world: &mut World) {
 }
 
 /// Create pending usage-tagged textures, recreating them if a Changed flag is set
-pub fn create_textures_system<T: Send + Sync + 'static>(world: &mut World) {
-    let mut query = world.query::<(
-        &Usage<T, TextureDescriptorComponent>,
-        &mut Usage<T, TextureComponent>,
-    )>();
+pub fn create_textures_system(world: &mut World) {
+    let mut query = world.query::<(&TextureDescriptorComponent, &mut TextureComponent)>();
 
     for (_, (texture_descriptor_component, texture)) in query.into_iter() {
         if !texture.is_pending() && !texture_descriptor_component.get_changed() {
@@ -322,16 +319,16 @@ pub fn create_textures_system<T: Send + Sync + 'static>(world: &mut World) {
 
         texture_descriptor_component.set_changed(false);
 
-        println!("Created texture: {:#?}", ***texture_descriptor);
+        println!("Created texture: {:#?}", **texture_descriptor);
     }
 }
 
 /// Create pending usage-tagged texture views, recreating them if a Changed flag is set
-pub fn create_texture_views_system<T: Send + Sync + 'static>(world: &mut World) {
+pub fn create_texture_views_system(world: &mut World) {
     let mut query = world.query::<(
-        &Usage<T, TextureComponent>,
-        &Usage<T, TextureViewDescriptorComponent<'static>>,
-        &mut Usage<T, TextureViewComponent>,
+        &TextureComponent,
+        &TextureViewDescriptorComponent<'static>,
+        &mut TextureViewComponent,
     )>();
 
     for (_, (texture, texture_view_descriptor, texture_view)) in query.into_iter() {
@@ -339,7 +336,7 @@ pub fn create_texture_views_system<T: Send + Sync + 'static>(world: &mut World) 
             continue;
         }
 
-        let texture = if let LazyComponent::Ready(texture) = &**texture {
+        let texture = if let LazyComponent::Ready(texture) = &*texture {
             texture
         } else {
             continue;
@@ -349,15 +346,15 @@ pub fn create_texture_views_system<T: Send + Sync + 'static>(world: &mut World) 
 
         texture_view_descriptor.set_changed(false);
 
-        println!("Created texture view: {:#?}", ***texture_view_descriptor);
+        println!("Created texture view: {:#?}", **texture_view_descriptor);
     }
 }
 
 /// Create pending usage-tagged samplers, recreating them if a Changed flag is set
-pub fn create_samplers_system<T: Send + Sync + 'static>(world: &mut World) {
+pub fn create_samplers_system<>(world: &mut World) {
     let mut query = world.query::<(
-        &Usage<T, SamplerDescriptorComponent>,
-        &mut Usage<T, SamplerComponent>,
+        &SamplerDescriptorComponent,
+        &mut SamplerComponent,
     )>();
 
     for (_, (sampler_descriptor, sampler)) in query.into_iter() {
@@ -371,7 +368,7 @@ pub fn create_samplers_system<T: Send + Sync + 'static>(world: &mut World) {
 
         sampler_descriptor.set_changed(false);
 
-        println!("Created sampler: {:#?}", ***sampler_descriptor);
+        println!("Created sampler: {:#?}", **sampler_descriptor);
     }
 }
 
@@ -387,7 +384,7 @@ pub fn buffer_write_system<T: ToBytes + Send + Sync + 'static>(world: &mut World
     let mut query = world.query::<(
         &BufferWriteComponent<T>,
         &Changed<T>,
-        &Usage<BufferWriteComponent<T>, Indirect<BufferComponent>>,
+        &Usage<BufferWriteComponent<T>, Indirect<&BufferComponent>>,
     )>();
 
     for (_, (buffer_write, data_component, buffer)) in query.into_iter() {
@@ -424,11 +421,9 @@ pub fn buffer_write_system<T: ToBytes + Send + Sync + 'static>(world: &mut World
 }
 
 // Write data to texture
-pub fn texture_write_system<T, L, V>(world: &mut World)
+pub fn texture_write_system<T>(world: &mut World)
 where
-    T: Send + Sync + 'static,
-    L: Deref<Target = V> + Send + Sync + 'static,
-    V: ToBytes,
+    T: ToBytes + Send + Sync + 'static,
 {
     let mut query = world.query::<&QueueComponent>();
     let (_, queue) = if let Some(queue) = query.into_iter().next() {
@@ -438,17 +433,23 @@ where
     };
 
     let mut query = world.query::<(
-        &Usage<T, TextureWriteComponent<L>>,
-        &Changed<L>,
-        &Usage<T, TextureDescriptorComponent>,
-        &Usage<T, TextureComponent>,
+        &TextureWriteComponent<T>,
+        &Changed<T>,
+        &Usage<TextureWriteComponent<T>, Indirect<(&TextureDescriptorComponent, &TextureComponent)>>,
     )>();
 
-    for (_, (texture_write, texels_component, texture_descriptor_component, texture_component)) in
-        query.into_iter()
-    {
+    for (_, (texture_write, texels_component, texture)) in query.into_iter() {
+        let texture_entity = texture.entity();
+        let mut query = texture.get(world);
+        let (texture_desc, texture) = query.get().unwrap_or_else(|| {
+            panic!(
+                "No buffer component for data {}",
+                std::any::type_name::<T>()
+            )
+        });
+
         if texels_component.get_changed() {
-            let texture = if let LazyComponent::Ready(texture) = &**texture_component {
+            let texture = if let LazyComponent::Ready(texture) = texture {
                 texture
             } else {
                 continue;
@@ -473,7 +474,7 @@ where
                 },
                 bytes,
                 *image_data_layout,
-                texture_descriptor_component.size,
+                texture_desc.size,
             );
 
             texels_component.set_changed(false);

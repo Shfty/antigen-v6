@@ -7,13 +7,10 @@ use antigen_wgpu::{
         SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension, VertexState,
     },
     BindGroupComponent, BindGroupLayoutComponent, DeviceComponent, RenderPipelineComponent,
-    ShaderModuleComponent,
+    SamplerComponent, ShaderModuleComponent, TextureViewComponent,
 };
 
-use crate::demos::phosphor::{
-    BeamBufferViewComponent, BufferFlipFlopComponent, LinearSamplerComponent,
-    PhosphorBackBufferViewComponent, PhosphorFrontBufferViewComponent, HDR_TEXTURE_FORMAT,
-};
+use crate::demos::phosphor::{BufferFlipFlopComponent, HDR_TEXTURE_FORMAT};
 
 pub fn phosphor_prepare_phosphor_decay(
     device: &DeviceComponent,
@@ -23,10 +20,10 @@ pub fn phosphor_prepare_phosphor_decay(
     phosphor_decay_pipeline: &mut RenderPipelineComponent,
     uniform_bind_group_layout: &BindGroupLayoutComponent,
     phosphor_decay_shader: &ShaderModuleComponent,
-    linear_sampler: &LinearSamplerComponent,
-    beam_buffer_view: &BeamBufferViewComponent,
-    phosphor_front_buffer_view: &PhosphorFrontBufferViewComponent,
-    phosphor_back_buffer_view: &PhosphorBackBufferViewComponent,
+    linear_sampler: &SamplerComponent,
+    beam_buffer_view: &TextureViewComponent,
+    phosphor_front_buffer_view: &TextureViewComponent,
+    phosphor_back_buffer_view: &TextureViewComponent,
 ) -> Option<()> {
     let uniform_bind_group_layout = uniform_bind_group_layout.get()?;
     let phosphor_decay_shader = phosphor_decay_shader.get()?;
@@ -157,8 +154,8 @@ pub fn phosphor_prepare_phosphor_decay(
 pub fn phosphor_render_phosphor_decay(
     encoder: &mut CommandEncoder,
     buffer_flip_flop: &BufferFlipFlopComponent,
-    phosphor_front_view: &PhosphorFrontBufferViewComponent,
-    phosphor_back_view: &PhosphorBackBufferViewComponent,
+    phosphor_front_view: &TextureViewComponent,
+    phosphor_back_view: &TextureViewComponent,
     phosphor_decay_pipeline: &RenderPipelineComponent,
     uniform_bind_group: &BindGroupComponent,
     front_bind_group: &BindGroupComponent,

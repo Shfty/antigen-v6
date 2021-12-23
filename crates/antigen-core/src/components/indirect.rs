@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-use hecs::{Component, Entity, QueryOne, World};
+use hecs::{Component, Entity, Fetch, Query, QueryOne, World};
 
-use crate::{Construct, peano::Z};
+use crate::{peano::Z, Construct};
 
 pub struct Indirect<T> {
     entity: Entity,
-    _phantom: PhantomData<T>
+    _phantom: PhantomData<T>,
 }
 
 impl<T> Construct<Entity, Z> for Indirect<T> {
@@ -18,24 +18,19 @@ impl<T> Construct<Entity, Z> for Indirect<T> {
     }
 }
 
-impl<T> Indirect<T> where T: Component {
-    pub fn get<'a>(&self, world: &'a World) -> QueryOne<'a, &T> {
-        world.query_one::<&T>(self.entity).unwrap()
-    }
-
-    pub fn get_mut<'a>(&self, world: &'a World) -> QueryOne<'a, &mut T> {
-        world.query_one::<&mut T>(self.entity).unwrap()
-    }
-
-    pub fn get_unique<'a>(&self, world: &'a mut World) -> &'a T {
-        world.query_one_mut::<&T>(self.entity).unwrap()
-    }
-
-    pub fn get_unique_mut<'a>(&self, world: &'a mut World) -> &'a mut T {
-        world.query_one_mut::<&mut T>(self.entity).unwrap()
-    }
-
+impl<T> Indirect<T>
+where
+    T: Query + Component,
+{
     pub fn entity(&self) -> Entity {
         self.entity
+    }
+
+    pub fn get<'a>(&self, world: &'a World) -> QueryOne<'a, T> {
+        world.query_one::<T>(self.entity).unwrap()
+    }
+
+    pub fn get_mut<'a>(&self, world: &'a mut World) -> <<T as Query>::Fetch as Fetch<'a>>::Item {
+        world.query_one_mut::<T>(self.entity).unwrap()
     }
 }

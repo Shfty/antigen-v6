@@ -453,7 +453,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(BeamBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::<BeamBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureBundle::new(
             TextureDescriptor {
                 label: Some("Beam Buffer"),
                 size: Extent3d {
@@ -468,7 +468,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
             },
         ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Beam Buffer View"),
                 format: None,
@@ -487,7 +487,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(BeamDepthBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::<BeamDepthBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureBundle::new(
             TextureDescriptor {
                 label: Some("Beam Depth Buffer"),
                 size: Extent3d {
@@ -502,7 +502,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 usage: TextureUsages::RENDER_ATTACHMENT,
             },
         ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamDepthBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Beam Depth Buffer View"),
                 format: None,
@@ -521,7 +521,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(BeamMultisample)
-        .add_bundle(antigen_wgpu::TextureBundle::<BeamMultisample>::new(
+        .add_bundle(antigen_wgpu::TextureBundle::new(
             TextureDescriptor {
                 label: Some("Beam Multisample"),
                 size: Extent3d {
@@ -536,7 +536,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 usage: TextureUsages::RENDER_ATTACHMENT,
             },
         ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<BeamMultisample>::new(
+        .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Beam Multisample View"),
                 format: None,
@@ -555,7 +555,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(PhosphorFrontBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::<PhosphorFrontBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureBundle::new(
             TextureDescriptor {
                 label: Some("Phosphor Front Buffer"),
                 size: Extent3d {
@@ -570,7 +570,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
             },
         ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<PhosphorFrontBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Phosphor Front Buffer View"),
                 format: None,
@@ -589,7 +589,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(PhosphorBackBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::<PhosphorBackBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureBundle::new(
             TextureDescriptor {
                 label: Some("Phosphor Back Buffer"),
                 size: Extent3d {
@@ -604,7 +604,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
             },
         ))
-        .add_bundle(antigen_wgpu::TextureViewBundle::<PhosphorBackBuffer>::new(
+        .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Phosphor Back Buffer View"),
                 format: None,
@@ -697,7 +697,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     // Texture views
     // Phosphor sampler
-    builder.add_bundle(antigen_wgpu::SamplerBundle::<Linear>::new(
+    builder.add_bundle(antigen_wgpu::SamplerBundle::new(
         SamplerDescriptor {
             label: Some("Linear Sampler"),
             address_mode_u: AddressMode::ClampToEdge,
@@ -712,17 +712,17 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     // Misc
     builder
-        .add_bundle(antigen_wgpu::CommandBuffersBundle::default())
+        .add(antigen_wgpu::CommandBuffersComponent::default())
         .add(BufferFlipFlopComponent::construct(false))
         // Indirect surface config and view for resize handling
-        .add(Indirect::<SurfaceConfigurationComponent>::construct(
+        .add(Indirect::<&SurfaceConfigurationComponent>::construct(
             window_entity,
         ))
-        .add(Indirect::<RenderAttachmentTextureView>::construct(
+        .add(Indirect::<&RenderAttachmentTextureView>::construct(
             window_entity,
         ))
         // Indirect window for input handling
-        .add(Indirect::<WindowComponent>::construct(window_entity));
+        .add(Indirect::<&WindowComponent>::construct(window_entity));
 
     // Assemble geometry
     let mut vertex_head = 0;
@@ -1240,27 +1240,9 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         {
             antigen_wgpu::create_shader_modules_system(world);
             antigen_wgpu::create_buffers_system(world);
-            {
-                antigen_wgpu::create_textures_system::<BeamBuffer>(world);
-                antigen_wgpu::create_texture_views_system::<BeamBuffer>(world);
-            }
-            {
-                antigen_wgpu::create_textures_system::<BeamDepthBuffer>(world);
-                antigen_wgpu::create_texture_views_system::<BeamDepthBuffer>(world);
-            }
-            {
-                antigen_wgpu::create_textures_system::<BeamMultisample>(world);
-                antigen_wgpu::create_texture_views_system::<BeamMultisample>(world);
-            }
-            {
-                antigen_wgpu::create_textures_system::<PhosphorFrontBuffer>(world);
-                antigen_wgpu::create_texture_views_system::<PhosphorFrontBuffer>(world);
-            }
-            {
-                antigen_wgpu::create_textures_system::<PhosphorBackBuffer>(world);
-                antigen_wgpu::create_texture_views_system::<PhosphorBackBuffer>(world);
-            }
-            antigen_wgpu::create_samplers_system::<Linear>(world);
+            antigen_wgpu::create_textures_system(world);
+            antigen_wgpu::create_texture_views_system(world);
+            antigen_wgpu::create_samplers_system(world);
         }
         //parallel
         {

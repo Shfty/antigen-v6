@@ -10,11 +10,10 @@ use antigen_wgpu::{
         VertexState, VertexStepMode,
     },
     BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
-    RenderPipelineComponent, ShaderModuleComponent,
+    RenderPipelineComponent, ShaderModuleComponent, TextureViewComponent,
 };
 
 use crate::demos::phosphor::{
-    BeamBufferViewComponent, BeamDepthBufferViewComponent, BeamMultisampleViewComponent,
     LineInstanceData, LineVertexData, MeshVertexData, CLEAR_COLOR, HDR_TEXTURE_FORMAT,
 };
 
@@ -244,9 +243,9 @@ pub fn phosphor_prepare_beam_line(
 
 pub fn phosphor_render_beam_meshes(
     encoder: &mut CommandEncoder,
-    beam_multisample_view: &BeamMultisampleViewComponent,
-    beam_buffer_view: &BeamBufferViewComponent,
-    beam_depth_view: &BeamDepthBufferViewComponent,
+    beam_multisample_view: &TextureViewComponent,
+    beam_buffer_view: &TextureViewComponent,
+    beam_depth_view: &TextureViewComponent,
     beam_mesh_pipeline: &RenderPipelineComponent,
     mesh_vertex_buffer: &BufferComponent,
     mesh_index_buffer: &BufferComponent,
@@ -299,9 +298,9 @@ pub fn phosphor_render_beam_meshes(
 
 pub fn phosphor_render_beam_lines(
     encoder: &mut CommandEncoder,
-    beam_multisample_view: &BeamMultisampleViewComponent,
-    beam_buffer_view: &BeamBufferViewComponent,
-    beam_depth_view: &BeamDepthBufferViewComponent,
+    beam_multisample_view: &TextureViewComponent,
+    beam_buffer_view: &TextureViewComponent,
+    beam_depth_view: &TextureViewComponent,
     beam_line_pipeline: &RenderPipelineComponent,
     line_vertex_buffer: &BufferComponent,
     line_instance_buffer: &BufferComponent,
