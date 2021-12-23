@@ -1,7 +1,7 @@
 mod assemblage;
 mod components;
 //mod staging_belt;
-//mod compute_pass;
+mod compute_pass;
 mod systems;
 mod to_bytes;
 
@@ -19,7 +19,7 @@ use antigen_winit::{
 pub use assemblage::*;
 pub use components::*;
 //pub use staging_belt::*;
-//pub use compute_pass::*;
+pub use compute_pass::*;
 use hecs::World;
 pub use systems::*;
 pub use to_bytes::*;

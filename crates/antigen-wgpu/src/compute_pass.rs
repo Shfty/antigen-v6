@@ -1,15 +1,19 @@
-// TEST: Compute pass automation
-pub enum PushConstant {}
-pub type PushConstantComponent = Usage<PushConstant, (u32, Vec<u8>)>;
+use antigen_core::{AsUsage, Construct, Indirect, Usage};
+use hecs::{Entity, EntityBuilder, World};
+use wgpu::{BufferAddress, CommandEncoderDescriptor, ComputePassDescriptor, DynamicOffset};
 
+use crate::{BindGroupComponent, ComputePipelineComponent, DeviceComponent, PushConstantQuery};
+
+// TEST: Compute pass automation
 pub enum ComputePass {}
 
 pub type ComputePassLabelComponent = Usage<ComputePass, String>;
-pub type ComputePassPipelineComponent = Usage<ComputePass, Indirect<ComputePipelineComponent>>;
+pub type ComputePassPipelineComponent =
+    Usage<ComputePass, Indirect<&'static ComputePipelineComponent>>;
 pub type ComputePassBindGroupsComponent =
-    Usage<ComputePass, Vec<(Indirect<BindGroupComponent>, Vec<DynamicOffset>)>>;
+    Usage<ComputePass, Vec<(Indirect<&'static BindGroupComponent>, Vec<DynamicOffset>)>>;
 pub type ComputePassPushConstantsComponent =
-    Usage<ComputePass, Vec<Indirect<PushConstantComponent>>>;
+    Usage<ComputePass, Vec<Indirect<PushConstantQuery<'static>>>>;
 pub type ComputePassDispatchComponent = Usage<ComputePass, (u32, u32, u32)>;
 
 #[derive(hecs::Bundle)]
@@ -23,18 +27,35 @@ impl ComputePassBundle {
     pub fn builder(
         label: Option<String>,
         pipeline_entity: Entity,
-        bind_group_entities: Vec<(Entity, BufferAddress)>,
+        bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
         push_constant_entities: Vec<Entity>,
         dispatch: (u32, u32, u32),
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let pipeline = Indirect::construct(pipeline_entity);
+        if let Some(label) = label {
+            builder.add(ComputePassLabelComponent::construct(label));
+        }
 
-        let bind_groups = bind_group_entities
-            .into_iter()
-            .map(|(entity, offset)| (Indirect::construct(entity), offset))
-            .collect::<Vec<_>>();
+        let pipeline = ComputePass::as_usage(Indirect::construct(pipeline_entity));
+
+        let bind_groups = ComputePass::as_usage(
+            bind_group_entities
+                .into_iter()
+                .map(|(entity, offset)| (Indirect::construct(entity), offset))
+                .collect::<Vec<_>>(),
+        );
+
+        if push_constant_entities.len() > 0 {
+            builder.add(ComputePassPushConstantsComponent::construct(
+                push_constant_entities
+                    .into_iter()
+                    .map(Indirect::construct)
+                    .collect(),
+            ));
+        }
+
+        let dispatch = ComputePass::as_usage(dispatch);
 
         builder.add_bundle(ComputePassBundle {
             pipeline,
@@ -55,7 +76,7 @@ pub struct ComputePassQuery<'a> {
     dispatch: &'a ComputePassDispatchComponent,
 }
 
-pub fn dispatch_compute_pass_system(world: &mut World) -> Option<()> {
+pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
     let mut query = world.query::<&DeviceComponent>();
     let (_, device) = query.into_iter().next()?;
     let device = device.clone();
@@ -123,7 +144,7 @@ pub fn dispatch_compute_pass_system(world: &mut World) -> Option<()> {
         }
 
         for push_constant in push_constants {
-            cpass.set_push_constants(push_constant.0, &push_constant.1);
+            cpass.set_push_constants(**push_constant.offset, &***push_constant.data);
         }
 
         cpass.dispatch(dispatch.0, dispatch.1, dispatch.2);

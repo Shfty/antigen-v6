@@ -285,3 +285,28 @@ impl SamplerBundle {
         }
     }
 }
+
+pub enum PushConstant {}
+pub type PushConstantComponent = Usage<PushConstant, Vec<u8>>;
+pub type PushConstantOffset = Usage<PushConstant, u32>;
+
+#[derive(hecs::Bundle)]
+pub struct PushConstantBundle {
+    data: PushConstantComponent,
+    offset: PushConstantOffset,
+}
+
+impl PushConstantBundle {
+    pub fn new(data: Vec<u8>, offset: u32) -> Self {
+        let data = PushConstant::as_usage(data);
+        let offset = PushConstant::as_usage(offset);
+        PushConstantBundle { data, offset }
+    }
+}
+
+#[derive(hecs::Query)]
+pub struct PushConstantQuery<'a> {
+    pub data: &'a PushConstantComponent,
+    pub offset: &'a PushConstantOffset,
+}
+
