@@ -289,11 +289,10 @@ fn load_map<
 }
 
 pub fn assemble(world: &mut World, channel: &WorldChannel) {
-    let time_entity = world.reserve_entity();
     let window_entity = world.reserve_entity();
     let renderer_entity = world.reserve_entity();
 
-    // Assemble time entity
+    // Total time entity
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(StartTimeComponent::construct(Instant::now()))
@@ -302,6 +301,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             buffer_size_of::<[[f32; 4]; 4]>() * 2,
             renderer_entity,
         ))
+        .build();
+    let _total_time_entity = world.spawn(bundle);
+
+    // Delta time entity
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
         .add(TimestampComponent::construct(Instant::now()))
         .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
             DeltaTimeComponent::construct(1.0 / 60.0),
@@ -309,7 +314,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             renderer_entity,
         ))
         .build();
-    world.insert(time_entity, bundle).unwrap();
+    let _delta_time_entity = world.spawn(bundle);
 
     // Assemble window
     let mut builder = EntityBuilder::new();
