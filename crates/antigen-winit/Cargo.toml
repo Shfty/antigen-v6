@@ -1,0 +1,11 @@
+[package]
+name = "antigen-winit"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+winit = "0.26.0"
+rayon = "1.5.1"
+hecs = { version = "0.7.1", features = ["macros"] }
+
+antigen-core = { path = "../antigen-core" }

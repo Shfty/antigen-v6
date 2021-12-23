@@ -1,0 +1,22 @@
+[package]
+name = "sandbox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hecs = "0.7.1"
+crossbeam-channel = "0.5.1"
+winit = "0.26.0"
+bytemuck = { version = "1.7.3", features = ["derive"] }
+nalgebra = "0.29.0"
+nalgebra-glm = "0.15.0"
+tracing = "0.1.29"
+tracing-subscriber = "0.3.3"
+
+expression = { path = "../../../expression" }
+
+antigen-core = { path = "../antigen-core" }
+antigen-winit = { path = "../antigen-winit" }
+antigen-wgpu = { path = "../antigen-wgpu" }
+antigen-shambler = { path = "../antigen-shambler" }
+antigen-fs = { path = "../antigen-fs" }

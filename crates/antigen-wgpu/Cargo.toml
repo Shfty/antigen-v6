@@ -1,0 +1,14 @@
+[package]
+name = "antigen-wgpu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wgpu = "0.12.0"
+bytemuck = "1.7.3"
+pollster = "0.2.4"
+hecs = {version = "0.7.1", features = ["macros"]}
+
+antigen-core = { path = "../antigen-core" }
+antigen-winit = { path = "../antigen-winit" }
+antigen-fs = { path = "../antigen-fs" }

@@ -1,0 +1,9 @@
+[package]
+name = "antigen-fs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+hecs = { version = "0.7.1", features = ["macros"] }
+
+antigen-core = { path = "../antigen-core" }
