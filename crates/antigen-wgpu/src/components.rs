@@ -1,13 +1,6 @@
 use antigen_core::{Changed, LazyComponent, Usage};
 
-use wgpu::{
-    util::BufferInitDescriptor, Adapter, BindGroup, BindGroupLayout, Buffer, BufferAddress,
-    BufferDescriptor, CommandBuffer, ComputePipeline, Device, ImageCopyTextureBase,
-    ImageDataLayout, Instance, PipelineLayout, Queue, RenderBundle, RenderPipeline, Sampler,
-    SamplerDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV, Surface,
-    SurfaceConfiguration, SurfaceTexture, Texture, TextureDescriptor, TextureView,
-    TextureViewDescriptor,
-};
+use wgpu::{Adapter, BindGroup, BindGroupLayout, Buffer, BufferAddress, BufferDescriptor, CommandBuffer, CommandEncoder, CommandEncoderDescriptor, ComputePipeline, Device, ImageCopyTextureBase, ImageDataLayout, Instance, PipelineLayout, Queue, RenderBundle, RenderPipeline, Sampler, SamplerDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV, Surface, SurfaceConfiguration, SurfaceTexture, Texture, TextureDescriptor, TextureView, TextureViewDescriptor, util::BufferInitDescriptor};
 
 use std::{marker::PhantomData, sync::Arc};
 
@@ -160,3 +153,7 @@ pub enum MeshUvs {}
 
 // Mesh indices usage tag
 pub enum MeshIndices {}
+
+pub type CommandEncoderDescriptorComponent = Changed<CommandEncoderDescriptor<'static>>;
+pub type CommandEncoderComponent = LazyComponent<CommandEncoder>;
+

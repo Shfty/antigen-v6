@@ -37,7 +37,18 @@ impl<T> LazyComponent<T> {
         *self = LazyComponent::Dropped;
     }
 
+    pub fn take(&mut self) -> Self {
+        std::mem::replace(self, LazyComponent::Dropped)
+    }
+
     pub fn get(&self) -> Option<&T> {
+        match self {
+            LazyComponent::Ready(component) => Some(component),
+            _ => None,
+        }
+    }
+
+    pub fn get_mut(&mut self) -> Option<&mut T> {
         match self {
             LazyComponent::Ready(component) => Some(component),
             _ => None,

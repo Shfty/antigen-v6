@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use super::{
     BufferInitDescriptorComponent, BufferWriteComponent, CommandBuffersComponent,
     RenderAttachmentTextureViewDescriptor, SurfaceComponent, SurfaceTextureComponent,
@@ -7,10 +5,11 @@ use super::{
     TextureWriteComponent, ToBytes,
 };
 use crate::{
-    AdapterComponent, BufferComponent, BufferDescriptorComponent, DeviceComponent,
-    InstanceComponent, QueueComponent, RenderAttachmentTextureView, SamplerComponent,
-    SamplerDescriptorComponent, ShaderModuleComponent, ShaderModuleDescriptorComponent,
-    ShaderModuleDescriptorSpirVComponent, SurfaceConfigurationComponent, TextureComponent,
+    AdapterComponent, BufferComponent, BufferDescriptorComponent, CommandEncoderComponent,
+    DeviceComponent, InstanceComponent, QueueComponent, RenderAttachmentTextureView,
+    SamplerComponent, SamplerDescriptorComponent, ShaderModuleComponent,
+    ShaderModuleDescriptorComponent, ShaderModuleDescriptorSpirVComponent,
+    SurfaceConfigurationComponent, TextureComponent,
 };
 
 use antigen_core::{Changed, ChangedTrait, Indirect, LazyComponent, Usage};
@@ -351,11 +350,8 @@ pub fn create_texture_views_system(world: &mut World) {
 }
 
 /// Create pending usage-tagged samplers, recreating them if a Changed flag is set
-pub fn create_samplers_system<>(world: &mut World) {
-    let mut query = world.query::<(
-        &SamplerDescriptorComponent,
-        &mut SamplerComponent,
-    )>();
+pub fn create_samplers_system(world: &mut World) {
+    let mut query = world.query::<(&SamplerDescriptorComponent, &mut SamplerComponent)>();
 
     for (_, (sampler_descriptor, sampler)) in query.into_iter() {
         if !sampler.is_pending() && !sampler_descriptor.get_changed() {
@@ -435,7 +431,10 @@ where
     let mut query = world.query::<(
         &TextureWriteComponent<T>,
         &Changed<T>,
-        &Usage<TextureWriteComponent<T>, Indirect<(&TextureDescriptorComponent, &TextureComponent)>>,
+        &Usage<
+            TextureWriteComponent<T>,
+            Indirect<(&TextureDescriptorComponent, &TextureComponent)>,
+        >,
     )>();
 
     for (_, (texture_write, texels_component, texture)) in query.into_iter() {
@@ -522,4 +521,44 @@ pub fn surfaces_textures_views_system(world: &mut World) {
     // These will be rendered to and presented during RedrawEventsCleared
     surface_texture_query(world, entity);
     surface_texture_view_query(world, entity);
+}
+
+/// Create pending CommandEncoders, recreating them if a Changed flag is set
+pub fn create_command_encoders_system(world: &mut World) {
+    let mut query = world.query::<(
+        &crate::CommandEncoderDescriptorComponent,
+        &mut crate::CommandEncoderComponent,
+    )>();
+
+    for (entity, (command_encoder_desc, command_encoder)) in query.into_iter() {
+        if !command_encoder.is_pending() && !command_encoder_desc.get_changed() {
+            continue;
+        }
+
+        let mut query = world.query::<&DeviceComponent>();
+        let (_, device) = query.into_iter().next().unwrap();
+        command_encoder.set_ready(device.create_command_encoder(&command_encoder_desc));
+
+        command_encoder_desc.set_changed(false);
+
+        println!("Created command encoder {:#?} for entity {:?}", **command_encoder_desc, entity);
+    }
+}
+
+// Drop texture views whose surface textures have been invalidated, unsetting their dirty flag
+pub fn flush_command_encoders_system(world: &mut World) {
+    let mut query = world.query::<(
+        &mut CommandEncoderComponent,
+        &Usage<CommandEncoderComponent, Indirect<&mut CommandBuffersComponent>>,
+    )>();
+    for (entity, (command_encoder, command_buffers)) in query.into_iter() {
+        let mut query = command_buffers.get(world);
+        let command_buffers = query.get().unwrap();
+
+        if let LazyComponent::Ready(encoder) = command_encoder.take() {
+            println!("Flushing command encoder for entity {:?}", entity);
+            command_buffers.push(encoder.finish());
+            command_encoder.set_pending();
+        }
+    }
 }

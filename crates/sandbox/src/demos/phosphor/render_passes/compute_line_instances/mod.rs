@@ -125,8 +125,11 @@ pub fn phosphor_render_compute(
     let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
         label: Some("Compute Pass"),
     });
+    println!("Setting pipeline {:?}", compute_pipeline);
     cpass.set_pipeline(compute_pipeline);
+    println!("Setting bind group {:?}", compute_bind_group);
     cpass.set_bind_group(0, compute_bind_group, &[]);
+    println!("Dispatching ({}, 1, 1)", line_count as u32);
     cpass.dispatch(line_count as u32, 1, 1);
 
     Some(())

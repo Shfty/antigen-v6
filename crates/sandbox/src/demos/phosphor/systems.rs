@@ -483,7 +483,7 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
             &MeshIndexCountComponent,
             &LineIndexCountComponent,
             &mut BufferFlipFlopComponent,
-            &mut CommandBuffersComponent,
+            &mut antigen_wgpu::CommandEncoderComponent,
             &Indirect<&RenderAttachmentTextureView>,
         )>(entity)
         .unwrap();
@@ -492,9 +492,11 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
         mesh_index_count,
         line_index_count,
         buffer_flip_flop,
-        command_buffers,
+        encoder,
         render_attachment_view,
     ) = query.get().unwrap();
+
+    let encoder = encoder.get_mut()?;
 
     let mesh_index_count = **mesh_index_count;
     let line_index_count = **line_index_count;
@@ -586,17 +588,17 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
         .with::<Tonemap>();
     let (_, (tonemap_pipeline,)) = query.into_iter().next().unwrap();
 
-    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-
+    /*
     phosphor_render_compute(
-        &mut encoder,
+        encoder,
         compute_pipeline,
         compute_bind_group,
         line_count as u32,
     );
+    */
 
     phosphor_render_beam_meshes(
-        &mut encoder,
+        encoder,
         beam_multisample_view,
         beam_buffer_view,
         beam_depth_buffer_view,
@@ -608,7 +610,7 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
     );
 
     phosphor_render_beam_lines(
-        &mut encoder,
+        encoder,
         beam_multisample_view,
         beam_buffer_view,
         beam_depth_buffer_view,
@@ -620,7 +622,7 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
     );
 
     phosphor_render_phosphor_decay(
-        &mut encoder,
+        encoder,
         buffer_flip_flop,
         phosphor_front_buffer_view,
         phosphor_back_buffer_view,
@@ -631,16 +633,13 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
     );
 
     phosphor_render_tonemap(
-        &mut encoder,
+        encoder,
         render_attachment_view,
         tonemap_pipeline,
         buffer_flip_flop,
         front_bind_group,
         back_bind_group,
     );
-
-    // Finish encoding
-    command_buffers.push(encoder.finish());
 
     // Flip buffer flag
     **buffer_flip_flop = !**buffer_flip_flop;

@@ -3,24 +3,19 @@ use antigen_core::{
 };
 
 use hecs::{Component, Entity};
-use wgpu::{
-    util::BufferInitDescriptor, Adapter, Backends, BufferAddress, BufferDescriptor, Device,
-    DeviceDescriptor, ImageCopyTextureBase, ImageDataLayout, Instance, Queue, SamplerDescriptor,
-    ShaderModuleDescriptor, ShaderModuleDescriptorSpirV, Surface, SurfaceConfiguration,
-    TextureDescriptor, TextureFormat, TextureUsages, TextureViewDescriptor,
-};
+use wgpu::{Adapter, Backends, BufferAddress, BufferDescriptor, CommandEncoderDescriptor, Device, DeviceDescriptor, ImageCopyTextureBase, ImageDataLayout, Instance, Queue, SamplerDescriptor, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV, Surface, SurfaceConfiguration, TextureDescriptor, TextureFormat, TextureUsages, TextureViewDescriptor, util::BufferInitDescriptor};
 
 use std::path::Path;
 
 use crate::{
     AdapterComponent, BindGroupComponent, BindGroupLayoutComponent, BufferComponent,
     BufferDescriptorComponent, BufferInitDescriptorComponent, BufferWriteComponent,
-    CommandBuffersComponent, ComputePipelineComponent, DeviceComponent, InstanceComponent,
-    PipelineLayoutComponent, QueueComponent, RenderAttachmentTextureView,
-    RenderAttachmentTextureViewDescriptor, RenderBundleComponent, RenderPipelineComponent,
-    SamplerComponent, SamplerDescriptorComponent, ShaderModuleComponent,
-    ShaderModuleDescriptorComponent, ShaderModuleDescriptorSpirVComponent, SurfaceComponent,
-    SurfaceConfigurationComponent, SurfaceTextureComponent, TextureComponent,
+    CommandBuffersComponent, CommandEncoderComponent, CommandEncoderDescriptorComponent,
+    ComputePipelineComponent, DeviceComponent, InstanceComponent, PipelineLayoutComponent,
+    QueueComponent, RenderAttachmentTextureView, RenderAttachmentTextureViewDescriptor,
+    RenderBundleComponent, RenderPipelineComponent, SamplerComponent, SamplerDescriptorComponent,
+    ShaderModuleComponent, ShaderModuleDescriptorComponent, ShaderModuleDescriptorSpirVComponent,
+    SurfaceComponent, SurfaceConfigurationComponent, SurfaceTextureComponent, TextureComponent,
     TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
     TextureWriteComponent,
 };
@@ -308,5 +303,24 @@ impl PushConstantBundle {
 pub struct PushConstantQuery<'a> {
     pub data: &'a PushConstantComponent,
     pub offset: &'a PushConstantOffset,
+}
+
+#[derive(hecs::Bundle)]
+pub struct CommandEncoderBundle {
+    desc: CommandEncoderDescriptorComponent,
+    encoder: CommandEncoderComponent,
+    command_buffers_entity: Usage<CommandEncoderComponent, Indirect<&'static mut CommandBuffersComponent>>,
+}
+
+impl CommandEncoderBundle {
+    pub fn new(desc: CommandEncoderDescriptor<'static>, command_encoder_entity: Entity) -> Self {
+        let desc = CommandEncoderDescriptorComponent::construct(desc);
+        let command_buffers_entity = CommandEncoderComponent::as_usage(Indirect::construct(command_encoder_entity));
+        CommandEncoderBundle {
+            desc,
+            encoder: Default::default(),
+            command_buffers_entity,
+        }
+    }
 }
 

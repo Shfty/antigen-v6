@@ -125,9 +125,9 @@ use antigen_core::{
 use antigen_wgpu::{
     buffer_size_of, spawn_shader_from_file_string,
     wgpu::{
-        AddressMode, BufferAddress, BufferDescriptor, BufferUsages, Extent3d, FilterMode, Maintain,
-        SamplerDescriptor, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
-        TextureUsages, TextureViewDescriptor,
+        AddressMode, BufferAddress, BufferDescriptor, BufferUsages, CommandEncoderDescriptor,
+        ComputePassDescriptor, Extent3d, FilterMode, Maintain, SamplerDescriptor, TextureAspect,
+        TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor,
     },
     BindGroupComponent, BindGroupLayoutComponent, ComputePipelineComponent,
     RenderAttachmentTextureView, RenderPipelineComponent, ShaderModuleComponent,
@@ -298,14 +298,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(Uniform)
         .add(BindGroupLayoutComponent::default())
         .add(BindGroupComponent::default())
-        .add_bundle(antigen_wgpu::BufferBundle::new(
-            BufferDescriptor {
-                label: Some("Uniform Buffer"),
-                size: buffer_size_of::<UniformData>(),
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
+        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
+            label: Some("Uniform Buffer"),
+            size: buffer_size_of::<UniformData>(),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }))
         .build();
     let uniform_entity = world.spawn(bundle);
 
@@ -313,14 +311,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(MeshVertex)
-        .add_bundle(antigen_wgpu::BufferBundle::new(
-            BufferDescriptor {
-                label: Some("Mesh Vertex Buffer"),
-                size: buffer_size_of::<MeshVertexData>() * MAX_MESH_VERTICES as BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
+        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
+            label: Some("Mesh Vertex Buffer"),
+            size: buffer_size_of::<MeshVertexData>() * MAX_MESH_VERTICES as BufferAddress,
+            usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }))
         .build();
     let mesh_vertex_entity = world.spawn(bundle);
 
@@ -328,14 +324,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(MeshIndex)
-        .add_bundle(antigen_wgpu::BufferBundle::new(
-            BufferDescriptor {
-                label: Some("Mesh Index Buffer"),
-                size: buffer_size_of::<u16>() * MAX_MESH_INDICES as BufferAddress,
-                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
+        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
+            label: Some("Mesh Index Buffer"),
+            size: buffer_size_of::<u16>() * MAX_MESH_INDICES as BufferAddress,
+            usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }))
         .build();
     let mesh_index_entity = world.spawn(bundle);
 
@@ -345,14 +339,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let line_vertex_entity = world.reserve_entity();
     let bundle = builder
         .add(LineVertex)
-        .add_bundle(antigen_wgpu::BufferBundle::new(
-            BufferDescriptor {
-                label: Some("Line Vertex Buffer"),
-                size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
+        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
+            label: Some("Line Vertex Buffer"),
+            size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }))
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             vertices,
             0,
@@ -365,14 +357,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(LineIndex)
-        .add_bundle(antigen_wgpu::BufferBundle::new(
-            BufferDescriptor {
-                label: Some("Line Index Buffer"),
-                size: buffer_size_of::<u32>() * MAX_LINE_INDICES as BufferAddress,
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
+        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
+            label: Some("Line Index Buffer"),
+            size: buffer_size_of::<u32>() * MAX_LINE_INDICES as BufferAddress,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }))
         .build();
     let line_index_entity = world.spawn(bundle);
 
@@ -380,14 +370,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(LineInstance)
-        .add_bundle(antigen_wgpu::BufferBundle::new(
-            BufferDescriptor {
-                label: Some("Line Instance Buffer"),
-                size: buffer_size_of::<LineInstanceData>() * MAX_LINES as BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
+        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
+            label: Some("Line Instance Buffer"),
+            size: buffer_size_of::<LineInstanceData>() * MAX_LINES as BufferAddress,
+            usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }))
         .build();
     let _line_instance_entity = world.spawn(bundle);
 
@@ -453,21 +441,19 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(BeamBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::new(
-            TextureDescriptor {
-                label: Some("Beam Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
+            label: Some("Beam Buffer"),
+            size: Extent3d {
+                width: 640,
+                height: 480,
+                depth_or_array_layers: 1,
             },
-        ))
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: HDR_TEXTURE_FORMAT,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        }))
         .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Beam Buffer View"),
@@ -487,21 +473,19 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(BeamDepthBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::new(
-            TextureDescriptor {
-                label: Some("Beam Depth Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 4,
-                dimension: TextureDimension::D2,
-                format: TextureFormat::Depth32Float,
-                usage: TextureUsages::RENDER_ATTACHMENT,
+        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
+            label: Some("Beam Depth Buffer"),
+            size: Extent3d {
+                width: 640,
+                height: 480,
+                depth_or_array_layers: 1,
             },
-        ))
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Depth32Float,
+            usage: TextureUsages::RENDER_ATTACHMENT,
+        }))
         .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Beam Depth Buffer View"),
@@ -521,21 +505,19 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(BeamMultisample)
-        .add_bundle(antigen_wgpu::TextureBundle::new(
-            TextureDescriptor {
-                label: Some("Beam Multisample"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 4,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT,
+        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
+            label: Some("Beam Multisample"),
+            size: Extent3d {
+                width: 640,
+                height: 480,
+                depth_or_array_layers: 1,
             },
-        ))
+            mip_level_count: 1,
+            sample_count: 4,
+            dimension: TextureDimension::D2,
+            format: HDR_TEXTURE_FORMAT,
+            usage: TextureUsages::RENDER_ATTACHMENT,
+        }))
         .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Beam Multisample View"),
@@ -555,21 +537,19 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(PhosphorFrontBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::new(
-            TextureDescriptor {
-                label: Some("Phosphor Front Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
+            label: Some("Phosphor Front Buffer"),
+            size: Extent3d {
+                width: 640,
+                height: 480,
+                depth_or_array_layers: 1,
             },
-        ))
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: HDR_TEXTURE_FORMAT,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        }))
         .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Phosphor Front Buffer View"),
@@ -589,21 +569,19 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(PhosphorBackBuffer)
-        .add_bundle(antigen_wgpu::TextureBundle::new(
-            TextureDescriptor {
-                label: Some("Phosphor Back Buffer"),
-                size: Extent3d {
-                    width: 640,
-                    height: 480,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: TextureDimension::D2,
-                format: HDR_TEXTURE_FORMAT,
-                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
+            label: Some("Phosphor Back Buffer"),
+            size: Extent3d {
+                width: 640,
+                height: 480,
+                depth_or_array_layers: 1,
             },
-        ))
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: HDR_TEXTURE_FORMAT,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        }))
         .add_bundle(antigen_wgpu::TextureViewBundle::new(
             TextureViewDescriptor {
                 label: Some("Phosphor Back Buffer View"),
@@ -695,20 +673,37 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     builder.add(PhosphorRenderer);
 
-    // Texture views
     // Phosphor sampler
-    builder.add_bundle(antigen_wgpu::SamplerBundle::new(
-        SamplerDescriptor {
-            label: Some("Linear Sampler"),
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            address_mode_w: AddressMode::ClampToEdge,
-            mag_filter: FilterMode::Linear,
-            min_filter: FilterMode::Linear,
-            mipmap_filter: FilterMode::Linear,
-            ..Default::default()
+    builder.add_bundle(antigen_wgpu::SamplerBundle::new(SamplerDescriptor {
+        label: Some("Linear Sampler"),
+        address_mode_u: AddressMode::ClampToEdge,
+        address_mode_v: AddressMode::ClampToEdge,
+        address_mode_w: AddressMode::ClampToEdge,
+        mag_filter: FilterMode::Linear,
+        min_filter: FilterMode::Linear,
+        mipmap_filter: FilterMode::Linear,
+        ..Default::default()
+    }));
+
+    builder.add_bundle(antigen_wgpu::CommandEncoderBundle::new(
+        CommandEncoderDescriptor {
+            label: Some("Phosphor Encoder"),
         },
+        renderer_entity,
     ));
+
+    builder.add_bundle(
+        antigen_wgpu::ComputePassBundle::builder(
+            ComputePassDescriptor {
+                label: Some("Line Indices".into()),
+            },
+            compute_pass_entity,
+            vec![(compute_pass_entity, vec![])],
+            vec![],
+            (177, 1, 1),
+        )
+        .build(),
+    );
 
     // Misc
     builder
@@ -1250,13 +1245,9 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::buffer_write_system::<DeltaTimeComponent>(world);
             antigen_wgpu::buffer_write_system::<PerspectiveMatrixComponent>(world);
             antigen_wgpu::buffer_write_system::<OrthographicMatrixComponent>(world);
-            antigen_wgpu::buffer_write_system::<Vec<LineVertexData>>(
-                world,
-            );
+            antigen_wgpu::buffer_write_system::<Vec<LineVertexData>>(world);
             antigen_wgpu::buffer_write_system::<Vec<u32>>(world);
-            antigen_wgpu::buffer_write_system::<Vec<MeshVertexData>>(
-                world,
-            );
+            antigen_wgpu::buffer_write_system::<Vec<MeshVertexData>>(world);
             antigen_wgpu::buffer_write_system::<MeshIndexDataComponent>(world);
         }
         phosphor_prepare_system(world);
@@ -1269,7 +1260,10 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             phosphor_update_delta_time_system(world);
         }
         phosphor_update_oscilloscopes_system(world);
+        antigen_wgpu::create_command_encoders_system(world);
+        antigen_wgpu::dispatch_compute_passes_system(world);
         phosphor_render_system(world);
+        antigen_wgpu::flush_command_encoders_system(world);
         phosphor_update_timestamp_system(world);
         antigen_wgpu::device_poll_system(&Maintain::Wait)(world);
     }

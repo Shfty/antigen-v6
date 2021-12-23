@@ -1,13 +1,15 @@
 use antigen_core::{AsUsage, Construct, Indirect, Usage};
 use hecs::{Entity, EntityBuilder, World};
-use wgpu::{BufferAddress, CommandEncoderDescriptor, ComputePassDescriptor, DynamicOffset};
+use wgpu::{ComputePassDescriptor, DynamicOffset};
 
-use crate::{BindGroupComponent, ComputePipelineComponent, DeviceComponent, PushConstantQuery};
+use crate::{
+    BindGroupComponent, CommandEncoderComponent, ComputePipelineComponent, DeviceComponent,
+    PushConstantQuery,
+};
 
 // TEST: Compute pass automation
 pub enum ComputePass {}
 
-pub type ComputePassLabelComponent = Usage<ComputePass, String>;
 pub type ComputePassPipelineComponent =
     Usage<ComputePass, Indirect<&'static ComputePipelineComponent>>;
 pub type ComputePassBindGroupsComponent =
@@ -25,7 +27,7 @@ pub struct ComputePassBundle {
 
 impl ComputePassBundle {
     pub fn builder(
-        label: Option<String>,
+        desc: ComputePassDescriptor<'static>,
         pipeline_entity: Entity,
         bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
         push_constant_entities: Vec<Entity>,
@@ -33,9 +35,7 @@ impl ComputePassBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        if let Some(label) = label {
-            builder.add(ComputePassLabelComponent::construct(label));
-        }
+        builder.add(desc);
 
         let pipeline = ComputePass::as_usage(Indirect::construct(pipeline_entity));
 
@@ -69,30 +69,29 @@ impl ComputePassBundle {
 
 #[derive(hecs::Query)]
 pub struct ComputePassQuery<'a> {
-    label: Option<&'a ComputePassLabelComponent>,
+    desc: &'a ComputePassDescriptor<'static>,
     pipeline: &'a ComputePassPipelineComponent,
     bind_groups: &'a ComputePassBindGroupsComponent,
     push_constants: Option<&'a ComputePassPushConstantsComponent>,
     dispatch: &'a ComputePassDispatchComponent,
+    encoder: &'a mut CommandEncoderComponent,
 }
 
 pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
-    let mut query = world.query::<&DeviceComponent>();
-    let (_, device) = query.into_iter().next()?;
-    let device = device.clone();
-    drop(query);
-
     for (
-        _,
+        entity,
         ComputePassQuery {
-            label,
+            desc,
             pipeline,
             bind_groups,
             push_constants,
             dispatch,
+            encoder,
         },
     ) in world.query::<ComputePassQuery>().into_iter()
     {
+        let encoder = encoder.get_mut()?;
+
         // Collect pipeline
         let mut query = pipeline.get(world);
         let pipeline = query.get()?;
@@ -129,10 +128,8 @@ pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
             .map(|query| query.get().unwrap())
             .collect::<Vec<_>>();
 
-        let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-        let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-            label: label.map(|label| label.as_str()),
-        });
+        let mut cpass = encoder.begin_compute_pass(&desc);
+        println!("Setting pipeline {:?}", pipeline);
         cpass.set_pipeline(pipeline);
 
         for (i, (bind_group, offsets)) in bind_groups
@@ -140,13 +137,25 @@ pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
             .zip(bind_group_offsets.iter())
             .enumerate()
         {
+            println!(
+                "Setting bind group {}: {:?} with offsets {:?}",
+                i as u32, bind_group, offsets
+            );
             cpass.set_bind_group(i as u32, bind_group, &offsets);
         }
 
         for push_constant in push_constants {
+            println!(
+                "Setting push constant with offset {}",
+                **push_constant.offset
+            );
             cpass.set_push_constants(**push_constant.offset, &***push_constant.data);
         }
 
+        println!(
+            "Dispatching compute work groups ({}, {}, {}) for entity {:?}",
+            dispatch.0, dispatch.1, dispatch.2, entity
+        );
         cpass.dispatch(dispatch.0, dispatch.1, dispatch.2);
     }
 

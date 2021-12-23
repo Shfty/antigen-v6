@@ -21,10 +21,22 @@ use std::{
 /// type SurfaceSizeComponent = Usage<SurfaceSize, SizeComponent>;
 /// type TextureSizeComponent = Usage<TextureSize, SizeComponent>;
 /// ```
-#[derive(Debug, Copy)]
+#[derive(Copy)]
 pub struct Usage<U, T> {
     pub data: T,
     _phantom: PhantomData<U>,
+}
+
+impl<U, T> std::fmt::Debug for Usage<U, T>
+where
+    T: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Usage")
+            .field("data", &self.data)
+            .field("_phantom", &format!("PhantomData<{}>", std::any::type_name::<U>()))
+            .finish()
+    }
 }
 
 impl<U, T> Clone for Usage<U, T>
@@ -39,31 +51,46 @@ where
     }
 }
 
-impl<U, T> PartialEq for Usage<U, T> where T: PartialEq {
+impl<U, T> PartialEq for Usage<U, T>
+where
+    T: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         self.data.eq(&other.data)
     }
 }
 
-impl<U, T> Eq for Usage<U, T> where T: Eq {
+impl<U, T> Eq for Usage<U, T>
+where
+    T: Eq,
+{
     fn assert_receiver_is_total_eq(&self) {
         self.data.assert_receiver_is_total_eq()
     }
 }
 
-impl<U, T> PartialOrd for Usage<U, T> where T: PartialOrd {
+impl<U, T> PartialOrd for Usage<U, T>
+where
+    T: PartialOrd,
+{
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.data.partial_cmp(&other.data)
     }
 }
 
-impl<U, T> Ord for Usage<U, T> where T: Ord {
+impl<U, T> Ord for Usage<U, T>
+where
+    T: Ord,
+{
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.data.cmp(&other.data)
     }
 }
 
-impl<U, T> std::hash::Hash for Usage<U, T> where T: std::hash::Hash {
+impl<U, T> std::hash::Hash for Usage<U, T>
+where
+    T: std::hash::Hash,
+{
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.data.hash(state)
     }
