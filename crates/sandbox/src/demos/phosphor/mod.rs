@@ -309,6 +309,88 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .build();
     let uniform_entity = world.spawn(bundle);
 
+    // Mesh Vertices
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(MeshVertex)
+        .add_bundle(antigen_wgpu::BufferBundle::<MeshVertex>::new(
+            BufferDescriptor {
+                label: Some("Mesh Vertex Buffer"),
+                size: buffer_size_of::<MeshVertexData>() * MAX_MESH_VERTICES as BufferAddress,
+                usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        ))
+        .build();
+    let mesh_vertex_entity = world.spawn(bundle);
+
+    // Mesh Indices
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(MeshIndex)
+        .add_bundle(antigen_wgpu::BufferBundle::<MeshIndex>::new(
+            BufferDescriptor {
+                label: Some("Mesh Index Buffer"),
+                size: buffer_size_of::<u16>() * MAX_MESH_INDICES as BufferAddress,
+                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        ))
+        .build();
+    let mesh_index_entity = world.spawn(bundle);
+
+    // Line Vertices
+    let vertices = circle_strip(2);
+    let mut builder = EntityBuilder::new();
+    let line_vertex_entity = world.reserve_entity();
+    let bundle = builder
+        .add(LineVertex)
+        .add_bundle(antigen_wgpu::BufferBundle::<LineVertex>::new(
+            BufferDescriptor {
+                label: Some("Line Vertex Buffer"),
+                size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        ))
+        .add_bundle(antigen_wgpu::BufferDataBundle::<LineVertex, _>::new(
+            LineVertexDataComponent::construct(vertices),
+            0,
+            line_vertex_entity,
+        ))
+        .build();
+    world.insert(line_vertex_entity, bundle).unwrap();
+
+    // Line Indices
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(LineIndex)
+        .add_bundle(antigen_wgpu::BufferBundle::<LineIndex>::new(
+            BufferDescriptor {
+                label: Some("Line Index Buffer"),
+                size: buffer_size_of::<u32>() * MAX_LINE_INDICES as BufferAddress,
+                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        ))
+        .build();
+    let line_index_entity = world.spawn(bundle);
+
+    // Line Instances
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(LineInstance)
+        .add_bundle(antigen_wgpu::BufferBundle::<LineInstance>::new(
+            BufferDescriptor {
+                label: Some("Line Instance Buffer"),
+                size: buffer_size_of::<LineInstanceData>() * MAX_LINES as BufferAddress,
+                usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        ))
+        .build();
+    let line_instance_entity = world.spawn(bundle);
+
     // Total time entity
     let mut builder = EntityBuilder::new();
     let bundle = builder
@@ -598,57 +680,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         },
     ));
 
-    // Buffers
-    let vertices = circle_strip(2);
-
-    builder
-        .add_bundle(antigen_wgpu::BufferBundle::<MeshVertex>::new(
-            BufferDescriptor {
-                label: Some("Mesh Vertex Buffer"),
-                size: buffer_size_of::<MeshVertexData>() * MAX_MESH_VERTICES as BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
-        .add_bundle(antigen_wgpu::BufferBundle::<MeshIndex>::new(
-            BufferDescriptor {
-                label: Some("Mesh Index Buffer"),
-                size: buffer_size_of::<u16>() * MAX_MESH_INDICES as BufferAddress,
-                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
-        .add_bundle(antigen_wgpu::BufferBundle::<LineVertex>::new(
-            BufferDescriptor {
-                label: Some("Line Vertex Buffer"),
-                size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
-        .add_bundle(antigen_wgpu::BufferBundle::<LineIndex>::new(
-            BufferDescriptor {
-                label: Some("Line Index Buffer"),
-                size: buffer_size_of::<u32>() * MAX_LINE_INDICES as BufferAddress,
-                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
-        .add_bundle(antigen_wgpu::BufferBundle::<LineInstance>::new(
-            BufferDescriptor {
-                label: Some("Line Instance Buffer"),
-                size: buffer_size_of::<LineInstanceData>() * MAX_LINES as BufferAddress,
-                usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ));
-
     // Buffer data
-    builder.add_bundle(antigen_wgpu::BufferDataBundle::<LineVertex, _>::new(
-        LineVertexDataComponent::construct(vertices),
-        0,
-        renderer_entity,
-    ));
 
     // Misc
     builder
@@ -671,7 +703,8 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     assemble_test_geometry(
         world,
-        renderer_entity,
+        mesh_vertex_entity,
+        line_index_entity,
         &mut vertex_head,
         &mut line_index_head,
     );
@@ -692,7 +725,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let map_data = MapData::from(geo_map);
 
     let mut visual_brushes = map_data.build_visual_brushes(
-        renderer_entity,
+        mesh_vertex_entity,
+        mesh_index_entity,
+        line_index_entity,
         &mut vertex_head,
         &mut mesh_index_head,
         &mut line_index_head,
@@ -701,7 +736,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     world.extend(bundles);
 
     let mut point_entities = map_data.build_point_entities(
-        renderer_entity,
+        mesh_vertex_entity,
+        mesh_index_entity,
+        line_index_entity,
         &mut vertex_head,
         &mut mesh_index_head,
         &mut line_index_head,
@@ -723,14 +760,16 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
 fn assemble_test_geometry(
     world: &mut World,
-    buffer_target: Entity,
+    mesh_vertex_entity: Entity,
+    line_index_entity: Entity,
     vertex_head: &mut BufferAddress,
     line_index_head: &mut BufferAddress,
 ) {
     // Oscilloscopes
     world.spawn(
         OscilloscopeBundle::builder(
-            buffer_target,
+            mesh_vertex_entity,
+            line_index_entity,
             vertex_head,
             line_index_head,
             (-80.0, 40.0, -80.0),
@@ -744,7 +783,8 @@ fn assemble_test_geometry(
 
     world.spawn(
         OscilloscopeBundle::builder(
-            buffer_target,
+            mesh_vertex_entity,
+            line_index_entity,
             vertex_head,
             line_index_head,
             (-80.0, 40.0, 0.0),
@@ -758,7 +798,8 @@ fn assemble_test_geometry(
 
     world.spawn(
         OscilloscopeBundle::builder(
-            buffer_target,
+            mesh_vertex_entity,
+            line_index_entity,
             vertex_head,
             line_index_head,
             (-80.0, 40.0, 80.0),
@@ -773,7 +814,8 @@ fn assemble_test_geometry(
     // Gradient 3 Triangle
     world.spawn(
         LineStripBundle::builder(
-            buffer_target,
+            mesh_vertex_entity,
+            line_index_entity,
             vertex_head,
             line_index_head,
             vec![
@@ -789,7 +831,8 @@ fn assemble_test_geometry(
     // Gradients 0-2 Triangle
     world.spawn(
         LineStripBundle::builder(
-            buffer_target,
+            mesh_vertex_entity,
+            line_index_entity,
             vertex_head,
             line_index_head,
             vec![
@@ -916,7 +959,9 @@ impl From<GeoMap> for MapData {
 impl MapData {
     pub fn build_visual_brushes(
         &self,
-        buffer_target: Entity,
+        mesh_vertex_entity: Entity,
+        mesh_index_entity: Entity,
+        line_index_entity: Entity,
         vertex_head: &mut BufferAddress,
         mesh_index_head: &mut BufferAddress,
         line_index_head: &mut BufferAddress,
@@ -1011,19 +1056,22 @@ impl MapData {
 
         vec![
             MeshBundle::builder(
-                buffer_target,
+                mesh_vertex_entity,
+                mesh_index_entity,
                 vertex_head,
                 mesh_index_head,
                 mesh_vertices,
                 mesh_indices,
             ),
-            LineIndicesBundle::builder(buffer_target, line_index_head, line_indices),
+            LineIndicesBundle::builder(line_index_entity, line_index_head, line_indices),
         ]
     }
 
     pub fn build_point_entities(
         &self,
-        buffer_target: Entity,
+        mesh_vertex_entity: Entity,
+        mesh_index_entity: Entity,
+        line_index_entity: Entity,
         vertex_head: &mut BufferAddress,
         mesh_index_head: &mut BufferAddress,
         line_index_head: &mut BufferAddress,
@@ -1052,7 +1100,9 @@ impl MapData {
             let z = origin.next().unwrap().parse::<f32>().unwrap();
             builders.extend(
                 BoxBotBundle::builders(
-                    buffer_target,
+                    mesh_vertex_entity,
+                    mesh_index_entity,
+                    line_index_entity,
                     vertex_head,
                     mesh_index_head,
                     line_index_head,
@@ -1134,7 +1184,8 @@ impl MapData {
             let z = expression::parse_expression(z);
 
             builders.push(OscilloscopeBundle::builder(
-                buffer_target,
+                mesh_vertex_entity,
+                line_index_entity,
                 vertex_head,
                 line_index_head,
                 origin,
@@ -1158,11 +1209,11 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         {
             antigen_wgpu::create_shader_modules_system(world);
             antigen_wgpu::create_buffers_system::<Uniform>(world);
+            antigen_wgpu::create_buffers_system::<MeshVertex>(world);
+            antigen_wgpu::create_buffers_system::<MeshIndex>(world);
             antigen_wgpu::create_buffers_system::<LineVertex>(world);
             antigen_wgpu::create_buffers_system::<LineIndex>(world);
             antigen_wgpu::create_buffers_system::<LineInstance>(world);
-            antigen_wgpu::create_buffers_system::<MeshVertex>(world);
-            antigen_wgpu::create_buffers_system::<MeshIndex>(world);
             {
                 antigen_wgpu::create_textures_system::<BeamBuffer>(world);
                 antigen_wgpu::create_texture_views_system::<BeamBuffer>(world);

@@ -33,15 +33,6 @@ struct BeamPhosphorTextureViews<'a> {
     phosphor_back: &'a PhosphorBackBufferViewComponent,
 }
 
-#[derive(hecs::Query)]
-struct BuffersQuery<'a> {
-    mesh_vertex: &'a MeshVertexBufferComponent,
-    mesh_index: &'a MeshIndexBufferComponent,
-    line_vertex: &'a LineVertexBufferComponent,
-    line_index: &'a LineIndexBufferComponent,
-    line_instance: &'a LineInstanceBufferComponent,
-}
-
 // Initialize the hello triangle render pipeline
 pub fn phosphor_prepare_system(world: &mut World) {
     // Fetch resources
@@ -108,9 +99,6 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     let mut query = world.query_one::<&LinearSamplerComponent>(entity).unwrap();
     let sampler = query.get().unwrap();
 
-    let mut query = world.query_one::<BuffersQuery>(entity).unwrap();
-    let buffers = query.get().unwrap();
-
     let mut query = world
         .query_one::<&Indirect<SurfaceConfigurationComponent>>(entity)
         .unwrap();
@@ -118,9 +106,29 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     let surface_config = query.get().unwrap();
 
     let mut query = world
-        .query::<(&UniformBufferComponent, &mut BindGroupLayoutComponent, &mut BindGroupComponent)>()
+        .query::<(
+            &UniformBufferComponent,
+            &mut BindGroupLayoutComponent,
+            &mut BindGroupComponent,
+        )>()
         .with::<Uniform>();
-    let (_, (uniform_buffer, uniform_bind_group_layout, uniform_bind_group)) = query.into_iter().next()?;
+    let (_, (uniform_buffer, uniform_bind_group_layout, uniform_bind_group)) =
+        query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&MeshVertexBufferComponent,)>()
+        .with::<MeshVertex>();
+    let (_, (mesh_vertex_buffer,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&LineIndexBufferComponent,)>()
+        .with::<LineIndex>();
+    let (_, (line_index_buffer,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&LineInstanceBufferComponent,)>()
+        .with::<LineInstance>();
+    let (_, (line_instance_buffer,)) = query.into_iter().next()?;
 
     phosphor_prepare_uniform_bind_group(
         device,
@@ -144,9 +152,9 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     phosphor_prepare_compute(
         device,
         compute_shader,
-        buffers.mesh_vertex,
-        buffers.line_index,
-        buffers.line_instance,
+        mesh_vertex_buffer,
+        line_index_buffer,
+        line_instance_buffer,
         compute_bind_group_layout,
         compute_bind_group,
         compute_pipeline,
@@ -473,9 +481,6 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
     let mut query = world.query_one::<TextureViews>(entity).unwrap();
     let texture_views = query.get().unwrap();
 
-    let mut query = world.query_one::<BuffersQuery>(entity).unwrap();
-    let buffers = query.get().unwrap();
-
     let mut query = world
         .query_one::<(
             &MeshIndexCountComponent,
@@ -505,6 +510,26 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
         .query::<(&mut BindGroupComponent,)>()
         .with::<Uniform>();
     let (_, (uniform_bind_group,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut MeshVertexBufferComponent,)>()
+        .with::<MeshVertex>();
+    let (_, (mesh_vertex_buffer,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut MeshIndexBufferComponent,)>()
+        .with::<MeshIndex>();
+    let (_, (mesh_index_buffer,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut LineVertexBufferComponent,)>()
+        .with::<LineVertex>();
+    let (_, (line_vertex_buffer,)) = query.into_iter().next()?;
+
+    let mut query = world
+        .query::<(&mut LineInstanceBufferComponent,)>()
+        .with::<LineInstance>();
+    let (_, (line_instance_buffer,)) = query.into_iter().next()?;
 
     let mut query = world
         .query::<(&mut ComputePipelineComponent, &mut BindGroupComponent)>()
@@ -556,8 +581,8 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
         texture_views.beam_buffer,
         texture_views.beam_depth,
         beam_mesh_pipeline,
-        buffers.mesh_vertex,
-        buffers.mesh_index,
+        mesh_vertex_buffer,
+        mesh_index_buffer,
         uniform_bind_group,
         mesh_index_count as u32,
     );
@@ -568,8 +593,8 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
         texture_views.beam_buffer,
         texture_views.beam_depth,
         beam_line_pipeline,
-        buffers.line_vertex,
-        buffers.line_instance,
+        line_vertex_buffer,
+        line_instance_buffer,
         uniform_bind_group,
         line_count as u32,
     );

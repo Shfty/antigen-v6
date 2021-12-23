@@ -18,19 +18,17 @@ pub enum Timestamp {}
 pub enum TotalTime {}
 pub enum DeltaTime {}
 
-
 pub enum BeamBuffer {}
 pub enum BeamMultisample {}
 pub enum BeamDepthBuffer {}
 
 pub enum Linear {}
 
-pub enum LineVertex {}
-pub enum LineIndex {}
-pub enum LineInstance {}
-
-pub enum MeshVertex {}
-pub enum MeshIndex {}
+pub struct MeshVertex;
+pub struct MeshIndex;
+pub struct LineVertex;
+pub struct LineIndex;
+pub struct LineInstance;
 
 pub struct Perspective;
 pub struct Orthographic;
