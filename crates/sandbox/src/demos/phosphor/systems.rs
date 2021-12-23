@@ -35,7 +35,6 @@ struct BeamPhosphorTextureViews<'a> {
 
 #[derive(hecs::Query)]
 struct BuffersQuery<'a> {
-    uniform: &'a UniformBufferComponent,
     mesh_vertex: &'a MeshVertexBufferComponent,
     mesh_index: &'a MeshIndexBufferComponent,
     line_vertex: &'a LineVertexBufferComponent,
@@ -119,13 +118,13 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     let surface_config = query.get().unwrap();
 
     let mut query = world
-        .query::<(&mut BindGroupLayoutComponent, &mut BindGroupComponent)>()
+        .query::<(&UniformBufferComponent, &mut BindGroupLayoutComponent, &mut BindGroupComponent)>()
         .with::<Uniform>();
-    let (_, (uniform_bind_group_layout, uniform_bind_group)) = query.into_iter().next()?;
+    let (_, (uniform_buffer, uniform_bind_group_layout, uniform_bind_group)) = query.into_iter().next()?;
 
     phosphor_prepare_uniform_bind_group(
         device,
-        buffers.uniform,
+        uniform_buffer,
         uniform_bind_group_layout,
         uniform_bind_group,
     );
@@ -503,9 +502,9 @@ pub fn phosphor_render(world: &World, entity: Entity, device: &DeviceComponent) 
     let render_attachment_view = query.get().unwrap();
 
     let mut query = world
-        .query::<(&mut BindGroupLayoutComponent, &mut BindGroupComponent)>()
+        .query::<(&mut BindGroupComponent,)>()
         .with::<Uniform>();
-    let (_, (uniform_bind_group_layout, uniform_bind_group)) = query.into_iter().next()?;
+    let (_, (uniform_bind_group,)) = query.into_iter().next()?;
 
     let mut query = world
         .query::<(&mut ComputePipelineComponent, &mut BindGroupComponent)>()

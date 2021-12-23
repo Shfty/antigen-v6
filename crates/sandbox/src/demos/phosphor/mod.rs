@@ -292,6 +292,23 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let window_entity = world.reserve_entity();
     let renderer_entity = world.reserve_entity();
 
+    // Uniforms
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(Uniform)
+        .add(BindGroupLayoutComponent::default())
+        .add(BindGroupComponent::default())
+        .add_bundle(antigen_wgpu::BufferBundle::<Uniform>::new(
+            BufferDescriptor {
+                label: Some("Uniform Buffer"),
+                size: buffer_size_of::<UniformData>(),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        ))
+        .build();
+    let uniform_entity = world.spawn(bundle);
+
     // Total time entity
     let mut builder = EntityBuilder::new();
     let bundle = builder
@@ -299,7 +316,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
             TotalTimeComponent::construct(0.0),
             buffer_size_of::<[[f32; 4]; 4]>() * 2,
-            renderer_entity,
+            uniform_entity,
         ))
         .build();
     let _total_time_entity = world.spawn(bundle);
@@ -311,7 +328,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
             DeltaTimeComponent::construct(1.0 / 60.0),
             (buffer_size_of::<[[f32; 4]; 4]>() * 2) + buffer_size_of::<f32>(),
-            renderer_entity,
+            uniform_entity,
         ))
         .build();
     let _delta_time_entity = world.spawn(bundle);
@@ -328,7 +345,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 500.0,
             )),
             0,
-            renderer_entity,
+            uniform_entity,
         ))
         .build();
     let _perspective_entity = world.spawn(bundle);
@@ -345,7 +362,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 500.0,
             )),
             buffer_size_of::<[[f32; 4]; 4]>(),
-            renderer_entity,
+            uniform_entity,
         ))
         .build();
     let _orthographic_entity = world.spawn(bundle);
@@ -359,13 +376,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(RedrawUnconditionally)
         .build();
     world.insert(window_entity, bundle).unwrap();
-
-    // Uniform bind group
-    let _uniform_bind_group_entity = world.spawn((
-        Uniform,
-        BindGroupLayoutComponent::default(),
-        BindGroupComponent::default(),
-    ));
 
     // Compute pass
     let compute_pass_entity = world.spawn((
@@ -592,14 +602,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let vertices = circle_strip(2);
 
     builder
-        .add_bundle(antigen_wgpu::BufferBundle::<Uniform>::new(
-            BufferDescriptor {
-                label: Some("Uniform Buffer"),
-                size: buffer_size_of::<UniformData>(),
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        ))
         .add_bundle(antigen_wgpu::BufferBundle::<MeshVertex>::new(
             BufferDescriptor {
                 label: Some("Mesh Vertex Buffer"),
