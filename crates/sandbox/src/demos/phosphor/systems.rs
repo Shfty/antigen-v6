@@ -328,12 +328,6 @@ struct BufferViewDescriptorMutQuery<'a> {
     phosphor_back: &'a mut Usage<PhosphorBackBuffer, TextureViewDescriptorComponent<'static>>,
 }
 
-#[derive(hecs::Query)]
-struct MatrixQuery<'a> {
-    perspective: &'a mut Changed<PerspectiveMatrixComponent>,
-    orthographic: &'a mut Changed<OrthographicMatrixComponent>,
-}
-
 pub fn phosphor_resize(world: &World, entity: Entity) {
     let mut query = world
         .query_one::<&Indirect<SurfaceConfigurationComponent>>(entity)
@@ -369,8 +363,15 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
         .with::<PhosphorBackBuffer>();
     let (_, (back_bind_group,)) = query.into_iter().next().unwrap();
 
-    let mut query = world.query_one::<MatrixQuery>(entity).unwrap();
-    let matrices = query.get().unwrap();
+    let mut query = world
+        .query::<(&mut Changed<PerspectiveMatrixComponent>,)>()
+        .with::<Perspective>();
+    let (_, (perspective_matrix,)) = query.into_iter().next().unwrap();
+
+    let mut query = world
+        .query::<(&mut Changed<OrthographicMatrixComponent>,)>()
+        .with::<Orthographic>();
+    let (_, (orthographic_matrix,)) = query.into_iter().next().unwrap();
 
     buffer_descs.beam.size = extent;
     buffer_descs.beam_depth.size = extent;
@@ -395,23 +396,27 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
 
     let aspect = surface_config.width as f32 / surface_config.height as f32;
 
-    ***matrices.perspective = super::perspective_matrix(aspect, (0.0, 0.0), 1.0, 500.0);
-    matrices.perspective.set_changed(true);
+    ***perspective_matrix = super::perspective_matrix(aspect, (0.0, 0.0), 1.0, 500.0);
+    perspective_matrix.set_changed(true);
 
-    ***matrices.orthographic = super::orthographic_matrix(aspect, 200.0, 1.0, 500.0);
-    matrices.orthographic.set_changed(true);
+    ***orthographic_matrix = super::orthographic_matrix(aspect, 200.0, 1.0, 500.0);
+    orthographic_matrix.set_changed(true);
 }
 
 pub fn phosphor_cursor_moved_system(world: &mut World) {
-    for (_, (_, projection_matrix, window, surface_config)) in world
+    for (_, (_, window, surface_config)) in world
         .query::<(
             &PhosphorRenderer,
-            &mut Changed<PerspectiveMatrixComponent>,
             &Indirect<WindowComponent>,
             &Indirect<SurfaceConfigurationComponent>,
         )>()
         .into_iter()
     {
+        let mut query = world
+            .query::<(&mut Changed<PerspectiveMatrixComponent>,)>()
+            .with::<Perspective>();
+        let (_, (perspective_matrix,)) = query.into_iter().next().unwrap();
+
         let mut query = window.get(world);
         let window = query.get().expect("No indirect WindowComponent");
         let window = if let Some(window) = window.get() {
@@ -444,13 +449,13 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
         let norm_x = ((position.x as f32 / surface_config.width as f32) * 2.0) - 1.0;
         let norm_y = ((position.y as f32 / surface_config.height as f32) * 2.0) - 1.0;
 
-        ***projection_matrix = super::perspective_matrix(
+        ***perspective_matrix = super::perspective_matrix(
             surface_config.width as f32 / surface_config.height as f32,
             (-norm_x, norm_y),
             1.0,
             500.0,
         );
-        projection_matrix.set_changed(true);
+        perspective_matrix.set_changed(true);
     }
 }
 

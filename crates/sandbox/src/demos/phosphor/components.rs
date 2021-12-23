@@ -32,8 +32,8 @@ pub enum LineInstance {}
 pub enum MeshVertex {}
 pub enum MeshIndex {}
 
-pub enum Perspective {}
-pub enum Orthographic {}
+pub struct Perspective;
+pub struct Orthographic;
 
 pub enum FlipFlop {}
 

@@ -316,6 +316,40 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .build();
     let _delta_time_entity = world.spawn(bundle);
 
+    // Perspective matrix entity
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(Perspective)
+        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
+            PerspectiveMatrixComponent::construct(perspective_matrix(
+                640.0 / 480.0,
+                (0.0, 0.0),
+                1.0,
+                500.0,
+            )),
+            0,
+            renderer_entity,
+        ))
+        .build();
+    let _perspective_entity = world.spawn(bundle);
+
+    // Orthographic matrix entity
+    let mut builder = EntityBuilder::new();
+    let bundle = builder
+        .add(Orthographic)
+        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
+            OrthographicMatrixComponent::construct(orthographic_matrix(
+                640.0 / 480.0,
+                200.0,
+                1.0,
+                500.0,
+            )),
+            buffer_size_of::<[[f32; 4]; 4]>(),
+            renderer_entity,
+        ))
+        .build();
+    let _orthographic_entity = world.spawn(bundle);
+
     // Assemble window
     let mut builder = EntityBuilder::new();
     let bundle = builder
@@ -608,32 +642,11 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         ));
 
     // Buffer data
-    builder
-        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
-            PerspectiveMatrixComponent::construct(perspective_matrix(
-                640.0 / 480.0,
-                (0.0, 0.0),
-                1.0,
-                500.0,
-            )),
-            0,
-            renderer_entity,
-        ))
-        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
-            OrthographicMatrixComponent::construct(orthographic_matrix(
-                640.0 / 480.0,
-                200.0,
-                1.0,
-                500.0,
-            )),
-            buffer_size_of::<[[f32; 4]; 4]>(),
-            renderer_entity,
-        ))
-        .add_bundle(antigen_wgpu::BufferDataBundle::<LineVertex, _>::new(
-            LineVertexDataComponent::construct(vertices),
-            0,
-            renderer_entity,
-        ));
+    builder.add_bundle(antigen_wgpu::BufferDataBundle::<LineVertex, _>::new(
+        LineVertexDataComponent::construct(vertices),
+        0,
+        renderer_entity,
+    ));
 
     // Misc
     builder
