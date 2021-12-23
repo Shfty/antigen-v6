@@ -200,15 +200,14 @@ impl ShaderModuleSpirVBundle {
 }
 
 #[derive(hecs::Bundle)]
-pub struct BufferBundle<U> {
-    descriptor: Usage<U, BufferDescriptorComponent<'static>>,
-    buffer: Usage<U, BufferComponent>,
+pub struct BufferBundle {
+    descriptor: BufferDescriptorComponent<'static>,
+    buffer: BufferComponent,
 }
 
-impl<U> BufferBundle<U> {
+impl BufferBundle {
     pub fn new(descriptor: BufferDescriptor<'static>) -> Self {
-        let descriptor =
-            U::as_usage(BufferDescriptorComponent::construct(descriptor).with(ChangedFlag(true)));
+        let descriptor = BufferDescriptorComponent::construct(descriptor).with(ChangedFlag(true));
         BufferBundle {
             descriptor,
             buffer: Default::default(),
@@ -217,16 +216,16 @@ impl<U> BufferBundle<U> {
 }
 
 #[derive(hecs::Bundle)]
-pub struct BufferInitBundle<U> {
-    descriptor: Usage<U, BufferInitDescriptorComponent<'static>>,
-    buffer: Usage<U, BufferComponent>,
+pub struct BufferInitBundle {
+    descriptor: BufferInitDescriptorComponent<'static>,
+    buffer: BufferComponent,
 }
 
-impl<U> BufferInitBundle<U> {
+impl BufferInitBundle {
     pub fn new(descriptor: BufferInitDescriptor<'static>) -> Self {
-        let descriptor = U::as_usage(
-            BufferInitDescriptorComponent::construct(descriptor).with(ChangedFlag(true)),
-        );
+        let descriptor =
+            BufferInitDescriptorComponent::construct(descriptor).with(ChangedFlag(true));
+
         BufferInitBundle {
             descriptor,
             buffer: Default::default(),
@@ -235,17 +234,19 @@ impl<U> BufferInitBundle<U> {
 }
 
 #[derive(hecs::Bundle)]
-pub struct BufferDataBundle<U, T> {
+pub struct BufferDataBundle<T> {
     data: Changed<T>,
-    buffer_write: Usage<U, BufferWriteComponent<T>>,
-    buffer_entity: Indirect<Usage<U, BufferComponent>>,
+    buffer_write: BufferWriteComponent<T>,
+    buffer_entity: Usage<BufferWriteComponent<T>, Indirect<BufferComponent>>,
 }
 
-impl<U, T> BufferDataBundle<U, T> {
+impl<T> BufferDataBundle<T> {
     pub fn new(data: T, offset: BufferAddress, buffer_entity: Entity) -> Self {
         let data = Changed::<T>::construct(data).with(ChangedFlag(true));
-        let buffer_write = U::as_usage(BufferWriteComponent::<T>::new(offset));
-        let buffer_entity = Indirect::<Usage<U, BufferComponent>>::construct(buffer_entity);
+        let buffer_write = BufferWriteComponent::<T>::new(offset);
+        let buffer_entity = BufferWriteComponent::<T>::as_usage(
+            Indirect::<BufferComponent>::construct(buffer_entity),
+        );
         BufferDataBundle {
             data,
             buffer_write,

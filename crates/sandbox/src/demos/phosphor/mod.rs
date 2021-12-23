@@ -298,7 +298,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(Uniform)
         .add(BindGroupLayoutComponent::default())
         .add(BindGroupComponent::default())
-        .add_bundle(antigen_wgpu::BufferBundle::<Uniform>::new(
+        .add_bundle(antigen_wgpu::BufferBundle::new(
             BufferDescriptor {
                 label: Some("Uniform Buffer"),
                 size: buffer_size_of::<UniformData>(),
@@ -313,7 +313,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(MeshVertex)
-        .add_bundle(antigen_wgpu::BufferBundle::<MeshVertex>::new(
+        .add_bundle(antigen_wgpu::BufferBundle::new(
             BufferDescriptor {
                 label: Some("Mesh Vertex Buffer"),
                 size: buffer_size_of::<MeshVertexData>() * MAX_MESH_VERTICES as BufferAddress,
@@ -328,7 +328,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(MeshIndex)
-        .add_bundle(antigen_wgpu::BufferBundle::<MeshIndex>::new(
+        .add_bundle(antigen_wgpu::BufferBundle::new(
             BufferDescriptor {
                 label: Some("Mesh Index Buffer"),
                 size: buffer_size_of::<u16>() * MAX_MESH_INDICES as BufferAddress,
@@ -345,7 +345,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let line_vertex_entity = world.reserve_entity();
     let bundle = builder
         .add(LineVertex)
-        .add_bundle(antigen_wgpu::BufferBundle::<LineVertex>::new(
+        .add_bundle(antigen_wgpu::BufferBundle::new(
             BufferDescriptor {
                 label: Some("Line Vertex Buffer"),
                 size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
@@ -353,8 +353,8 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 mapped_at_creation: false,
             },
         ))
-        .add_bundle(antigen_wgpu::BufferDataBundle::<LineVertex, _>::new(
-            LineVertexDataComponent::construct(vertices),
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(
+            vertices,
             0,
             line_vertex_entity,
         ))
@@ -365,7 +365,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(LineIndex)
-        .add_bundle(antigen_wgpu::BufferBundle::<LineIndex>::new(
+        .add_bundle(antigen_wgpu::BufferBundle::new(
             BufferDescriptor {
                 label: Some("Line Index Buffer"),
                 size: buffer_size_of::<u32>() * MAX_LINE_INDICES as BufferAddress,
@@ -380,7 +380,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(LineInstance)
-        .add_bundle(antigen_wgpu::BufferBundle::<LineInstance>::new(
+        .add_bundle(antigen_wgpu::BufferBundle::new(
             BufferDescriptor {
                 label: Some("Line Instance Buffer"),
                 size: buffer_size_of::<LineInstanceData>() * MAX_LINES as BufferAddress,
@@ -395,7 +395,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(StartTimeComponent::construct(Instant::now()))
-        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(
             TotalTimeComponent::construct(0.0),
             buffer_size_of::<[[f32; 4]; 4]>() * 2,
             uniform_entity,
@@ -407,7 +407,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(TimestampComponent::construct(Instant::now()))
-        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(
             DeltaTimeComponent::construct(1.0 / 60.0),
             (buffer_size_of::<[[f32; 4]; 4]>() * 2) + buffer_size_of::<f32>(),
             uniform_entity,
@@ -419,7 +419,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(Perspective)
-        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(
             PerspectiveMatrixComponent::construct(perspective_matrix(
                 640.0 / 480.0,
                 (0.0, 0.0),
@@ -436,7 +436,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(Orthographic)
-        .add_bundle(antigen_wgpu::BufferDataBundle::<Uniform, _>::new(
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(
             OrthographicMatrixComponent::construct(orthographic_matrix(
                 640.0 / 480.0,
                 200.0,
@@ -728,6 +728,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut vertex_head = 0;
     let mut line_index_head = 0;
     let mut mesh_index_head = 0;
+
+    println!("Mesh vertex entity: {:?}", mesh_vertex_entity);
+    println!("Line index entity: {:?}", line_index_entity);
 
     assemble_test_geometry(
         world,
@@ -1236,12 +1239,7 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         // parallel
         {
             antigen_wgpu::create_shader_modules_system(world);
-            antigen_wgpu::create_buffers_system::<Uniform>(world);
-            antigen_wgpu::create_buffers_system::<MeshVertex>(world);
-            antigen_wgpu::create_buffers_system::<MeshIndex>(world);
-            antigen_wgpu::create_buffers_system::<LineVertex>(world);
-            antigen_wgpu::create_buffers_system::<LineIndex>(world);
-            antigen_wgpu::create_buffers_system::<LineInstance>(world);
+            antigen_wgpu::create_buffers_system(world);
             {
                 antigen_wgpu::create_textures_system::<BeamBuffer>(world);
                 antigen_wgpu::create_texture_views_system::<BeamBuffer>(world);
@@ -1266,26 +1264,18 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         }
         //parallel
         {
-            antigen_wgpu::buffer_write_system::<Uniform, TotalTimeComponent, f32>(world);
-            antigen_wgpu::buffer_write_system::<Uniform, DeltaTimeComponent, f32>(world);
-            antigen_wgpu::buffer_write_system::<Uniform, PerspectiveMatrixComponent, [[f32; 4]; 4]>(
+            antigen_wgpu::buffer_write_system::<TotalTimeComponent>(world);
+            antigen_wgpu::buffer_write_system::<DeltaTimeComponent>(world);
+            antigen_wgpu::buffer_write_system::<PerspectiveMatrixComponent>(world);
+            antigen_wgpu::buffer_write_system::<OrthographicMatrixComponent>(world);
+            antigen_wgpu::buffer_write_system::<Vec<LineVertexData>>(
                 world,
             );
-            antigen_wgpu::buffer_write_system::<Uniform, OrthographicMatrixComponent, [[f32; 4]; 4]>(
+            antigen_wgpu::buffer_write_system::<Vec<u32>>(world);
+            antigen_wgpu::buffer_write_system::<Vec<MeshVertexData>>(
                 world,
             );
-            antigen_wgpu::buffer_write_system::<
-                LineVertex,
-                LineVertexDataComponent,
-                Vec<LineVertexData>,
-            >(world);
-            antigen_wgpu::buffer_write_system::<LineIndex, LineIndexDataComponent, Vec<u32>>(world);
-            antigen_wgpu::buffer_write_system::<
-                MeshVertex,
-                MeshVertexDataComponent,
-                Vec<MeshVertexData>,
-            >(world);
-            antigen_wgpu::buffer_write_system::<MeshIndex, MeshIndexDataComponent, Vec<u16>>(world);
+            antigen_wgpu::buffer_write_system::<MeshIndexDataComponent>(world);
         }
         phosphor_prepare_system(world);
     }

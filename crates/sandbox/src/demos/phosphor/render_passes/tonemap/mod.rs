@@ -62,6 +62,8 @@ pub fn phosphor_render_tonemap(
     let tonemap_pipeline = tonemap_pipeline.get()?;
     let back_bind_group = back_bind_group.get()?;
     let front_bind_group = front_bind_group.get()?;
+    
+    println!("Phosphor render tonemap");
 
     // Tonemap phosphor buffer to surface
     let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {

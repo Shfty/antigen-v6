@@ -196,7 +196,10 @@ pub fn surface_texture_view_drop_system(world: &mut World) {
             continue;
         }
 
-        println!("Dropping texture view for surface texture {:?}", surface_texture);
+        println!(
+            "Dropping texture view for surface texture {:?}",
+            surface_texture
+        );
         texture_view.set_dropped();
         surface_texture.set_changed(false);
     }
@@ -205,10 +208,7 @@ pub fn surface_texture_view_drop_system(world: &mut World) {
 /// Create pending usage-tagged shader modules, recreating them if a Changed flag is set
 pub fn create_shader_modules_system(world: &mut World) {
     println!("Create shader modules system");
-    let mut query = world.query::<(
-        &ShaderModuleDescriptorComponent,
-        &mut ShaderModuleComponent,
-    )>();
+    let mut query = world.query::<(&ShaderModuleDescriptorComponent, &mut ShaderModuleComponent)>();
 
     for (entity, (shader_module_desc, shader_module)) in query.into_iter() {
         println!("Checking shader for entity {:?}", entity);
@@ -221,7 +221,10 @@ pub fn create_shader_modules_system(world: &mut World) {
         shader_module.set_ready(device.create_shader_module(&shader_module_desc));
 
         shader_module_desc.set_changed(false);
-        println!("Created shader module with label {:?}", shader_module_desc.label);
+        println!(
+            "Created shader module with label {:?}",
+            shader_module_desc.label
+        );
     }
 }
 
@@ -249,33 +252,30 @@ pub fn create_shader_modules_spirv_system<T: Send + Sync + 'static>(world: &mut 
 }
 
 /// Create pending usage-tagged buffers, recreating them if a Changed flag is set
-pub fn create_buffers_system<T: Send + Sync + 'static>(world: &mut World) {
-    let mut query = world.query::<(
-        &Usage<T, BufferDescriptorComponent>,
-        &mut Usage<T, BufferComponent>,
-    )>();
+pub fn create_buffers_system(world: &mut World) {
+    let mut query = world.query::<&DeviceComponent>();
+    let (_, device) = query.iter().next().unwrap();
 
-    for (_, (buffer_descriptor, buffer)) in query.into_iter() {
+    let mut query = world.query::<(&BufferDescriptorComponent, &mut BufferComponent)>();
+    for (entity, (buffer_descriptor, buffer)) in query.into_iter() {
         if !buffer.is_pending() && !buffer_descriptor.get_changed() {
             continue;
         }
 
-        let mut query = world.query::<&DeviceComponent>();
-        let (_, device) = query.iter().next().unwrap();
         buffer.set_ready(device.create_buffer(&buffer_descriptor));
 
         buffer_descriptor.set_changed(false);
 
-        println!("Created {} buffer", std::any::type_name::<T>());
+        println!(
+            "Created buffer for entity {:?} with label {:?}",
+            entity, buffer_descriptor.label
+        );
     }
 }
 
 /// Create-initialize pending usage-tagged buffers, recreating them if a Changed flag is set
-pub fn create_buffers_init_system<T: Send + Sync + 'static>(world: &mut World) {
-    let mut query = world.query::<(
-        &Usage<T, BufferInitDescriptorComponent>,
-        &mut Usage<T, BufferComponent>,
-    )>();
+pub fn create_buffers_init_system(world: &mut World) {
+    let mut query = world.query::<(&BufferInitDescriptorComponent, &mut BufferComponent)>();
 
     for (_, (buffer_init_descriptor, buffer)) in query.into_iter() {
         if !buffer.is_pending() && !buffer_init_descriptor.get_changed() {
@@ -288,7 +288,10 @@ pub fn create_buffers_init_system<T: Send + Sync + 'static>(world: &mut World) {
 
         buffer_init_descriptor.set_changed(false);
 
-        println!("Create-initialized {} buffer", std::any::type_name::<T>());
+        println!(
+            "Create-initialized buffer with label {:?}",
+            buffer_init_descriptor.label
+        );
     }
 }
 
@@ -373,13 +376,7 @@ pub fn create_samplers_system<T: Send + Sync + 'static>(world: &mut World) {
 }
 
 // Write data to buffer
-pub fn buffer_write_system<
-    T: Send + Sync + 'static,
-    L: Deref<Target = V> + Send + Sync + 'static,
-    V: ToBytes,
->(
-    world: &mut World,
-) {
+pub fn buffer_write_system<T: ToBytes + Send + Sync + 'static>(world: &mut World) {
     let mut query = world.query::<&QueueComponent>();
     let (_, queue) = if let Some(components) = query.into_iter().next() {
         components
@@ -388,18 +385,23 @@ pub fn buffer_write_system<
     };
 
     let mut query = world.query::<(
-        &Usage<T, BufferWriteComponent<L>>,
-        &Changed<L>,
-        &Indirect<Usage<T, BufferComponent>>,
+        &BufferWriteComponent<T>,
+        &Changed<T>,
+        &Usage<BufferWriteComponent<T>, Indirect<BufferComponent>>,
     )>();
 
     for (_, (buffer_write, data_component, buffer)) in query.into_iter() {
+        let buffer_entity = buffer.entity();
         let mut query = buffer.get(world);
-        let buffer = query.get().unwrap_or_else(|| panic!("No buffer component of type {}", std::any::type_name::<T>()));
-
+        let buffer = query.get().unwrap_or_else(|| {
+            panic!(
+                "No buffer component for data {}",
+                std::any::type_name::<T>()
+            )
+        });
 
         if data_component.get_changed() {
-            let buffer = if let LazyComponent::Ready(buffer) = &**buffer {
+            let buffer = if let LazyComponent::Ready(buffer) = &*buffer {
                 buffer
             } else {
                 continue;
@@ -408,9 +410,10 @@ pub fn buffer_write_system<
             let bytes = data_component.to_bytes();
 
             println!(
-                "Writing {} bytes to {} buffer at offset {}",
-                bytes.len(),
+                "Writing {} ({} bytes) to entity {:?} buffer at offset {}",
                 std::any::type_name::<T>(),
+                bytes.len(),
+                buffer_entity,
                 buffer_write.offset(),
             );
             queue.write_buffer(buffer, buffer_write.offset(), bytes);

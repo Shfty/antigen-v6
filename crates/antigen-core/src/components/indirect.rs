@@ -34,4 +34,8 @@ impl<T> Indirect<T> where T: Component {
     pub fn get_unique_mut<'a>(&self, world: &'a mut World) -> &'a mut T {
         world.query_one_mut::<&mut T>(self.entity).unwrap()
     }
+
+    pub fn entity(&self) -> Entity {
+        self.entity
+    }
 }

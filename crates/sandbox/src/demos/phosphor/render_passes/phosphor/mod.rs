@@ -171,6 +171,8 @@ pub fn phosphor_render_phosphor_decay(
     let front_bind_group = front_bind_group.get()?;
     let back_bind_group = back_bind_group.get()?;
 
+    println!("Phosphor render phosphor decay");
+
     // Combine beam buffer with phosphor back buffer in phosphor front buffer
     let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
         label: None,

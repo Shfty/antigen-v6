@@ -1,27 +1,14 @@
-use std::num::NonZeroU32;
-
 use antigen_core::Construct;
 use antigen_wgpu::{
     buffer_size_of,
-    wgpu::{
-        BufferAddress, Extent3d, ImageCopyTextureBase, ImageDataLayout, TextureAspect,
-        TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor,
-        COPY_BUFFER_ALIGNMENT,
-    },
+    wgpu::{BufferAddress, COPY_BUFFER_ALIGNMENT},
     BufferDataBundle,
 };
-use hecs::{BuiltEntity, Bundle, Entity, EntityBuilder, World};
+use hecs::{Entity, EntityBuilder};
 
-use super::{
-    LineIndex, LineIndexDataComponent, MeshIndex, MeshIndexDataComponent, MeshVertex,
-    MeshVertexData, MeshVertexDataComponent, OriginComponent, Oscilloscope, BLACK, BLUE, GREEN,
-    RED, WHITE,
-};
+use super::{MeshVertexData, OriginComponent, Oscilloscope, BLACK, BLUE, GREEN, RED, WHITE};
 
-pub struct OscilloscopeBundle {
-    origin: OriginComponent,
-    oscilloscope: Oscilloscope,
-}
+pub enum OscilloscopeBundle {}
 
 impl OscilloscopeBundle {
     pub fn builder(
@@ -60,8 +47,8 @@ impl OscilloscopeBundle {
             },
         ];
 
-        let vertex_data = BufferDataBundle::<MeshVertex, _>::new(
-            MeshVertexDataComponent::construct(vertices),
+        let vertex_data = BufferDataBundle::new(
+            vertices,
             buffer_size_of::<MeshVertexData>() * *vertex_head as BufferAddress,
             mesh_vertex_entity,
         );
@@ -70,8 +57,8 @@ impl OscilloscopeBundle {
         let indices = vec![(*vertex_head as u32), (*vertex_head + 1) as u32];
         println!("Ocilloscope indices: {:#?}", indices);
 
-        let index_data = BufferDataBundle::<LineIndex, _>::new(
-            LineIndexDataComponent::construct(indices),
+        let index_data = BufferDataBundle::new(
+            indices,
             buffer_size_of::<u32>() * *index_head as BufferAddress,
             line_index_entity,
         );
@@ -100,15 +87,15 @@ impl LinesBundle {
         let vertex_count = vertices.len();
         let index_count = indices.len();
 
-        let vertex_data = BufferDataBundle::<MeshVertex, _>::new(
-            MeshVertexDataComponent::construct(vertices),
+        let vertex_data = BufferDataBundle::new(
+            vertices,
             buffer_size_of::<MeshVertexData>() * *vertex_head as BufferAddress,
             mesh_vertex_entity,
         );
         builder.add_bundle(vertex_data);
 
-        let index_data = BufferDataBundle::<LineIndex, _>::new(
-            LineIndexDataComponent::construct(indices),
+        let index_data = BufferDataBundle::new(
+            indices,
             buffer_size_of::<u32>() * *index_head as BufferAddress,
             line_index_entity,
         );
@@ -198,8 +185,8 @@ impl LineIndicesBundle {
 
         let index_count = indices.len();
 
-        let index_data = BufferDataBundle::<LineIndex, _>::new(
-            LineIndexDataComponent::construct(indices),
+        let index_data = BufferDataBundle::new(
+            indices,
             buffer_size_of::<u32>() * *line_index_head as BufferAddress,
             line_index_entity,
         );
@@ -413,14 +400,14 @@ impl MeshBundle {
         println!("Index count: {}", index_count);
         println!("Index offset: {}", index_offset);
 
-        builder.add_bundle(BufferDataBundle::<MeshVertex, _>::new(
-            MeshVertexDataComponent::construct(vertices),
+        builder.add_bundle(BufferDataBundle::new(
+            vertices,
             vertex_offset,
             mesh_vertex_entity,
         ));
 
-        builder.add_bundle(BufferDataBundle::<MeshIndex, _>::new(
-            MeshIndexDataComponent::construct(indices),
+        builder.add_bundle(BufferDataBundle::new(
+            indices,
             index_offset,
             mesh_index_entity,
         ));

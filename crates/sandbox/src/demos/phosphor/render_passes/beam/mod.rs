@@ -1,4 +1,6 @@
-use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, DeviceComponent, RenderPipelineComponent, ShaderModuleComponent, buffer_size_of, wgpu::{
+use antigen_wgpu::{
+    buffer_size_of,
+    wgpu::{
         BlendComponent, BlendFactor, BlendOperation, BlendState, ColorTargetState, ColorWrites,
         CommandEncoder, CompareFunction, DepthBiasState, DepthStencilState, Face, FragmentState,
         FrontFace, IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
@@ -6,14 +8,14 @@ use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, DeviceComponent
         RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
         StencilState, TextureFormat, VertexAttribute, VertexBufferLayout, VertexFormat,
         VertexState, VertexStepMode,
-    }};
+    },
+    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
+    RenderPipelineComponent, ShaderModuleComponent,
+};
 
 use crate::demos::phosphor::{
-    BeamBufferViewComponent, BeamDepthBufferViewComponent,
-    BeamMultisampleViewComponent, LineInstanceBufferComponent,
-    LineInstanceData, LineVertexBufferComponent, LineVertexData, MeshIndexBufferComponent,
-    MeshVertexBufferComponent, MeshVertexData,
-    CLEAR_COLOR, HDR_TEXTURE_FORMAT,
+    BeamBufferViewComponent, BeamDepthBufferViewComponent, BeamMultisampleViewComponent,
+    LineInstanceData, LineVertexData, MeshVertexData, CLEAR_COLOR, HDR_TEXTURE_FORMAT,
 };
 
 pub fn phosphor_prepare_beam_mesh(
@@ -246,8 +248,8 @@ pub fn phosphor_render_beam_meshes(
     beam_buffer_view: &BeamBufferViewComponent,
     beam_depth_view: &BeamDepthBufferViewComponent,
     beam_mesh_pipeline: &RenderPipelineComponent,
-    mesh_vertex_buffer: &MeshVertexBufferComponent,
-    mesh_index_buffer: &MeshIndexBufferComponent,
+    mesh_vertex_buffer: &BufferComponent,
+    mesh_index_buffer: &BufferComponent,
     uniform_bind_group: &BindGroupComponent,
     mesh_index_count: u32,
 ) -> Option<()> {
@@ -258,6 +260,8 @@ pub fn phosphor_render_beam_meshes(
     let mesh_vertex_buffer = mesh_vertex_buffer.get()?;
     let mesh_index_buffer = mesh_index_buffer.get()?;
     let uniform_bind_group = uniform_bind_group.get()?;
+
+    println!("Phosphor render beam meshes");
 
     // Draw beam meshes
     println!(
@@ -299,8 +303,8 @@ pub fn phosphor_render_beam_lines(
     beam_buffer_view: &BeamBufferViewComponent,
     beam_depth_view: &BeamDepthBufferViewComponent,
     beam_line_pipeline: &RenderPipelineComponent,
-    line_vertex_buffer: &LineVertexBufferComponent,
-    line_instance_buffer: &LineInstanceBufferComponent,
+    line_vertex_buffer: &BufferComponent,
+    line_instance_buffer: &BufferComponent,
     uniform_bind_group: &BindGroupComponent,
     line_count: u32,
 ) -> Option<()> {
@@ -311,6 +315,8 @@ pub fn phosphor_render_beam_lines(
     let line_vertex_buffer = line_vertex_buffer.get()?;
     let line_instance_buffer = line_instance_buffer.get()?;
     let uniform_bind_group = uniform_bind_group.get()?;
+
+    println!("Phosphor render beam lines");
 
     // Draw beam lines
     println!("Drawing {} line instances", line_count,);

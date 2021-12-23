@@ -77,15 +77,6 @@ pub struct UniformData {
     _pad: [f32; 2],
 }
 
-pub type UniformDataComponent = Usage<Uniform, UniformData>;
-pub type UniformBufferComponent = Usage<Uniform, BufferComponent>;
-
-pub type BeamBufferComponent = Usage<BeamBuffer, TextureComponent>;
-pub type BeamDepthBufferComponent = Usage<BeamDepthBuffer, TextureComponent>;
-pub type BeamMultisampleComponent = Usage<BeamMultisample, TextureComponent>;
-pub type PhosphorFrontBufferComponent = Usage<PhosphorFrontBuffer, TextureComponent>;
-pub type PhosphorBackBufferComponent = Usage<PhosphorBackBuffer, TextureComponent>;
-
 pub type BeamBufferDescriptorComponent = Usage<BeamBuffer, TextureDescriptorComponent<'static>>;
 pub type BeamDepthDescriptorComponent = Usage<BeamDepthBuffer, TextureDescriptorComponent<'static>>;
 pub type BeamMultisampleDescriptorComponent = Usage<BeamMultisample, TextureDescriptorComponent<'static>>;
@@ -115,8 +106,7 @@ pub struct LineVertexData {
     pub end: f32,
 }
 
-pub type LineVertexDataComponent = Usage<LineVertex, Vec<LineVertexData>>;
-pub type LineVertexBufferComponent = Usage<LineVertex, BufferComponent>;
+pub type LineVertexDataComponent =  Vec<LineVertexData>;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
@@ -131,10 +121,7 @@ impl ToBytes for LineInstanceData {
     }
 }
 
-pub type LineIndexDataComponent = Usage<LineIndex, Vec<u32>>;
-pub type LineIndexBufferComponent = Usage<LineIndex, BufferComponent>;
-
-pub type LineInstanceBufferComponent = Usage<LineInstance, BufferComponent>;
+pub type LineIndexDataComponent =  Vec<u32>;
 
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
@@ -166,11 +153,9 @@ impl MeshVertexData {
     }
 }
 
-pub type MeshVertexDataComponent = Usage<MeshVertex, Vec<MeshVertexData>>;
-pub type MeshVertexBufferComponent = Usage<MeshVertex, BufferComponent>;
+pub type MeshVertexDataComponent = Vec<MeshVertexData>;
 
-pub type MeshIndexDataComponent = Usage<MeshIndex, Vec<u16>>;
-pub type MeshIndexBufferComponent = Usage<MeshIndex, BufferComponent>;
+pub type MeshIndexDataComponent = Vec<u16>;
 
 pub type BufferFlipFlopComponent = Usage<FlipFlop, bool>;
 

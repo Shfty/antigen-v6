@@ -7,7 +7,7 @@
 // TODO: [✓] Refactor prepare function to avoid unnecessary resource creation
 //           * Split into specific sub-functions to ease maintenance
 //
-// TODO: [ ] Split texture and view components for phosphor demo
+// TODO: [✓] Split texture and view components for phosphor demo
 //
 // TODO: [ ] Refactor wgpu types to remove usage generics
 //

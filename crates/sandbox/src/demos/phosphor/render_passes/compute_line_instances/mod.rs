@@ -1,23 +1,15 @@
-use antigen_wgpu::{
-    wgpu::{
+use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, BufferComponent, ComputePipelineComponent, DeviceComponent, ShaderModuleComponent, wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
         BindingType, BufferBindingType, BufferSize, CommandEncoder, ComputePassDescriptor,
         ComputePipelineDescriptor, PipelineLayoutDescriptor, ShaderStages,
-    },
-    BindGroupComponent, BindGroupLayoutComponent, ComputePipelineComponent, DeviceComponent,
-    ShaderModuleComponent,
-};
-
-use crate::demos::phosphor::{
-    LineIndexBufferComponent, LineInstanceBufferComponent, MeshVertexBufferComponent,
-};
+    }};
 
 pub fn phosphor_prepare_compute(
     device: &DeviceComponent,
     shader_module: &ShaderModuleComponent,
-    mesh_vertex_buffer: &MeshVertexBufferComponent,
-    line_index_buffer: &LineIndexBufferComponent,
-    line_instance_buffer: &LineInstanceBufferComponent,
+    mesh_vertex_buffer: &BufferComponent,
+    line_index_buffer: &BufferComponent,
+    line_instance_buffer: &BufferComponent,
     bind_group_layout: &mut BindGroupLayoutComponent,
     bind_group: &mut BindGroupComponent,
     pipeline: &mut ComputePipelineComponent,
@@ -126,6 +118,8 @@ pub fn phosphor_render_compute(
 ) -> Option<()> {
     let compute_pipeline = compute_pipeline.get()?;
     let compute_bind_group = compute_bind_group.get()?;
+
+    println!("Phosphor render compute");
 
     // Compute line instances
     let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
