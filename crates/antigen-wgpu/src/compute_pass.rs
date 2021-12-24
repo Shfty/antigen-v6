@@ -7,28 +7,22 @@ use crate::{
     PushConstantQuery,
 };
 
-// TEST: Compute pass automation
-pub enum ComputePass {}
+pub enum ComputePassTag {}
 
 pub type ComputePassPipelineComponent =
-    Usage<ComputePass, Indirect<&'static ComputePipelineComponent>>;
+    Usage<ComputePassTag, Indirect<&'static ComputePipelineComponent>>;
 pub type ComputePassBindGroupsComponent =
-    Usage<ComputePass, Vec<(Indirect<&'static BindGroupComponent>, Vec<DynamicOffset>)>>;
+    Usage<ComputePassTag, Vec<(Indirect<&'static BindGroupComponent>, Vec<DynamicOffset>)>>;
 pub type ComputePassPushConstantsComponent =
-    Usage<ComputePass, Vec<Indirect<PushConstantQuery<'static>>>>;
-pub type ComputePassDispatchComponent = Usage<ComputePass, (u32, u32, u32)>;
+    Usage<ComputePassTag, Vec<Indirect<PushConstantQuery<'static>>>>;
+pub type ComputePassDispatchComponent = Usage<ComputePassTag, (u32, u32, u32)>;
 
 pub struct ComputePassDispatchIndirectComponent {
     buffer: Indirect<&'static BufferComponent>,
     offset: BufferAddress,
 }
 
-#[derive(hecs::Bundle)]
-pub struct ComputePassBundle {
-    pipeline: ComputePassPipelineComponent,
-    bind_groups: ComputePassBindGroupsComponent,
-    dispatch: ComputePassDispatchComponent,
-}
+pub enum ComputePassBundle {}
 
 fn compute_pass_bundle_impl(
     builder: &mut EntityBuilder,
@@ -39,9 +33,10 @@ fn compute_pass_bundle_impl(
 ) {
     builder.add(desc);
 
-    let pipeline = ComputePassPipelineComponent::construct(pipeline_entity);   builder.add(pipeline);
+    let pipeline = ComputePassPipelineComponent::construct(pipeline_entity);
+    builder.add(pipeline);
 
-    let bind_groups = ComputePass::as_usage(
+    let bind_groups = ComputePassTag::as_usage(
         bind_group_entities
             .into_iter()
             .map(|(entity, offset)| {
@@ -83,7 +78,7 @@ impl ComputePassBundle {
             push_constant_entities,
         );
 
-        let dispatch = ComputePass::as_usage(dispatch);
+        let dispatch = ComputePassTag::as_usage(dispatch);
         builder.add(dispatch);
 
         builder
