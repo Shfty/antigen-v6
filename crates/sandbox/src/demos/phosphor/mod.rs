@@ -693,7 +693,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     ));
 
     builder.add_bundle(
-        antigen_wgpu::ComputePassIndirectBundle::builder(
+        antigen_wgpu::ComputePassBundle::dispatch_indirect(
             ComputePassDescriptor {
                 label: Some("Line Indices".into()),
             },

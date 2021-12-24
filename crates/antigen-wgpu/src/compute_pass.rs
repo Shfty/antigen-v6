@@ -30,8 +30,43 @@ pub struct ComputePassBundle {
     dispatch: ComputePassDispatchComponent,
 }
 
+fn compute_pass_bundle_impl(
+    builder: &mut EntityBuilder,
+    desc: ComputePassDescriptor<'static>,
+    pipeline_entity: Entity,
+    bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
+    push_constant_entities: Vec<Entity>,
+) {
+    builder.add(desc);
+
+    let pipeline = ComputePassPipelineComponent::construct(pipeline_entity);   builder.add(pipeline);
+
+    let bind_groups = ComputePass::as_usage(
+        bind_group_entities
+            .into_iter()
+            .map(|(entity, offset)| {
+                (
+                    Indirect::<&'static BindGroupComponent>::construct(entity),
+                    offset,
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    builder.add(bind_groups);
+
+    if push_constant_entities.len() > 0 {
+        builder.add(ComputePassPushConstantsComponent::construct(
+            push_constant_entities
+                .into_iter()
+                .map(Indirect::construct)
+                .collect(),
+        ));
+    }
+}
+
 impl ComputePassBundle {
-    pub fn builder(
+    pub fn dispatch(
         desc: ComputePassDescriptor<'static>,
         pipeline_entity: Entity,
         bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
@@ -40,47 +75,21 @@ impl ComputePassBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        builder.add(desc);
-
-        let pipeline = ComputePass::as_usage(Indirect::construct(pipeline_entity));
-
-        let bind_groups = ComputePass::as_usage(
-            bind_group_entities
-                .into_iter()
-                .map(|(entity, offset)| (Indirect::construct(entity), offset))
-                .collect::<Vec<_>>(),
+        compute_pass_bundle_impl(
+            &mut builder,
+            desc,
+            pipeline_entity,
+            bind_group_entities,
+            push_constant_entities,
         );
 
-        if push_constant_entities.len() > 0 {
-            builder.add(ComputePassPushConstantsComponent::construct(
-                push_constant_entities
-                    .into_iter()
-                    .map(Indirect::construct)
-                    .collect(),
-            ));
-        }
-
         let dispatch = ComputePass::as_usage(dispatch);
-
-        builder.add_bundle(ComputePassBundle {
-            pipeline,
-            bind_groups,
-            dispatch,
-        });
+        builder.add(dispatch);
 
         builder
     }
-}
 
-#[derive(hecs::Bundle)]
-pub struct ComputePassIndirectBundle {
-    pipeline: ComputePassPipelineComponent,
-    bind_groups: ComputePassBindGroupsComponent,
-    dispatch: ComputePassDispatchIndirectComponent,
-}
-
-impl ComputePassIndirectBundle {
-    pub fn builder(
+    pub fn dispatch_indirect(
         desc: ComputePassDescriptor<'static>,
         pipeline_entity: Entity,
         bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
@@ -90,39 +99,19 @@ impl ComputePassIndirectBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        builder.add(desc);
-
-        let pipeline = ComputePass::as_usage(Indirect::construct(pipeline_entity));
-
-        let bind_groups = ComputePass::as_usage(
-            bind_group_entities
-                .into_iter()
-                .map(|(entity, offset)| (Indirect::construct(entity), offset))
-                .collect::<Vec<_>>(),
+        compute_pass_bundle_impl(
+            &mut builder,
+            desc,
+            pipeline_entity,
+            bind_group_entities,
+            push_constant_entities,
         );
-
-        if push_constant_entities.len() > 0 {
-            builder.add(ComputePassPushConstantsComponent::construct(
-                push_constant_entities
-                    .into_iter()
-                    .map(Indirect::construct)
-                    .collect(),
-            ));
-        }
 
         let buffer = Indirect::construct(indirect_entity);
         let offset = indirect_offset;
 
-        let dispatch = ComputePassDispatchIndirectComponent {
-            buffer,
-            offset,
-        };
-
-        builder.add_bundle(ComputePassIndirectBundle {
-            pipeline,
-            bind_groups,
-            dispatch,
-        });
+        let dispatch = ComputePassDispatchIndirectComponent { buffer, offset };
+        builder.add(dispatch);
 
         builder
     }

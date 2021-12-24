@@ -6,11 +6,10 @@ use antigen_core::{Changed, ChangedTrait, Indirect};
 use antigen_wgpu::{
     wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-        BindingType, BufferBindingType, BufferSize, Extent3d,
-        ShaderStages,
+        BindingType, BufferBindingType, BufferSize, Extent3d, ShaderStages,
     },
-    BindGroupComponent, BindGroupLayoutComponent, BufferComponent,
-    DeviceComponent, RenderAttachmentTextureView, SamplerComponent, SurfaceConfigurationComponent,
+    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
+    RenderAttachmentTextureView, SamplerComponent, SurfaceConfigurationComponent,
     TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
 };
 
