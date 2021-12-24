@@ -301,7 +301,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Uniform Buffer"),
             size: buffer_size_of::<UniformData>(),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            usage: BufferUsages::UNIFORM | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
         .build();
@@ -693,17 +693,24 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     ));
 
     builder.add_bundle(
-        antigen_wgpu::ComputePassBundle::builder(
+        antigen_wgpu::ComputePassIndirectBundle::builder(
             ComputePassDescriptor {
                 label: Some("Line Indices".into()),
             },
             compute_pass_entity,
             vec![(compute_pass_entity, vec![])],
             vec![],
-            (177, 1, 1),
+            uniform_entity,
+            buffer_size_of::<[f32; 36]>(),
         )
         .build(),
     );
+
+    builder.add_bundle(antigen_wgpu::BufferDataBundle::new(
+        [0u32, 1, 1],
+        buffer_size_of::<[f32; 36]>(),
+        uniform_entity,
+    ));
 
     // Misc
     builder
@@ -1249,7 +1256,9 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::buffer_write_system::<Vec<u32>>(world);
             antigen_wgpu::buffer_write_system::<Vec<MeshVertexData>>(world);
             antigen_wgpu::buffer_write_system::<MeshIndexDataComponent>(world);
+            antigen_wgpu::buffer_write_system::<[u32; 3]>(world);
         }
+        phosphor_update_compute_indirect(world);
         phosphor_prepare_system(world);
     }
 

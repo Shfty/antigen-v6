@@ -110,27 +110,3 @@ pub fn phosphor_prepare_compute(
     Some(())
 }
 
-pub fn phosphor_render_compute(
-    encoder: &mut CommandEncoder,
-    compute_pipeline: &ComputePipelineComponent,
-    compute_bind_group: &BindGroupComponent,
-    line_count: u32,
-) -> Option<()> {
-    let compute_pipeline = compute_pipeline.get()?;
-    let compute_bind_group = compute_bind_group.get()?;
-
-    println!("Phosphor render compute");
-
-    // Compute line instances
-    let mut cpass = encoder.begin_compute_pass(&ComputePassDescriptor {
-        label: Some("Compute Pass"),
-    });
-    println!("Setting pipeline {:?}", compute_pipeline);
-    cpass.set_pipeline(compute_pipeline);
-    println!("Setting bind group {:?}", compute_bind_group);
-    cpass.set_bind_group(0, compute_bind_group, &[]);
-    println!("Dispatching ({}, 1, 1)", line_count as u32);
-    cpass.dispatch(line_count as u32, 1, 1);
-
-    Some(())
-}

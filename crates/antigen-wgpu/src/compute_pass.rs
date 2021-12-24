@@ -1,9 +1,9 @@
 use antigen_core::{AsUsage, Construct, Indirect, Usage};
 use hecs::{Entity, EntityBuilder, World};
-use wgpu::{ComputePassDescriptor, DynamicOffset};
+use wgpu::{BufferAddress, ComputePassDescriptor, DynamicOffset};
 
 use crate::{
-    BindGroupComponent, CommandEncoderComponent, ComputePipelineComponent, DeviceComponent,
+    BindGroupComponent, BufferComponent, CommandEncoderComponent, ComputePipelineComponent,
     PushConstantQuery,
 };
 
@@ -17,6 +17,11 @@ pub type ComputePassBindGroupsComponent =
 pub type ComputePassPushConstantsComponent =
     Usage<ComputePass, Vec<Indirect<PushConstantQuery<'static>>>>;
 pub type ComputePassDispatchComponent = Usage<ComputePass, (u32, u32, u32)>;
+
+pub struct ComputePassDispatchIndirectComponent {
+    buffer: Indirect<&'static BufferComponent>,
+    offset: BufferAddress,
+}
 
 #[derive(hecs::Bundle)]
 pub struct ComputePassBundle {
@@ -67,13 +72,69 @@ impl ComputePassBundle {
     }
 }
 
+#[derive(hecs::Bundle)]
+pub struct ComputePassIndirectBundle {
+    pipeline: ComputePassPipelineComponent,
+    bind_groups: ComputePassBindGroupsComponent,
+    dispatch: ComputePassDispatchIndirectComponent,
+}
+
+impl ComputePassIndirectBundle {
+    pub fn builder(
+        desc: ComputePassDescriptor<'static>,
+        pipeline_entity: Entity,
+        bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
+        push_constant_entities: Vec<Entity>,
+        indirect_entity: Entity,
+        indirect_offset: BufferAddress,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        builder.add(desc);
+
+        let pipeline = ComputePass::as_usage(Indirect::construct(pipeline_entity));
+
+        let bind_groups = ComputePass::as_usage(
+            bind_group_entities
+                .into_iter()
+                .map(|(entity, offset)| (Indirect::construct(entity), offset))
+                .collect::<Vec<_>>(),
+        );
+
+        if push_constant_entities.len() > 0 {
+            builder.add(ComputePassPushConstantsComponent::construct(
+                push_constant_entities
+                    .into_iter()
+                    .map(Indirect::construct)
+                    .collect(),
+            ));
+        }
+
+        let buffer = Indirect::construct(indirect_entity);
+        let offset = indirect_offset;
+
+        let dispatch = ComputePassDispatchIndirectComponent {
+            buffer,
+            offset,
+        };
+
+        builder.add_bundle(ComputePassIndirectBundle {
+            pipeline,
+            bind_groups,
+            dispatch,
+        });
+
+        builder
+    }
+}
+
 #[derive(hecs::Query)]
 pub struct ComputePassQuery<'a> {
     desc: &'a ComputePassDescriptor<'static>,
     pipeline: &'a ComputePassPipelineComponent,
     bind_groups: &'a ComputePassBindGroupsComponent,
     push_constants: Option<&'a ComputePassPushConstantsComponent>,
-    dispatch: &'a ComputePassDispatchComponent,
+    dispatch: hecs::Or<&'a ComputePassDispatchComponent, &'a ComputePassDispatchIndirectComponent>,
     encoder: &'a mut CommandEncoderComponent,
 }
 
@@ -128,6 +189,15 @@ pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
             .map(|query| query.get().unwrap())
             .collect::<Vec<_>>();
 
+        let dispatch_ind = dispatch.right();
+        let mut dispatch_ind_query =
+            dispatch_ind.map(|dispatch_ind| (dispatch_ind.buffer.get(world), dispatch_ind.offset));
+        let dispatch_ind_buffer = dispatch_ind_query
+            .as_mut()
+            .map(|(query, offset)| (query.get().unwrap(), *offset));
+
+        let dispatch = dispatch.left();
+
         let mut cpass = encoder.begin_compute_pass(&desc);
         println!("Setting pipeline {:?}", pipeline);
         cpass.set_pipeline(pipeline);
@@ -152,11 +222,22 @@ pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
             cpass.set_push_constants(**push_constant.offset, &***push_constant.data);
         }
 
-        println!(
-            "Dispatching compute work groups ({}, {}, {}) for entity {:?}",
-            dispatch.0, dispatch.1, dispatch.2, entity
-        );
-        cpass.dispatch(dispatch.0, dispatch.1, dispatch.2);
+        if let Some(dispatch) = dispatch {
+            println!(
+                "Dispatching compute work groups ({}, {}, {}) for entity {:?}",
+                dispatch.0, dispatch.1, dispatch.2, entity
+            );
+            cpass.dispatch(dispatch.0, dispatch.1, dispatch.2);
+        }
+
+        if let Some((buffer, offset)) = dispatch_ind_buffer {
+            println!(
+                "Dispatching indirect compute work group for entity {:?}",
+                entity
+            );
+            let buffer = buffer.get().unwrap();
+            cpass.dispatch_indirect(buffer, offset);
+        }
     }
 
     Some(())
