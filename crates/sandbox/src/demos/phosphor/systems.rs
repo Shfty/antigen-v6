@@ -493,13 +493,12 @@ pub fn phosphor_render(world: &World, entity: Entity) -> Option<()> {
         .query_one::<(
             &MeshIndexCountComponent,
             &LineIndexCountComponent,
-            &mut BufferFlipFlopComponent,
             &mut antigen_wgpu::CommandEncoderComponent,
             &Indirect<&RenderAttachmentTextureView>,
         )>(entity)
         .unwrap();
 
-    let (mesh_index_count, line_index_count, buffer_flip_flop, encoder, render_attachment_view) =
+    let (mesh_index_count, line_index_count, encoder, render_attachment_view) =
         query.get().unwrap();
 
     let encoder = encoder.get_mut()?;
@@ -512,7 +511,7 @@ pub fn phosphor_render(world: &World, entity: Entity) -> Option<()> {
     let render_attachment_view = query.get().unwrap();
 
     let mut query = world
-        .query::<(&mut BindGroupComponent,)>()
+        .query::<(&BindGroupComponent,)>()
         .with::<Uniform>();
     let (_, (uniform_bind_group,)) = query.into_iter().next()?;
 
@@ -570,85 +569,33 @@ pub fn phosphor_render(world: &World, entity: Entity) -> Option<()> {
     let (_, (phosphor_decay_pipeline,)) = query.into_iter().next().unwrap();
 
     let mut query = world
-        .query::<(&BindGroupComponent,)>()
+        .query::<(&mut BindGroupComponent,)>()
         .with::<PhosphorFrontBuffer>();
     let (_, (front_bind_group,)) = query.into_iter().next()?;
 
     let mut query = world
-        .query::<(&BindGroupComponent,)>()
+        .query::<(&mut BindGroupComponent,)>()
         .with::<PhosphorBackBuffer>();
     let (_, (back_bind_group,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&RenderPipelineComponent,)>()
-        .with::<BeamMesh>();
-    let (_, (beam_mesh_pipeline,)) = query.into_iter().next().unwrap();
-
-    let mut query = world
-        .query::<(&RenderPipelineComponent,)>()
-        .with::<BeamLine>();
-    let (_, (beam_line_pipeline,)) = query.into_iter().next().unwrap();
 
     let mut query = world
         .query::<(&RenderPipelineComponent,)>()
         .with::<Tonemap>();
     let (_, (tonemap_pipeline,)) = query.into_iter().next().unwrap();
 
-    /*
-    phosphor_render_compute(
-        encoder,
-        compute_pipeline,
-        compute_bind_group,
-        line_count as u32,
-    );
-    */
-
-    phosphor_render_beam_meshes(
-        encoder,
-        beam_multisample_view,
-        beam_buffer_view,
-        beam_depth_buffer_view,
-        beam_mesh_pipeline,
-        mesh_vertex_buffer,
-        mesh_index_buffer,
-        uniform_bind_group,
-        mesh_index_count as u32,
-    );
-
-    phosphor_render_beam_lines(
-        encoder,
-        beam_multisample_view,
-        beam_buffer_view,
-        beam_depth_buffer_view,
-        beam_line_pipeline,
-        line_vertex_buffer,
-        line_instance_buffer,
-        uniform_bind_group,
-        line_count as u32,
-    );
-
-    phosphor_render_phosphor_decay(
-        encoder,
-        buffer_flip_flop,
-        phosphor_front_buffer_view,
-        phosphor_back_buffer_view,
-        phosphor_decay_pipeline,
-        uniform_bind_group,
-        front_bind_group,
-        back_bind_group,
-    );
-
     phosphor_render_tonemap(
         encoder,
         render_attachment_view,
         tonemap_pipeline,
-        buffer_flip_flop,
-        front_bind_group,
         back_bind_group,
     );
 
-    // Flip buffer flag
-    **buffer_flip_flop = !**buffer_flip_flop;
+    swap_buffers_system(
+        front_bind_group,
+        back_bind_group,
+        phosphor_front_buffer_view,
+        phosphor_back_buffer_view,
+    );
 
     Some(())
 }

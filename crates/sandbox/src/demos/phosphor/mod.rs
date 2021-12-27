@@ -99,12 +99,14 @@
 mod assemblage;
 mod components;
 mod render_passes;
+mod svg_lines;
 mod systems;
 
 use antigen_fs::{load_file_string, FilePathComponent};
 pub use assemblage::*;
 pub use components::*;
 pub use render_passes::*;
+pub use svg_lines::*;
 pub use systems::*;
 
 use expression::EvalTrait;
@@ -125,9 +127,10 @@ use antigen_core::{
 use antigen_wgpu::{
     buffer_size_of, spawn_shader_from_file_string,
     wgpu::{
-        AddressMode, BufferAddress, BufferDescriptor, BufferUsages, CommandEncoderDescriptor,
-        ComputePassDescriptor, Extent3d, FilterMode, Maintain, SamplerDescriptor, TextureAspect,
-        TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor,
+        AddressMode, BufferAddress, BufferDescriptor, BufferUsages, Color,
+        CommandEncoderDescriptor, ComputePassDescriptor, Extent3d, FilterMode, IndexFormat, LoadOp,
+        Maintain, Operations, SamplerDescriptor, TextureAspect, TextureDescriptor,
+        TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor,
     },
     BindGroupComponent, BindGroupLayoutComponent, ComputePipelineComponent,
     RenderAttachmentTextureView, RenderPipelineComponent, ShaderModuleComponent,
@@ -377,7 +380,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             mapped_at_creation: false,
         }))
         .build();
-    let _line_instance_entity = world.spawn(bundle);
+    let line_instance_entity = world.spawn(bundle);
 
     // Total time entity
     let mut builder = EntityBuilder::new();
@@ -467,7 +470,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             },
         ))
         .build();
-    let _beam_buffer_entity = world.spawn(bundle);
+    let beam_buffer_entity = world.spawn(bundle);
 
     // Beam depth buffer
     let mut builder = EntityBuilder::new();
@@ -499,7 +502,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             },
         ))
         .build();
-    let _beam_depth_buffer_entity = world.spawn(bundle);
+    let beam_depth_buffer_entity = world.spawn(bundle);
 
     // Beam multisample resolve target
     let mut builder = EntityBuilder::new();
@@ -531,12 +534,15 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             },
         ))
         .build();
-    let _beam_multisample_entity = world.spawn(bundle);
+    let beam_multisample_entity = world.spawn(bundle);
 
     // Phosphor front buffer
+
+    // Front buffer
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(PhosphorFrontBuffer)
+        .add(BindGroupComponent::default())
         .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
             label: Some("Phosphor Front Buffer"),
             size: Extent3d {
@@ -563,12 +569,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             },
         ))
         .build();
-    let _beam_multisample_entity = world.spawn(bundle);
+    let phosphor_front_entity = world.spawn(bundle);
 
     // Phosphor back buffer
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(PhosphorBackBuffer)
+        .add(BindGroupComponent::default())
         .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
             label: Some("Phosphor Back Buffer"),
             size: Extent3d {
@@ -595,7 +602,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             },
         ))
         .build();
-    let _beam_multisample_entity = world.spawn(bundle);
+    let phosphor_back_entity = world.spawn(bundle);
 
     // Assemble window
     let mut builder = EntityBuilder::new();
@@ -621,28 +628,43 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         "crates/sandbox/src/demos/phosphor/shaders/line_instances.wgsl",
     );
 
-    // Phosphor pass
-    let phosphor_pass_entity = world.spawn((
-        PhosphorDecay,
-        RenderPipelineComponent::default(),
-        BindGroupLayoutComponent::default(),
-    ));
-
-    // Shaders
-    load_shader::<Filesystem, _>(
-        channel,
-        phosphor_pass_entity,
-        "crates/sandbox/src/demos/phosphor/shaders/phosphor_decay.wgsl",
-    );
-
-    // Front buffer
-    let _phosphor_front_entity = world.spawn((PhosphorFrontBuffer, BindGroupComponent::default()));
-
-    // Back buffer
-    let _phosphor_back_entity = world.spawn((PhosphorBackBuffer, BindGroupComponent::default()));
-
     // Beam mesh pass
-    let beam_mesh_pass_entity = world.spawn((BeamMesh, RenderPipelineComponent::default()));
+    let beam_mesh_pass_entity = world.reserve_entity();
+    let mut builder = EntityBuilder::new();
+    builder.add(BeamMesh);
+    builder.add(RenderPipelineComponent::default());
+    builder.add_bundle(
+        antigen_wgpu::RenderPassBundle::draw_indexed(
+            Some("Beam Meshes".into()),
+            vec![(
+                beam_multisample_entity,
+                Some(beam_buffer_entity),
+                Operations {
+                    load: LoadOp::Clear(CLEAR_COLOR),
+                    store: true,
+                },
+            )],
+            Some((
+                beam_depth_buffer_entity,
+                Some(Operations {
+                    load: LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                None,
+            )),
+            beam_mesh_pass_entity,
+            vec![(mesh_vertex_entity, 0..480000)],
+            Some((mesh_index_entity, 0..20000, IndexFormat::Uint16)),
+            vec![(uniform_entity, vec![])],
+            vec![],
+            (0..10000, 0, 0..1),
+            renderer_entity,
+        )
+        .build(),
+    );
+    world
+        .insert(beam_mesh_pass_entity, builder.build())
+        .unwrap();
 
     load_shader::<Filesystem, _>(
         channel,
@@ -651,7 +673,45 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     );
 
     // Beam line pass
-    let beam_line_pass_entity = world.spawn((BeamLine, RenderPipelineComponent::default()));
+    let beam_line_pass_entity = world.reserve_entity();
+    let mut builder = EntityBuilder::new();
+    builder.add(BeamLine);
+    builder.add(RenderPipelineComponent::default());
+    builder.add_bundle(
+        antigen_wgpu::RenderPassBundle::draw(
+            Some("Beam Lines".into()),
+            vec![(
+                beam_multisample_entity,
+                Some(beam_buffer_entity),
+                Operations {
+                    load: LoadOp::Load,
+                    store: true,
+                },
+            )],
+            Some((
+                beam_depth_buffer_entity,
+                Some(Operations {
+                    load: LoadOp::Load,
+                    store: false,
+                }),
+                None,
+            )),
+            beam_line_pass_entity,
+            vec![
+                (line_vertex_entity, 0..224),
+                (line_instance_entity, 0..960000),
+            ],
+            None,
+            vec![(uniform_entity, vec![])],
+            vec![],
+            (0..14, 0..MAX_LINES as u32),
+            renderer_entity,
+        )
+        .build(),
+    );
+    world
+        .insert(beam_line_pass_entity, builder.build())
+        .unwrap();
 
     load_shader::<Filesystem, _>(
         channel,
@@ -659,8 +719,74 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         "crates/sandbox/src/demos/phosphor/shaders/beam_line.wgsl",
     );
 
+    // Phosphor pass
+    let phosphor_pass_entity = world.reserve_entity();
+    let mut builder = EntityBuilder::new();
+    builder.add(PhosphorDecay);
+    builder.add(RenderPipelineComponent::default());
+    builder.add(BindGroupLayoutComponent::default());
+    builder.add_bundle(
+        antigen_wgpu::RenderPassBundle::draw(
+            Some("Phosphor Decay".into()),
+            vec![(
+                phosphor_front_entity,
+                None,
+                Operations {
+                    load: LoadOp::Load,
+                    store: true,
+                },
+            )],
+            None,
+            phosphor_pass_entity,
+            vec![],
+            None,
+            vec![(uniform_entity, vec![]), (phosphor_front_entity, vec![])],
+            vec![],
+            (0..4, 0..1 as u32),
+            renderer_entity,
+        )
+        .build(),
+    );
+    world.insert(phosphor_pass_entity, builder.build()).unwrap();
+
+    load_shader::<Filesystem, _>(
+        channel,
+        phosphor_pass_entity,
+        "crates/sandbox/src/demos/phosphor/shaders/phosphor_decay.wgsl",
+    );
+
     // Tonemap pass
-    let tonemap_pass_entity = world.spawn((Tonemap, RenderPipelineComponent::default()));
+    let tonemap_pass_entity = world.reserve_entity();
+
+    let mut builder = EntityBuilder::new();
+    builder.add(Tonemap);
+    builder.add(RenderPipelineComponent::default());
+    /*
+    builder.add_bundle(
+        antigen_wgpu::RenderPassBundle::draw(
+            Some("Tonemap".into()),
+            vec![(
+                window_entity,
+                None,
+                Operations {
+                    load: LoadOp::Clear(Color::BLACK),
+                    store: true,
+                },
+            )],
+            None,
+            tonemap_pass_entity,
+            vec![],
+            None,
+            vec![(phosphor_back_entity, vec![])],
+            vec![],
+            (0..4, 0..1),
+            renderer_entity,
+        )
+        .build(),
+    );
+    */
+
+    world.insert(tonemap_pass_entity, builder.build()).unwrap();
 
     load_shader::<Filesystem, _>(
         channel,
@@ -715,7 +841,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     // Misc
     builder
         .add(antigen_wgpu::CommandBuffersComponent::default())
-        .add(BufferFlipFlopComponent::construct(false))
         // Indirect surface config and view for resize handling
         .add(Indirect::<&SurfaceConfigurationComponent>::construct(
             window_entity,
@@ -750,6 +875,8 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     );
     */
 
+    // Load map file
+    /*
     let map_file = include_str!("maps/line_index_test.map");
     let map = map_file
         .parse::<antigen_shambler::shambler::shalrath::repr::Map>()
@@ -778,6 +905,48 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     );
     let bundles = point_entities.iter_mut().map(EntityBuilder::build);
     world.extend(bundles);
+    */
+
+    // Load SVG
+    let svg = SvgLayers::parse("crates/sandbox/src/demos/phosphor/fonts/basic.svg")
+        .expect("Failed to parse SVG");
+    let meshes = svg.meshes();
+    for (iy, (_, graphemes)) in meshes.iter().enumerate() {
+        for (ix, (_, (vertices, indices))) in graphemes.iter().enumerate() {
+            let step = 20.0;
+            let ofs_x = (-step * 13.0) + ix as f32 * 20.0;
+            let ofs_y = iy as f32 * 30.0;
+
+            let vertices = vertices
+                .into_iter()
+                .map(|(x, y)| MeshVertexData {
+                    position: [(*x + ofs_x) * 0.5, (-*y + ofs_y) * 0.5, 0.0],
+                    surface_color: [0.0, 0.0, 0.0],
+                    line_color: [1.0, 0.5, 0.0],
+                    intensity: 0.5,
+                    delta_intensity: -2.0,
+                    ..Default::default()
+                })
+                .collect();
+
+            let indices = indices
+                .into_iter()
+                .map(|index| vertex_head as u32 + *index as u32)
+                .collect();
+
+            world.spawn(
+                LinesBundle::builder(
+                    mesh_vertex_entity,
+                    line_index_entity,
+                    &mut vertex_head,
+                    &mut line_index_head,
+                    vertices,
+                    indices,
+                )
+                .build(),
+            );
+        }
+    }
 
     // Store mesh and line index counts for render system
     let vertex_count = VertexCountComponent::construct(vertex_head);
@@ -1271,6 +1440,7 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         phosphor_update_oscilloscopes_system(world);
         antigen_wgpu::create_command_encoders_system(world);
         antigen_wgpu::dispatch_compute_passes_system(world);
+        antigen_wgpu::draw_render_passes_system(world);
         phosphor_render_system(world);
         antigen_wgpu::flush_command_encoders_system(world);
         phosphor_update_timestamp_system(world);

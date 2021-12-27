@@ -48,14 +48,17 @@ pub type RenderPassBindGroupsComponent =
 pub type RenderPassPushConstantsComponent =
     Usage<RenderPassTag, Vec<(Indirect<PushConstantQuery<'static>>, ShaderStages)>>;
 pub type RenderPassDrawComponent = Usage<RenderPassTag, (Range<u32>, Range<u32>)>;
-pub type RenderPassDrawIndexedComponent = Usage<RenderPassTag, (Range<u32>, u32, Range<u32>)>;
+pub type RenderPassDrawIndexedComponent = Usage<RenderPassTag, (Range<u32>, i32, Range<u32>)>;
 pub type RenderPassDrawIndirectComponent =
     Usage<RenderPassTag, (Indirect<&'static BufferComponent>, BufferAddress)>;
+pub type RenderPassEncoderComponent =
+    Usage<RenderPassTag, Indirect<&'static mut CommandEncoderComponent>>;
 
 pub enum RenderPassBundle {}
 
 impl RenderPassBundle {
-    pub fn builder(
+    fn builder_impl(
+        builder: &mut EntityBuilder,
         label: Option<String>,
         color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
         depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
@@ -64,10 +67,8 @@ impl RenderPassBundle {
         index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
         bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
         push_constants: Vec<(Entity, ShaderStages)>,
-        draw: (Range<u32>, Range<u32>),
-    ) -> EntityBuilder {
-        let mut builder = EntityBuilder::new();
-
+        encoder: Entity,
+    ) {
         builder.add(RenderPassLabelComponent::construct(label));
 
         let color_attachments = RenderPassColorAttachmentsComponent::construct(
@@ -122,7 +123,71 @@ impl RenderPassBundle {
         );
         builder.add(push_constants);
 
+        let encoder = RenderPassEncoderComponent::construct(encoder);
+        builder.add(encoder);
+    }
+
+    pub fn draw(
+        label: Option<String>,
+        color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
+        depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
+        pipeline: Entity,
+        vertex_buffers: Vec<(Entity, Range<BufferAddress>)>,
+        index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
+        bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
+        push_constants: Vec<(Entity, ShaderStages)>,
+        draw: (Range<u32>, Range<u32>),
+        encoder: Entity,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        Self::builder_impl(
+            &mut builder,
+            label,
+            color_attachments,
+            depth_attachment,
+            pipeline,
+            vertex_buffers,
+            index_buffers,
+            bind_groups,
+            push_constants,
+            encoder,
+        );
+
         let draw = RenderPassDrawComponent::construct(draw);
+        builder.add(draw);
+
+        builder
+    }
+
+    pub fn draw_indexed(
+        label: Option<String>,
+        color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
+        depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
+        pipeline: Entity,
+        vertex_buffers: Vec<(Entity, Range<BufferAddress>)>,
+        index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
+        bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
+        push_constants: Vec<(Entity, ShaderStages)>,
+        draw_indexed: (Range<u32>, i32, Range<u32>),
+        encoder: Entity,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        Self::builder_impl(
+            &mut builder,
+            label,
+            color_attachments,
+            depth_attachment,
+            pipeline,
+            vertex_buffers,
+            index_buffers,
+            bind_groups,
+            push_constants,
+            encoder,
+        );
+
+        let draw = RenderPassDrawIndexedComponent::construct(draw_indexed);
         builder.add(draw);
 
         builder
@@ -139,8 +204,7 @@ pub struct RenderPassQuery<'a> {
     index_buffer: &'a RenderPassIndexBufferComponent,
     bind_groups: &'a RenderPassBindGroupsComponent,
     push_constants: Option<&'a RenderPassPushConstantsComponent>,
-    draw: &'a RenderPassDrawComponent,
-    encoder: &'a mut CommandEncoderComponent,
+    encoder: &'a RenderPassEncoderComponent,
 }
 
 pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
@@ -155,12 +219,24 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             index_buffer,
             bind_groups,
             push_constants,
-            draw,
             encoder,
         },
     ) in world.query::<RenderPassQuery>().into_iter()
     {
-        let encoder = encoder.get_mut()?;
+        let mut draw_query = world.query_one::<&RenderPassDrawComponent>(entity).ok();
+        let draw = draw_query.as_mut().map(|query| query.get()).flatten();
+
+        let mut draw_indexed_query = world
+            .query_one::<&RenderPassDrawIndexedComponent>(entity)
+            .ok();
+
+        let draw_indexed = draw_indexed_query
+            .as_mut()
+            .map(|query| query.get())
+            .flatten();
+
+        let mut query = encoder.get(world);
+        let encoder = query.get().unwrap().get_mut().unwrap();
 
         // Collect label
         let label = (**label).clone();
@@ -334,11 +410,25 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             );
         }
 
-        println!(
-            "Drawing vertices {:?}, instances {:?} for entity {:?}",
-            draw.0, draw.1, entity
-        );
-        rpass.draw(draw.0.clone(), draw.1.clone());
+        if let Some(draw) = draw {
+            println!(
+                "Drawing vertices {:?}, instances {:?} for entity {:?}",
+                draw.0, draw.1, entity
+            );
+            rpass.draw(draw.0.clone(), draw.1.clone());
+        }
+
+        if let Some(draw_indexed) = draw_indexed {
+            println!(
+                "Drawing indices {:?}, instances {:?} for entity {:?}",
+                draw_indexed.0, draw_indexed.1, entity
+            );
+            rpass.draw_indexed(
+                draw_indexed.0.clone(),
+                draw_indexed.1,
+                draw_indexed.2.clone(),
+            );
+        }
     }
 
     Some(())

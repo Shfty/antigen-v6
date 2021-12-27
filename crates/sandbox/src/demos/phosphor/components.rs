@@ -30,8 +30,6 @@ pub struct LineInstance;
 pub struct Perspective;
 pub struct Orthographic;
 
-pub enum FlipFlop {}
-
 pub enum Origin {}
 
 pub struct Uniform;
@@ -132,8 +130,6 @@ impl MeshVertexData {
 pub type MeshVertexDataComponent = Vec<MeshVertexData>;
 
 pub type MeshIndexDataComponent = Vec<u16>;
-
-pub type BufferFlipFlopComponent = Usage<FlipFlop, bool>;
 
 pub struct Oscilloscope {
     f: Box<dyn Fn(f32) -> (f32, f32, f32) + Send + Sync>,

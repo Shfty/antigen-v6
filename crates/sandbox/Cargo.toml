@@ -12,6 +12,8 @@ nalgebra = "0.29.0"
 nalgebra-glm = "0.15.0"
 tracing = "0.1.29"
 tracing-subscriber = "0.3.3"
+svg = "0.10.0"
+nom = "7.1.0"
 
 expression = { path = "../../../expression" }
 

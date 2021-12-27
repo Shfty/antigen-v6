@@ -4,8 +4,6 @@ use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, DeviceComponent
         RenderPipelineDescriptor, VertexState,
     }};
 
-use crate::demos::phosphor::BufferFlipFlopComponent;
-
 pub fn phosphor_prepare_tonemap(
     device: &DeviceComponent,
     phosphor_bind_group_layout: &BindGroupLayoutComponent,
@@ -54,14 +52,11 @@ pub fn phosphor_render_tonemap(
     encoder: &mut CommandEncoder,
     render_attachment_view: &RenderAttachmentTextureView,
     tonemap_pipeline: &RenderPipelineComponent,
-    buffer_flip_flop: &BufferFlipFlopComponent,
-    front_bind_group: &BindGroupComponent,
     back_bind_group: &BindGroupComponent,
 ) -> Option<()> {
     let render_attachment_view = render_attachment_view.get()?;
     let tonemap_pipeline = tonemap_pipeline.get()?;
     let back_bind_group = back_bind_group.get()?;
-    let front_bind_group = front_bind_group.get()?;
     
     println!("Phosphor render tonemap");
 
@@ -81,11 +76,7 @@ pub fn phosphor_render_tonemap(
     rpass.set_pipeline(tonemap_pipeline);
     rpass.set_bind_group(
         0,
-        if **buffer_flip_flop {
-            back_bind_group
-        } else {
-            front_bind_group
-        },
+        back_bind_group,
         &[],
     );
     rpass.draw(0..4, 0..1);

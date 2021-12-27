@@ -9,11 +9,28 @@
 //
 // TODO: [✓] Split texture and view components for phosphor demo
 //
-// TODO: [ ] Refactor wgpu types to remove usage generics
+// TODO: [✓] Refactor wgpu types to remove usage generics
 //
-// TODO: [ ] Finish generalized compute pipeline dispatch
+// TODO: [✓] Finish generalized compute pipeline dispatch
 //
-// TODO: [ ] Implement generalized render pipeline dispatch
+// TODO: [>] Implement generalized render pipeline dispatch
+//           [✓] Draw implementation
+//           [✓] Draw indexed implementation
+//           [ ] Implement remaining RenderPass parameters
+//           [ ] Draw indirect implementation
+//           [ ] Draw indexed indirect implementation
+//           [ ] Multi-draw implementations
+//
+// TODO: [ ] Update render pass draw ranges via system
+//
+// TODO: [>] Codify buffer flipping as components + systems
+//           * Will allow phosphor decay and tonemap to draw via ECS
+//           [✓] Phosphor-specific implementation
+//           [ ] Generalized implementation for antigen-wgpu
+//
+// TODO: [ ] Implement command buffer sorting
+//           * Order of commands currently depends on ECS iteration order
+//           * Best to encode order while recording, more concurrecy-friendly
 //
 // TODO: [ ] Implement filesystem thread map loading / building
 //           * Need to figure out how to update buffer offsets from entities created off-thread
