@@ -47,12 +47,27 @@ pub type RenderPassBindGroupsComponent =
     Usage<RenderPassTag, Vec<(Indirect<&'static BindGroupComponent>, Vec<DynamicOffset>)>>;
 pub type RenderPassPushConstantsComponent =
     Usage<RenderPassTag, Vec<(Indirect<PushConstantQuery<'static>>, ShaderStages)>>;
-pub type RenderPassDrawComponent = Usage<RenderPassTag, (Range<u32>, Range<u32>)>;
-pub type RenderPassDrawIndexedComponent = Usage<RenderPassTag, (Range<u32>, i32, Range<u32>)>;
-pub type RenderPassDrawIndirectComponent =
-    Usage<RenderPassTag, (Indirect<&'static BufferComponent>, BufferAddress)>;
 pub type RenderPassEncoderComponent =
     Usage<RenderPassTag, Indirect<&'static mut CommandEncoderComponent>>;
+
+pub type RenderPassViewportComponent = Usage<RenderPassTag, (f32, f32, f32, f32, f32, f32)>;
+pub type RenderPassScissorRectComponent = Usage<RenderPassTag, (u32, u32, u32, u32)>;
+
+pub type RenderPassBlendConstantComponent = Usage<RenderPassTag, Color>;
+pub type RenderPassStencilReferenceComponent = Usage<RenderPassTag, u32>;
+
+pub type RenderPassDrawComponent = Usage<RenderPassTag, (Range<u32>, Range<u32>)>;
+pub type RenderPassDrawIndexedComponent = Usage<RenderPassTag, (Range<u32>, i32, Range<u32>)>;
+
+pub enum DrawIndirect {}
+pub enum DrawIndexedIndirect {}
+
+pub type RenderPassDrawIndirectComponent =
+    Usage<(RenderPassTag, DrawIndirect), (Indirect<&'static BufferComponent>, BufferAddress)>;
+pub type RenderPassDrawIndexedIndirectComponent = Usage<
+    (RenderPassTag, DrawIndexedIndirect),
+    (Indirect<&'static BufferComponent>, BufferAddress),
+>;
 
 pub enum RenderPassBundle {}
 
@@ -67,6 +82,10 @@ impl RenderPassBundle {
         index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
         bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
         push_constants: Vec<(Entity, ShaderStages)>,
+        blend_constant: Option<Color>,
+        stencil_reference: Option<u32>,
+        viewport: Option<(f32, f32, f32, f32, f32, f32)>,
+        scissor_rect: Option<(u32, u32, u32, u32)>,
         encoder: Entity,
     ) {
         builder.add(RenderPassLabelComponent::construct(label));
@@ -123,6 +142,24 @@ impl RenderPassBundle {
         );
         builder.add(push_constants);
 
+        if let Some(blend_constant) = blend_constant {
+            builder.add(RenderPassBlendConstantComponent::construct(blend_constant));
+        }
+
+        if let Some(stencil_reference) = stencil_reference {
+            builder.add(RenderPassStencilReferenceComponent::construct(
+                stencil_reference,
+            ));
+        }
+
+        if let Some(viewport) = viewport {
+            builder.add(RenderPassViewportComponent::construct(viewport));
+        }
+
+        if let Some(scissor_rect) = scissor_rect {
+            builder.add(RenderPassScissorRectComponent::construct(scissor_rect));
+        }
+
         let encoder = RenderPassEncoderComponent::construct(encoder);
         builder.add(encoder);
     }
@@ -136,6 +173,10 @@ impl RenderPassBundle {
         index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
         bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
         push_constants: Vec<(Entity, ShaderStages)>,
+        blend_constant: Option<Color>,
+        stencil_reference: Option<u32>,
+        viewport: Option<(f32, f32, f32, f32, f32, f32)>,
+        scissor_rect: Option<(u32, u32, u32, u32)>,
         draw: (Range<u32>, Range<u32>),
         encoder: Entity,
     ) -> EntityBuilder {
@@ -151,6 +192,10 @@ impl RenderPassBundle {
             index_buffers,
             bind_groups,
             push_constants,
+            blend_constant,
+            stencil_reference,
+            viewport,
+            scissor_rect,
             encoder,
         );
 
@@ -169,6 +214,10 @@ impl RenderPassBundle {
         index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
         bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
         push_constants: Vec<(Entity, ShaderStages)>,
+        blend_constant: Option<Color>,
+        stencil_reference: Option<u32>,
+        viewport: Option<(f32, f32, f32, f32, f32, f32)>,
+        scissor_rect: Option<(u32, u32, u32, u32)>,
         draw_indexed: (Range<u32>, i32, Range<u32>),
         encoder: Entity,
     ) -> EntityBuilder {
@@ -184,10 +233,100 @@ impl RenderPassBundle {
             index_buffers,
             bind_groups,
             push_constants,
+            blend_constant,
+            stencil_reference,
+            viewport,
+            scissor_rect,
             encoder,
         );
 
         let draw = RenderPassDrawIndexedComponent::construct(draw_indexed);
+        builder.add(draw);
+
+        builder
+    }
+
+    pub fn draw_indirect(
+        label: Option<String>,
+        color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
+        depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
+        pipeline: Entity,
+        vertex_buffers: Vec<(Entity, Range<BufferAddress>)>,
+        index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
+        bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
+        push_constants: Vec<(Entity, ShaderStages)>,
+        blend_constant: Option<Color>,
+        stencil_reference: Option<u32>,
+        viewport: Option<(f32, f32, f32, f32, f32, f32)>,
+        scissor_rect: Option<(u32, u32, u32, u32)>,
+        draw_indirect: (Entity, BufferAddress),
+        encoder: Entity,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        Self::builder_impl(
+            &mut builder,
+            label,
+            color_attachments,
+            depth_attachment,
+            pipeline,
+            vertex_buffers,
+            index_buffers,
+            bind_groups,
+            push_constants,
+            blend_constant,
+            stencil_reference,
+            viewport,
+            scissor_rect,
+            encoder,
+        );
+
+        let (indirect_entity, indirect_offset) = draw_indirect;
+        let indirect = Indirect::construct(indirect_entity);
+        let draw = RenderPassDrawIndirectComponent::construct((indirect, indirect_offset));
+        builder.add(draw);
+
+        builder
+    }
+
+    pub fn draw_indexed_indirect(
+        label: Option<String>,
+        color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
+        depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
+        pipeline: Entity,
+        vertex_buffers: Vec<(Entity, Range<BufferAddress>)>,
+        index_buffers: Option<(Entity, Range<BufferAddress>, IndexFormat)>,
+        bind_groups: Vec<(Entity, Vec<DynamicOffset>)>,
+        push_constants: Vec<(Entity, ShaderStages)>,
+        blend_constant: Option<Color>,
+        stencil_reference: Option<u32>,
+        viewport: Option<(f32, f32, f32, f32, f32, f32)>,
+        scissor_rect: Option<(u32, u32, u32, u32)>,
+        draw_indexed_indirect: (Entity, BufferAddress),
+        encoder: Entity,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        Self::builder_impl(
+            &mut builder,
+            label,
+            color_attachments,
+            depth_attachment,
+            pipeline,
+            vertex_buffers,
+            index_buffers,
+            bind_groups,
+            push_constants,
+            blend_constant,
+            stencil_reference,
+            viewport,
+            scissor_rect,
+            encoder,
+        );
+
+        let (indirect_entity, indirect_offset) = draw_indexed_indirect;
+        let indirect = Indirect::construct(indirect_entity);
+        let draw = RenderPassDrawIndexedIndirectComponent::construct((indirect, indirect_offset));
         builder.add(draw);
 
         builder
@@ -204,6 +343,10 @@ pub struct RenderPassQuery<'a> {
     index_buffer: &'a RenderPassIndexBufferComponent,
     bind_groups: &'a RenderPassBindGroupsComponent,
     push_constants: Option<&'a RenderPassPushConstantsComponent>,
+    blend_constant: Option<&'a RenderPassBlendConstantComponent>,
+    stencil_reference: Option<&'a RenderPassStencilReferenceComponent>,
+    viewport: Option<&'a RenderPassViewportComponent>,
+    scissor_rect: Option<&'a RenderPassScissorRectComponent>,
     encoder: &'a RenderPassEncoderComponent,
 }
 
@@ -219,18 +362,38 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             index_buffer,
             bind_groups,
             push_constants,
+            blend_constant,
+            stencil_reference,
+            viewport,
+            scissor_rect,
             encoder,
         },
     ) in world.query::<RenderPassQuery>().into_iter()
     {
+        // Collect draw commands
         let mut draw_query = world.query_one::<&RenderPassDrawComponent>(entity).ok();
         let draw = draw_query.as_mut().map(|query| query.get()).flatten();
 
         let mut draw_indexed_query = world
             .query_one::<&RenderPassDrawIndexedComponent>(entity)
             .ok();
-
         let draw_indexed = draw_indexed_query
+            .as_mut()
+            .map(|query| query.get())
+            .flatten();
+
+        let mut draw_indirect_query = world
+            .query_one::<&RenderPassDrawIndirectComponent>(entity)
+            .ok();
+        let draw_indirect = draw_indirect_query
+            .as_mut()
+            .map(|query| query.get())
+            .flatten();
+
+        let mut draw_indexed_indirect_query = world
+            .query_one::<&RenderPassDrawIndexedIndirectComponent>(entity)
+            .ok();
+        let draw_indexed_indirect = draw_indexed_indirect_query
             .as_mut()
             .map(|query| query.get())
             .flatten();
@@ -361,6 +524,31 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             .map(|(query, shader_stages)| (query.get().unwrap(), shader_stages))
             .collect::<Vec<_>>();
 
+        // Collect draw indirect query
+        let mut indirect_query = draw_indirect.map(|draw_indirect| {
+            let (indirect_query, indirect_offset) = &**draw_indirect;
+            (indirect_query.get(world), *indirect_offset)
+        });
+
+        let draw_indirect = indirect_query
+            .as_mut()
+            .map(|(indirect_query, indirect_offset)| {
+                (indirect_query.get().unwrap(), *indirect_offset)
+            });
+
+        // Collect draw indexed indirect query
+        let mut indexed_indirect_query = draw_indexed_indirect.map(|draw_indexed_indirect| {
+            let (indirect_query, indirect_offset) = &**draw_indexed_indirect;
+            (indirect_query.get(world), *indirect_offset)
+        });
+
+        let draw_indexed_indirect =
+            indexed_indirect_query
+                .as_mut()
+                .map(|(indirect_query, indirect_offset)| {
+                    (indirect_query.get().unwrap(), *indirect_offset)
+                });
+
         // Begin render pass
         let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
             label,
@@ -368,42 +556,25 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             depth_stencil_attachment,
         });
 
-        println!("Setting pipeline {:?}", pipeline);
         rpass.set_pipeline(pipeline);
 
         // Set vertex buffers
         for (i, (vertex_buffer, range)) in vertex_buffers.iter().enumerate() {
-            println!(
-                "Setting vertex buffer {}: {:?} with range {:?}",
-                i as u32, vertex_buffer, range
-            );
             rpass.set_vertex_buffer(i as u32, vertex_buffer.slice((***range).clone()));
         }
 
         // Set index buffer
         if let Some((index_buffer, range, format)) = index_buffer {
-            println!(
-                "Setting index buffer {:?} with range {:?} and format {:?}",
-                index_buffer, range, format
-            );
             rpass.set_index_buffer(index_buffer.slice((*range).clone()), **format);
         }
 
         // Set bind groups
         for (i, (bind_group, offsets)) in bind_groups.iter().enumerate() {
-            println!(
-                "Setting bind group {}: {:?} with offsets {:?}",
-                i as u32, bind_group, offsets
-            );
             rpass.set_bind_group(i as u32, bind_group, &offsets);
         }
 
         // Set push constants
         for (push_constant, shader_stages) in push_constants {
-            println!(
-                "Setting push constant with offset {}",
-                **push_constant.offset
-            );
             rpass.set_push_constants(
                 **shader_stages,
                 **push_constant.offset,
@@ -411,24 +582,52 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             );
         }
 
+        // Set blend constant
+        if let Some(blend_constant) = blend_constant {
+            rpass.set_blend_constant(**blend_constant);
+        }
+
+        // Set stencil reference
+        if let Some(stencil_reference) = stencil_reference {
+            rpass.set_stencil_reference(**stencil_reference);
+        }
+
+        // Set viewport
+        if let Some(viewport) = viewport {
+            let (x, y, w, h, min_depth, max_depth) = **viewport;
+            rpass.set_viewport(x, y, w, h, min_depth, max_depth);
+        }
+
+        // Set scissor_rect
+        if let Some(scissor_rect) = scissor_rect {
+            let (x, y, w, h) = **scissor_rect;
+            rpass.set_scissor_rect(x, y, w, h);
+        }
+
+        // Draw
         if let Some(draw) = draw {
-            println!(
-                "Drawing vertices {:?}, instances {:?} for entity {:?}",
-                draw.0, draw.1, entity
-            );
             rpass.draw(draw.0.clone(), draw.1.clone());
         }
 
+        // Draw indexed
         if let Some(draw_indexed) = draw_indexed {
-            println!(
-                "Drawing indices {:?}, instances {:?} for entity {:?}",
-                draw_indexed.0, draw_indexed.1, entity
-            );
             rpass.draw_indexed(
                 draw_indexed.0.clone(),
                 draw_indexed.1,
                 draw_indexed.2.clone(),
             );
+        }
+
+        // Draw indirect
+        if let Some((indirect_buffer, indirect_offset)) = draw_indirect {
+            let indirect_buffer = indirect_buffer.get().unwrap();
+            rpass.draw_indirect(indirect_buffer, indirect_offset);
+        }
+
+        // Draw indexed indirect
+        if let Some((indirect_buffer, indirect_offset)) = draw_indexed_indirect {
+            let indirect_buffer = indirect_buffer.get().unwrap();
+            rpass.draw_indexed_indirect(indirect_buffer, indirect_offset);
         }
     }
 

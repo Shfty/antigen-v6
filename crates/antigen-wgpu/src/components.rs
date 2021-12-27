@@ -148,4 +148,3 @@ pub enum MeshIndices {}
 
 pub type CommandEncoderDescriptorComponent = Changed<CommandEncoderDescriptor<'static>>;
 pub type CommandEncoderComponent = LazyComponent<CommandEncoder>;
-

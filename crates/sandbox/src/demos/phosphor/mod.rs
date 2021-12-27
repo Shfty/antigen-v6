@@ -124,12 +124,18 @@ use antigen_core::{
     send_component, Construct, Indirect, Lift, MessageContext, MessageResult, SendTo, WorldChannel,
 };
 
-use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, ComputePipelineComponent, RenderPipelineComponent, ShaderModuleComponent, ShaderModuleDescriptorComponent, SurfaceConfigurationComponent, TextureViewComponent, buffer_size_of, spawn_shader_from_file_string, wgpu::{
+use antigen_wgpu::{
+    buffer_size_of, spawn_shader_from_file_string,
+    wgpu::{
         AddressMode, BufferAddress, BufferDescriptor, BufferUsages, Color,
         CommandEncoderDescriptor, ComputePassDescriptor, Extent3d, FilterMode, IndexFormat, LoadOp,
         Maintain, Operations, SamplerDescriptor, TextureAspect, TextureDescriptor,
         TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor,
-    }};
+    },
+    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, ComputePipelineComponent,
+    RenderPipelineComponent, ShaderModuleComponent, ShaderModuleDescriptorComponent,
+    SurfaceConfigurationComponent, TextureViewComponent,
+};
 
 use antigen_shambler::shambler::GeoMap;
 
@@ -530,9 +536,11 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .build();
     let beam_multisample_entity = world.spawn(bundle);
 
-    // Phosphor front buffer
+    // Phosphor buffers
+    let phosphor_front_entity = world.reserve_entity();
+    let phosphor_back_entity = world.reserve_entity();
 
-    // Front buffer
+    // Phosphor front buffer
     let mut builder = EntityBuilder::new();
     let bundle = builder
         .add(PhosphorFrontBuffer)
@@ -562,8 +570,14 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 array_layer_count: None,
             },
         ))
+        .add_bundle(
+            antigen_core::swap_with_builder::<TextureViewComponent>(phosphor_back_entity).build(),
+        )
+        .add_bundle(
+            antigen_core::swap_with_builder::<BindGroupComponent>(phosphor_back_entity).build(),
+        )
         .build();
-    let phosphor_front_entity = world.spawn(bundle);
+    world.insert(phosphor_front_entity, bundle).unwrap();
 
     // Phosphor back buffer
     let mut builder = EntityBuilder::new();
@@ -596,7 +610,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             },
         ))
         .build();
-    let phosphor_back_entity = world.spawn(bundle);
+    world.insert(phosphor_back_entity, bundle).unwrap();
 
     // Assemble window
     let mut builder = EntityBuilder::new();
@@ -651,6 +665,10 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             Some((mesh_index_entity, 0..20000, IndexFormat::Uint16)),
             vec![(uniform_entity, vec![])],
             vec![],
+            None,
+            None,
+            None,
+            None,
             (0..10000, 0, 0..1),
             renderer_entity,
         )
@@ -698,6 +716,10 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             None,
             vec![(uniform_entity, vec![])],
             vec![],
+            None,
+            None,
+            None,
+            None,
             (0..14, 0..MAX_LINES as u32),
             renderer_entity,
         )
@@ -736,6 +758,10 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             None,
             vec![(uniform_entity, vec![]), (phosphor_front_entity, vec![])],
             vec![],
+            None,
+            None,
+            None,
+            None,
             (0..4, 0..1 as u32),
             renderer_entity,
         )
@@ -772,6 +798,10 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             None,
             vec![(phosphor_back_entity, vec![])],
             vec![],
+            None,
+            None,
+            None,
+            None,
             (0..4, 0..1),
             renderer_entity,
         )
@@ -837,9 +867,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(Indirect::<&SurfaceConfigurationComponent>::construct(
             window_entity,
         ))
-        .add(Indirect::<&TextureViewComponent>::construct(
-            window_entity,
-        ))
+        .add(Indirect::<&TextureViewComponent>::construct(window_entity))
         // Indirect window for input handling
         .add(Indirect::<&WindowComponent>::construct(window_entity));
 
@@ -1433,7 +1461,8 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         antigen_wgpu::create_command_encoders_system(world);
         antigen_wgpu::dispatch_compute_passes_system(world);
         antigen_wgpu::draw_render_passes_system(world);
-        phosphor_swap_buffers_system(world);
+        antigen_core::swap_with_system::<TextureViewComponent>(world);
+        antigen_core::swap_with_system::<BindGroupComponent>(world);
         antigen_wgpu::flush_command_encoders_system(world);
         phosphor_update_timestamp_system(world);
         antigen_wgpu::device_poll_system(&Maintain::Wait)(world);

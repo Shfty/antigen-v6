@@ -481,31 +481,3 @@ pub fn phosphor_update_compute_indirect(world: &mut World) {
     }
 }
 
-pub fn phosphor_swap_buffers_system(world: &World) -> Option<()> {
-    for (_, _) in world.query::<&PhosphorRenderer>().into_iter() {
-        let mut query = world
-            .query::<(&mut TextureViewComponent,)>()
-            .with::<PhosphorFrontBuffer>();
-        let (_, (phosphor_front_buffer_view,)) = query.into_iter().next()?;
-
-        let mut query = world
-            .query::<(&mut TextureViewComponent,)>()
-            .with::<PhosphorBackBuffer>();
-        let (_, (phosphor_back_buffer_view,)) = query.into_iter().next()?;
-
-        let mut query = world
-            .query::<(&mut BindGroupComponent,)>()
-            .with::<PhosphorFrontBuffer>();
-        let (_, (front_bind_group,)) = query.into_iter().next()?;
-
-        let mut query = world
-            .query::<(&mut BindGroupComponent,)>()
-            .with::<PhosphorBackBuffer>();
-        let (_, (back_bind_group,)) = query.into_iter().next()?;
-
-        std::mem::swap(phosphor_front_buffer_view, phosphor_back_buffer_view);
-        std::mem::swap(front_bind_group, back_bind_group);
-    }
-
-    Some(())
-}

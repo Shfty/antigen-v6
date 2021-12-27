@@ -438,7 +438,6 @@ where
     )>();
 
     for (_, (texture_write, texels_component, texture)) in query.into_iter() {
-        let texture_entity = texture.entity();
         let mut query = texture.get(world);
         let (texture_desc, texture) = query.get().unwrap_or_else(|| {
             panic!(
@@ -562,3 +561,4 @@ pub fn flush_command_encoders_system(world: &mut World) {
         }
     }
 }
+

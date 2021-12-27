@@ -13,27 +13,40 @@
 //
 // TODO: [✓] Finish generalized compute pipeline dispatch
 //
-// TODO: [>] Implement generalized render pipeline dispatch
+// TODO: [>] Implement generalized render pass dispatch
 //           [✓] Draw implementation
 //           [✓] Draw indexed implementation
-//           [ ] Implement remaining RenderPass parameters
-//           [ ] Draw indirect implementation
-//           [ ] Draw indexed indirect implementation
+//           [✓] Implement remaining RenderPass parameters
+//           [✓] Draw indirect implementation
+//           [✓] Draw indexed indirect implementation
 //           [ ] Multi-draw implementations
+//           [ ] Execute Bundles implementation
+//           [ ] Struct parameters for bundle constructors
+//               * wgpu descriptors, but with entities instead of references
+//           [ ] Builder pattern for RenderPass bundles?
+// 
+// TODO: [ ] Implement generalized render pass setup
 //
 // TODO: [ ] Update render pass draw ranges via system
 //
-// TODO: [>] Codify buffer flipping as components + systems
+// TODO: [✓] Codify buffer flipping as components + systems
 //           * Will allow phosphor decay and tonemap to draw via ECS
 //           [✓] Phosphor-specific implementation
-//           [ ] Generalized implementation for antigen-wgpu
+//           [✓] Generalized implementation for antigen-wgpu
 //
 // TODO: [ ] Implement command buffer sorting
 //           * Order of commands currently depends on ECS iteration order
 //           * Best to encode order while recording, more concurrecy-friendly
+//           * CommandBufferComponent<T>(BTreeMap<T, CommandBuffer>) where T: PartialOrd ?
+//             * Provide T during render pass init
+//             * Use type defaults for better ergonomics
 //
 // TODO: [ ] Implement filesystem thread map loading / building
 //           * Need to figure out how to update buffer offsets from entities created off-thread
+//           * Send message to render thread, fetch or reserve entity ID
+//             * Render thread kicks of load on FS thread, provides ID
+//               * FS thread sends components + entity ID to render thread
+//                 * Render thread inserts entities with IDs in context
 
 mod demos;
 
