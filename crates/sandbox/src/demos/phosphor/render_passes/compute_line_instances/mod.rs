@@ -1,6 +1,6 @@
 use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, BufferComponent, ComputePipelineComponent, DeviceComponent, ShaderModuleComponent, wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-        BindingType, BufferBindingType, BufferSize, CommandEncoder, ComputePassDescriptor,
+        BindingType, BufferBindingType, BufferSize,
         ComputePipelineDescriptor, PipelineLayoutDescriptor, ShaderStages,
     }};
 

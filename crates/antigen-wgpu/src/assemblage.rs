@@ -1,21 +1,25 @@
 use antigen_core::{
-    AsUsage, Changed, ChangedFlag, Construct, Indirect, LazyComponent, Usage, With,
+    AsUsage, Changed, ChangedFlag, Construct, Indirect, Usage, With,
 };
 
 use hecs::{Component, Entity};
-use wgpu::{Adapter, Backends, BufferAddress, BufferDescriptor, CommandEncoderDescriptor, Device, DeviceDescriptor, ImageCopyTextureBase, ImageDataLayout, Instance, Queue, SamplerDescriptor, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV, Surface, SurfaceConfiguration, TextureDescriptor, TextureFormat, TextureUsages, TextureViewDescriptor, util::BufferInitDescriptor};
+use wgpu::{
+    util::BufferInitDescriptor, Adapter, Backends, BufferAddress, BufferDescriptor,
+    CommandEncoderDescriptor, Device, DeviceDescriptor, ImageCopyTextureBase, ImageDataLayout,
+    Instance, Queue, SamplerDescriptor, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV,
+    Surface, SurfaceConfiguration, TextureDescriptor, TextureFormat, TextureUsages,
+    TextureViewDescriptor,
+};
 
 use std::path::Path;
 
 use crate::{
-    AdapterComponent, BindGroupComponent, BindGroupLayoutComponent, BufferComponent,
-    BufferDescriptorComponent, BufferInitDescriptorComponent, BufferWriteComponent,
-    CommandBuffersComponent, CommandEncoderComponent, CommandEncoderDescriptorComponent,
-    ComputePipelineComponent, DeviceComponent, InstanceComponent, PipelineLayoutComponent,
-    QueueComponent, RenderAttachmentTextureView, RenderAttachmentTextureViewDescriptor,
-    RenderBundleComponent, RenderPipelineComponent, SamplerComponent, SamplerDescriptorComponent,
-    ShaderModuleComponent, ShaderModuleDescriptorComponent, ShaderModuleDescriptorSpirVComponent,
-    SurfaceComponent, SurfaceConfigurationComponent, SurfaceTextureComponent, TextureComponent,
+    AdapterComponent, BufferComponent, BufferDescriptorComponent, BufferInitDescriptorComponent,
+    BufferWriteComponent, CommandBuffersComponent, CommandEncoderComponent,
+    CommandEncoderDescriptorComponent, DeviceComponent, InstanceComponent, QueueComponent,
+    SamplerComponent, SamplerDescriptorComponent, ShaderModuleComponent,
+    ShaderModuleDescriptorComponent, ShaderModuleDescriptorSpirVComponent, SurfaceComponent,
+    SurfaceConfigurationComponent, SurfaceTextureComponent, TextureComponent,
     TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
     TextureWriteComponent,
 };
@@ -77,8 +81,8 @@ pub struct WindowSurfaceBundle {
     surface_config: SurfaceConfigurationComponent,
     surface: SurfaceComponent,
     surface_texture: SurfaceTextureComponent,
-    render_attachment_texture_view_desc: RenderAttachmentTextureViewDescriptor<'static>,
-    render_attachment_texture_view: RenderAttachmentTextureView,
+    render_attachment_texture_view_desc: TextureViewDescriptorComponent<'static>,
+    render_attachment_texture_view: TextureViewComponent,
 }
 
 impl WindowSurfaceBundle {
@@ -95,11 +99,10 @@ impl WindowSurfaceBundle {
         let surface_texture = SurfaceTextureComponent::construct(None).with(ChangedFlag(false));
 
         let render_attachment_texture_view_desc =
-            RenderAttachmentTextureViewDescriptor::construct(TextureViewDescriptor::default())
+            TextureViewDescriptorComponent::construct(TextureViewDescriptor::default())
                 .with(ChangedFlag(false));
 
-        let render_attachment_texture_view =
-            RenderAttachmentTextureView::construct(LazyComponent::Pending);
+        let render_attachment_texture_view = TextureViewComponent::default();
 
         WindowSurfaceBundle {
             surface_config,
@@ -309,13 +312,15 @@ pub struct PushConstantQuery<'a> {
 pub struct CommandEncoderBundle {
     desc: CommandEncoderDescriptorComponent,
     encoder: CommandEncoderComponent,
-    command_buffers_entity: Usage<CommandEncoderComponent, Indirect<&'static mut CommandBuffersComponent>>,
+    command_buffers_entity:
+        Usage<CommandEncoderComponent, Indirect<&'static mut CommandBuffersComponent>>,
 }
 
 impl CommandEncoderBundle {
     pub fn new(desc: CommandEncoderDescriptor<'static>, command_encoder_entity: Entity) -> Self {
         let desc = CommandEncoderDescriptorComponent::construct(desc);
-        let command_buffers_entity = CommandEncoderComponent::as_usage(Indirect::construct(command_encoder_entity));
+        let command_buffers_entity =
+            CommandEncoderComponent::as_usage(Indirect::construct(command_encoder_entity));
         CommandEncoderBundle {
             desc,
             encoder: Default::default(),
@@ -323,4 +328,3 @@ impl CommandEncoderBundle {
         }
     }
 }
-

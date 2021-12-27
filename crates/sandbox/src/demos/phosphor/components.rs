@@ -2,14 +2,12 @@ use bytemuck::{Pod, Zeroable};
 use std::time::Instant;
 
 use antigen_core::{Changed, Usage};
-use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, BufferComponent, RenderPipelineComponent, SamplerComponent, ShaderModuleComponent, TextureComponent, TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent, ToBytes};
+use antigen_wgpu::ToBytes;
 
 // Phosphor renderer tag
 pub struct PhosphorRenderer;
 
 // Usage tags
-pub enum Position {}
-
 pub enum StartTime {}
 pub enum Timestamp {}
 pub enum TotalTime {}
@@ -18,8 +16,6 @@ pub enum DeltaTime {}
 pub struct BeamBuffer;
 pub struct BeamMultisample;
 pub struct BeamDepthBuffer;
-
-pub enum Linear {}
 
 pub struct MeshVertex;
 pub struct MeshIndex;

@@ -124,18 +124,12 @@ use antigen_core::{
     send_component, Construct, Indirect, Lift, MessageContext, MessageResult, SendTo, WorldChannel,
 };
 
-use antigen_wgpu::{
-    buffer_size_of, spawn_shader_from_file_string,
-    wgpu::{
+use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, ComputePipelineComponent, RenderPipelineComponent, ShaderModuleComponent, ShaderModuleDescriptorComponent, SurfaceConfigurationComponent, TextureViewComponent, buffer_size_of, spawn_shader_from_file_string, wgpu::{
         AddressMode, BufferAddress, BufferDescriptor, BufferUsages, Color,
         CommandEncoderDescriptor, ComputePassDescriptor, Extent3d, FilterMode, IndexFormat, LoadOp,
         Maintain, Operations, SamplerDescriptor, TextureAspect, TextureDescriptor,
         TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor,
-    },
-    BindGroupComponent, BindGroupLayoutComponent, ComputePipelineComponent,
-    RenderAttachmentTextureView, RenderPipelineComponent, ShaderModuleComponent,
-    ShaderModuleDescriptorComponent, SurfaceConfigurationComponent,
-};
+    }};
 
 use antigen_shambler::shambler::GeoMap;
 
@@ -761,7 +755,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
     builder.add(Tonemap);
     builder.add(RenderPipelineComponent::default());
-    /*
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw(
             Some("Tonemap".into()),
@@ -784,7 +777,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         )
         .build(),
     );
-    */
 
     world.insert(tonemap_pass_entity, builder.build()).unwrap();
 
@@ -845,7 +837,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(Indirect::<&SurfaceConfigurationComponent>::construct(
             window_entity,
         ))
-        .add(Indirect::<&RenderAttachmentTextureView>::construct(
+        .add(Indirect::<&TextureViewComponent>::construct(
             window_entity,
         ))
         // Indirect window for input handling
@@ -1441,7 +1433,7 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         antigen_wgpu::create_command_encoders_system(world);
         antigen_wgpu::dispatch_compute_passes_system(world);
         antigen_wgpu::draw_render_passes_system(world);
-        phosphor_render_system(world);
+        phosphor_swap_buffers_system(world);
         antigen_wgpu::flush_command_encoders_system(world);
         phosphor_update_timestamp_system(world);
         antigen_wgpu::device_poll_system(&Maintain::Wait)(world);

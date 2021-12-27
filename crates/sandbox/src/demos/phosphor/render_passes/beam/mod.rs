@@ -2,19 +2,16 @@ use antigen_wgpu::{
     buffer_size_of,
     wgpu::{
         BlendComponent, BlendFactor, BlendOperation, BlendState, ColorTargetState, ColorWrites,
-        CommandEncoder, CompareFunction, DepthBiasState, DepthStencilState, Face, FragmentState,
-        FrontFace, IndexFormat, LoadOp, MultisampleState, Operations, PipelineLayoutDescriptor,
-        PrimitiveState, PrimitiveTopology, RenderPassColorAttachment,
-        RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
-        StencilState, TextureFormat, VertexAttribute, VertexBufferLayout, VertexFormat,
-        VertexState, VertexStepMode,
+        CompareFunction, DepthBiasState, DepthStencilState, Face, FragmentState, FrontFace,
+        MultisampleState, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology,
+        RenderPipelineDescriptor, StencilState, TextureFormat, VertexAttribute, VertexBufferLayout,
+        VertexFormat, VertexState, VertexStepMode,
     },
-    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
-    RenderPipelineComponent, ShaderModuleComponent, TextureViewComponent,
+    BindGroupLayoutComponent, DeviceComponent, RenderPipelineComponent, ShaderModuleComponent,
 };
 
 use crate::demos::phosphor::{
-    LineInstanceData, LineVertexData, MeshVertexData, CLEAR_COLOR, HDR_TEXTURE_FORMAT,
+    LineInstanceData, LineVertexData, MeshVertexData, HDR_TEXTURE_FORMAT,
 };
 
 pub fn phosphor_prepare_beam_mesh(
@@ -237,113 +234,6 @@ pub fn phosphor_prepare_beam_line(
 
         beam_line_pipeline.set_ready(pipeline);
     }
-
-    Some(())
-}
-
-pub fn phosphor_render_beam_meshes(
-    encoder: &mut CommandEncoder,
-    beam_multisample_view: &TextureViewComponent,
-    beam_buffer_view: &TextureViewComponent,
-    beam_depth_view: &TextureViewComponent,
-    beam_mesh_pipeline: &RenderPipelineComponent,
-    mesh_vertex_buffer: &BufferComponent,
-    mesh_index_buffer: &BufferComponent,
-    uniform_bind_group: &BindGroupComponent,
-    mesh_index_count: u32,
-) -> Option<()> {
-    let beam_multisample_view = beam_multisample_view.get()?;
-    let beam_buffer_view = beam_buffer_view.get()?;
-    let beam_depth_view = beam_depth_view.get()?;
-    let beam_mesh_pipeline = beam_mesh_pipeline.get()?;
-    let mesh_vertex_buffer = mesh_vertex_buffer.get()?;
-    let mesh_index_buffer = mesh_index_buffer.get()?;
-    let uniform_bind_group = uniform_bind_group.get()?;
-
-    println!("Phosphor render beam meshes");
-
-    // Draw beam meshes
-    println!(
-        "Drawing {} mesh indices ({} triangles)",
-        mesh_index_count,
-        mesh_index_count / 3
-    );
-    let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: None,
-        color_attachments: &[RenderPassColorAttachment {
-            view: beam_multisample_view,
-            resolve_target: Some(beam_buffer_view),
-            ops: Operations {
-                load: LoadOp::Clear(CLEAR_COLOR),
-                store: true,
-            },
-        }],
-        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-            view: beam_depth_view,
-            depth_ops: Some(Operations {
-                load: LoadOp::Clear(1.0),
-                store: true,
-            }),
-            stencil_ops: None,
-        }),
-    });
-    rpass.set_pipeline(beam_mesh_pipeline);
-    rpass.set_vertex_buffer(0, mesh_vertex_buffer.slice(..));
-    rpass.set_index_buffer(mesh_index_buffer.slice(..), IndexFormat::Uint16);
-    rpass.set_bind_group(0, uniform_bind_group, &[]);
-    rpass.draw_indexed(0..mesh_index_count as u32, 0, 0..1);
-
-    Some(())
-}
-
-pub fn phosphor_render_beam_lines(
-    encoder: &mut CommandEncoder,
-    beam_multisample_view: &TextureViewComponent,
-    beam_buffer_view: &TextureViewComponent,
-    beam_depth_view: &TextureViewComponent,
-    beam_line_pipeline: &RenderPipelineComponent,
-    line_vertex_buffer: &BufferComponent,
-    line_instance_buffer: &BufferComponent,
-    uniform_bind_group: &BindGroupComponent,
-    line_count: u32,
-) -> Option<()> {
-    let beam_multisample_view = beam_multisample_view.get()?;
-    let beam_buffer_view = beam_buffer_view.get()?;
-    let beam_depth_view = beam_depth_view.get()?;
-    let beam_line_pipeline = beam_line_pipeline.get()?;
-    let line_vertex_buffer = line_vertex_buffer.get()?;
-    let line_instance_buffer = line_instance_buffer.get()?;
-    let uniform_bind_group = uniform_bind_group.get()?;
-
-    println!("Phosphor render beam lines");
-
-    // Draw beam lines
-    println!("Drawing {} line instances", line_count,);
-    let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: None,
-        color_attachments: &[RenderPassColorAttachment {
-            view: beam_multisample_view,
-            resolve_target: Some(beam_buffer_view),
-            ops: Operations {
-                load: LoadOp::Load,
-                store: true,
-            },
-        }],
-        depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-            view: beam_depth_view,
-            depth_ops: Some(Operations {
-                load: LoadOp::Load,
-                store: false,
-            }),
-            stencil_ops: None,
-        }),
-    });
-    rpass.set_pipeline(beam_line_pipeline);
-    rpass.set_vertex_buffer(0, line_vertex_buffer.slice(..));
-    rpass.set_vertex_buffer(1, line_instance_buffer.slice(..));
-    rpass.set_bind_group(0, uniform_bind_group, &[]);
-
-    rpass.draw(0..14, 0..line_count as u32);
 
     Some(())
 }

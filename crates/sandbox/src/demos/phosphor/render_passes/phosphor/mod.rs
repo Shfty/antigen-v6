@@ -3,10 +3,9 @@ use crate::demos::phosphor::HDR_TEXTURE_FORMAT;
 use antigen_wgpu::{
     wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-        BindingResource, BindingType, Color, CommandEncoder, FragmentState, LoadOp,
-        MultisampleState, Operations, PipelineLayoutDescriptor, PrimitiveState,
-        RenderPassColorAttachment, RenderPassDescriptor, RenderPipelineDescriptor,
-        SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension, VertexState,
+        BindingResource, BindingType, FragmentState, MultisampleState, PipelineLayoutDescriptor,
+        PrimitiveState, RenderPipelineDescriptor, SamplerBindingType, ShaderStages,
+        TextureSampleType, TextureViewDimension, VertexState,
     },
     BindGroupComponent, BindGroupLayoutComponent, DeviceComponent, RenderPipelineComponent,
     SamplerComponent, ShaderModuleComponent, TextureViewComponent,
@@ -149,49 +148,4 @@ pub fn phosphor_prepare_phosphor_decay(
     }
 
     Some(())
-}
-
-pub fn phosphor_render_phosphor_decay(
-    encoder: &mut CommandEncoder,
-    phosphor_front_view: &TextureViewComponent,
-    phosphor_decay_pipeline: &RenderPipelineComponent,
-    uniform_bind_group: &BindGroupComponent,
-    front_bind_group: &BindGroupComponent,
-) -> Option<()> {
-    let phosphor_front_view = phosphor_front_view.get()?;
-    let phosphor_decay_pipeline = phosphor_decay_pipeline.get()?;
-    let uniform_bind_group = uniform_bind_group.get()?;
-    let front_bind_group = front_bind_group.get()?;
-
-    println!("Phosphor render phosphor decay");
-
-    // Combine beam buffer with phosphor back buffer in phosphor front buffer
-    let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: None,
-        color_attachments: &[RenderPassColorAttachment {
-            view: phosphor_front_view,
-            resolve_target: None,
-            ops: Operations {
-                load: LoadOp::Clear(Color::BLACK),
-                store: true,
-            },
-        }],
-        depth_stencil_attachment: None,
-    });
-    rpass.set_pipeline(phosphor_decay_pipeline);
-    rpass.set_bind_group(0, uniform_bind_group, &[]);
-    rpass.set_bind_group(1, front_bind_group, &[]);
-    rpass.draw(0..4, 0..1);
-
-    Some(())
-}
-
-pub fn swap_buffers_system(
-    front_bind_group: &mut BindGroupComponent,
-    back_bind_group: &mut BindGroupComponent,
-    phosphor_front_view: &mut TextureViewComponent,
-    phosphor_back_view: &mut TextureViewComponent,
-) {
-    std::mem::swap(front_bind_group, back_bind_group);
-    std::mem::swap(phosphor_front_view, phosphor_back_view);
 }

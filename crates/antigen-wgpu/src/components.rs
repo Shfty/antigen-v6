@@ -22,14 +22,6 @@ pub type TextureDescriptorComponent<'a> = Changed<TextureDescriptor<'a>>;
 // WGPU texture
 pub type TextureComponent = LazyComponent<Texture>;
 
-// Render attachment usage flag for TextureComponent
-pub enum RenderAttachment {}
-
-pub type RenderAttachmentTextureViewDescriptor<'a> =
-    Usage<RenderAttachment, TextureViewDescriptorComponent<'a>>;
-pub type RenderAttachmentTexture = Usage<RenderAttachment, TextureComponent>;
-pub type RenderAttachmentTextureView = Usage<RenderAttachment, TextureViewComponent>;
-
 // MSAA frambuffer usage flag for TextureComponent
 pub enum MsaaFramebuffer {}
 

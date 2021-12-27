@@ -1,8 +1,11 @@
-use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, DeviceComponent, RenderAttachmentTextureView, RenderPipelineComponent, ShaderModuleComponent, SurfaceConfigurationComponent, wgpu::{
-        Color, CommandEncoder, FragmentState, LoadOp, MultisampleState, Operations,
-        PipelineLayoutDescriptor, PrimitiveState, RenderPassColorAttachment, RenderPassDescriptor,
+use antigen_wgpu::{
+    wgpu::{
+        FragmentState, MultisampleState, PipelineLayoutDescriptor, PrimitiveState,
         RenderPipelineDescriptor, VertexState,
-    }};
+    },
+    BindGroupLayoutComponent, DeviceComponent, RenderPipelineComponent, ShaderModuleComponent,
+    SurfaceConfigurationComponent,
+};
 
 pub fn phosphor_prepare_tonemap(
     device: &DeviceComponent,
@@ -44,42 +47,6 @@ pub fn phosphor_prepare_tonemap(
 
         tonemap_pipeline.set_ready(pipeline);
     }
-
-    Some(())
-}
-
-pub fn phosphor_render_tonemap(
-    encoder: &mut CommandEncoder,
-    render_attachment_view: &RenderAttachmentTextureView,
-    tonemap_pipeline: &RenderPipelineComponent,
-    back_bind_group: &BindGroupComponent,
-) -> Option<()> {
-    let render_attachment_view = render_attachment_view.get()?;
-    let tonemap_pipeline = tonemap_pipeline.get()?;
-    let back_bind_group = back_bind_group.get()?;
-    
-    println!("Phosphor render tonemap");
-
-    // Tonemap phosphor buffer to surface
-    let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
-        label: None,
-        color_attachments: &[RenderPassColorAttachment {
-            view: render_attachment_view,
-            resolve_target: None,
-            ops: Operations {
-                load: LoadOp::Clear(Color::BLACK),
-                store: true,
-            },
-        }],
-        depth_stencil_attachment: None,
-    });
-    rpass.set_pipeline(tonemap_pipeline);
-    rpass.set_bind_group(
-        0,
-        back_bind_group,
-        &[],
-    );
-    rpass.draw(0..4, 0..1);
 
     Some(())
 }

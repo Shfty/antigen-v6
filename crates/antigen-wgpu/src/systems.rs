@@ -1,12 +1,12 @@
 use super::{
     BufferInitDescriptorComponent, BufferWriteComponent, CommandBuffersComponent,
-    RenderAttachmentTextureViewDescriptor, SurfaceComponent, SurfaceTextureComponent,
+    SurfaceComponent, SurfaceTextureComponent,
     TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
     TextureWriteComponent, ToBytes,
 };
 use crate::{
     AdapterComponent, BufferComponent, BufferDescriptorComponent, CommandEncoderComponent,
-    DeviceComponent, InstanceComponent, QueueComponent, RenderAttachmentTextureView,
+    DeviceComponent, InstanceComponent, QueueComponent,
     SamplerComponent, SamplerDescriptorComponent, ShaderModuleComponent,
     ShaderModuleDescriptorComponent, ShaderModuleDescriptorSpirVComponent,
     SurfaceConfigurationComponent, TextureComponent,
@@ -133,8 +133,8 @@ pub fn surface_texture_view_query(world: &mut World, entity: Entity) {
     let mut query = world
         .query_one::<(
             &SurfaceTextureComponent,
-            &RenderAttachmentTextureViewDescriptor<'static>,
-            &mut RenderAttachmentTextureView,
+            &TextureViewDescriptorComponent<'static>,
+            &mut TextureViewComponent,
         )>(entity)
         .unwrap();
 
@@ -184,7 +184,7 @@ pub fn surface_texture_present_system(world: &mut World) {
 pub fn surface_texture_view_drop_system(world: &mut World) {
     let mut query = world.query::<(
         &mut SurfaceTextureComponent,
-        &mut RenderAttachmentTextureView,
+        &mut TextureViewComponent,
     )>();
     for (_, (surface_texture, texture_view)) in query.into_iter() {
         if !surface_texture.get_changed() {

@@ -9,8 +9,8 @@ use antigen_wgpu::{
         BindingType, BufferBindingType, BufferSize, Extent3d, ShaderStages,
     },
     BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
-    RenderAttachmentTextureView, SamplerComponent, SurfaceConfigurationComponent,
-    TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
+    SamplerComponent, SurfaceConfigurationComponent, TextureDescriptorComponent,
+    TextureViewComponent, TextureViewDescriptorComponent,
 };
 
 use antigen_winit::{winit::event::WindowEvent, WindowComponent, WindowEventComponent};
@@ -481,121 +481,31 @@ pub fn phosphor_update_compute_indirect(world: &mut World) {
     }
 }
 
-pub fn phosphor_render_system(world: &mut World) {
-    let mut query = world.query::<&PhosphorRenderer>();
-    for (entity, _) in query.into_iter() {
-        phosphor_render(world, entity);
+pub fn phosphor_swap_buffers_system(world: &World) -> Option<()> {
+    for (_, _) in world.query::<&PhosphorRenderer>().into_iter() {
+        let mut query = world
+            .query::<(&mut TextureViewComponent,)>()
+            .with::<PhosphorFrontBuffer>();
+        let (_, (phosphor_front_buffer_view,)) = query.into_iter().next()?;
+
+        let mut query = world
+            .query::<(&mut TextureViewComponent,)>()
+            .with::<PhosphorBackBuffer>();
+        let (_, (phosphor_back_buffer_view,)) = query.into_iter().next()?;
+
+        let mut query = world
+            .query::<(&mut BindGroupComponent,)>()
+            .with::<PhosphorFrontBuffer>();
+        let (_, (front_bind_group,)) = query.into_iter().next()?;
+
+        let mut query = world
+            .query::<(&mut BindGroupComponent,)>()
+            .with::<PhosphorBackBuffer>();
+        let (_, (back_bind_group,)) = query.into_iter().next()?;
+
+        std::mem::swap(phosphor_front_buffer_view, phosphor_back_buffer_view);
+        std::mem::swap(front_bind_group, back_bind_group);
     }
-}
-
-pub fn phosphor_render(world: &World, entity: Entity) -> Option<()> {
-    let mut query = world
-        .query_one::<(
-            &MeshIndexCountComponent,
-            &LineIndexCountComponent,
-            &mut antigen_wgpu::CommandEncoderComponent,
-            &Indirect<&RenderAttachmentTextureView>,
-        )>(entity)
-        .unwrap();
-
-    let (mesh_index_count, line_index_count, encoder, render_attachment_view) =
-        query.get().unwrap();
-
-    let encoder = encoder.get_mut()?;
-
-    let mesh_index_count = **mesh_index_count;
-    let line_index_count = **line_index_count;
-    let line_count = line_index_count / 2;
-
-    let mut query = render_attachment_view.get(world);
-    let render_attachment_view = query.get().unwrap();
-
-    let mut query = world
-        .query::<(&BindGroupComponent,)>()
-        .with::<Uniform>();
-    let (_, (uniform_bind_group,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut BufferComponent,)>()
-        .with::<MeshVertex>();
-    let (_, (mesh_vertex_buffer,)) = query.into_iter().next()?;
-
-    let mut query = world.query::<(&mut BufferComponent,)>().with::<MeshIndex>();
-    let (_, (mesh_index_buffer,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut BufferComponent,)>()
-        .with::<LineVertex>();
-    let (_, (line_vertex_buffer,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut BufferComponent,)>()
-        .with::<LineInstance>();
-    let (_, (line_instance_buffer,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut TextureViewComponent,)>()
-        .with::<BeamBuffer>();
-    let (_, (beam_buffer_view,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut TextureViewComponent,)>()
-        .with::<BeamDepthBuffer>();
-    let (_, (beam_depth_buffer_view,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut TextureViewComponent,)>()
-        .with::<BeamMultisample>();
-    let (_, (beam_multisample_view,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut TextureViewComponent,)>()
-        .with::<PhosphorFrontBuffer>();
-    let (_, (phosphor_front_buffer_view,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut TextureViewComponent,)>()
-        .with::<PhosphorBackBuffer>();
-    let (_, (phosphor_back_buffer_view,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut ComputePipelineComponent, &mut BindGroupComponent)>()
-        .with::<ComputeLineInstances>();
-    let (_, (compute_pipeline, compute_bind_group)) = query.into_iter().next().unwrap();
-
-    let mut query = world
-        .query::<(&RenderPipelineComponent,)>()
-        .with::<PhosphorDecay>();
-    let (_, (phosphor_decay_pipeline,)) = query.into_iter().next().unwrap();
-
-    let mut query = world
-        .query::<(&mut BindGroupComponent,)>()
-        .with::<PhosphorFrontBuffer>();
-    let (_, (front_bind_group,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&mut BindGroupComponent,)>()
-        .with::<PhosphorBackBuffer>();
-    let (_, (back_bind_group,)) = query.into_iter().next()?;
-
-    let mut query = world
-        .query::<(&RenderPipelineComponent,)>()
-        .with::<Tonemap>();
-    let (_, (tonemap_pipeline,)) = query.into_iter().next().unwrap();
-
-    phosphor_render_tonemap(
-        encoder,
-        render_attachment_view,
-        tonemap_pipeline,
-        back_bind_group,
-    );
-
-    swap_buffers_system(
-        front_bind_group,
-        back_bind_group,
-        phosphor_front_buffer_view,
-        phosphor_back_buffer_view,
-    );
 
     Some(())
 }

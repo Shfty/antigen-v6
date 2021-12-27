@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use antigen_core::{AsUsage, Construct, Indirect, Usage};
+use antigen_core::{Construct, Indirect, Usage};
 use hecs::{Entity, EntityBuilder, World};
 use wgpu::{
     BufferAddress, Color, DynamicOffset, IndexFormat, Operations, RenderPassColorAttachment,
@@ -256,17 +256,18 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             })
             .collect::<Vec<_>>();
 
-        let color = color_queries.iter_mut().map(|(view, resolve_target, ops)| {
-            (
-                view.get().unwrap().get().unwrap(),
-                resolve_target
-                    .as_mut()
-                    .map(|resolve_target| resolve_target.get().unwrap().get().unwrap()),
-                ops,
-            )
-        });
+        let mut color = vec![];
+        for (view, resolve_target, ops) in color_queries.iter_mut() {
+            let view = view.get().unwrap().get()?;
+            let resolve_target = resolve_target
+                .as_mut()
+                .map(|resolve_target| resolve_target.get().unwrap().get().unwrap());
+
+            color.push((view, resolve_target, ops))
+        }
 
         let color_attachments = color
+            .into_iter()
             .map(|(view, resolve_target, ops)| {
                 let ops = **ops;
 
