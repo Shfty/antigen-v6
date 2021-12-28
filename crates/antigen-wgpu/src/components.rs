@@ -152,3 +152,7 @@ pub type CommandEncoderComponent = LazyComponent<CommandEncoder>;
 // Compute / Render pass ordering component
 pub enum PassOrder {}
 pub type PassOrderComponent = Usage<PassOrder, usize>;
+
+// Buffer length component
+pub enum BufferLength {}
+pub type BufferLengthComponent = Usage<BufferLength, BufferAddress>;

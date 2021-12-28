@@ -3,15 +3,10 @@ use std::time::Instant;
 use super::*;
 use antigen_core::{Changed, ChangedTrait, Indirect};
 
-use antigen_wgpu::{
-    wgpu::{
+use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent, RenderPassDrawComponent, RenderPassDrawIndexedComponent, SamplerComponent, SurfaceConfigurationComponent, TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent, wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
         BindingType, BufferBindingType, BufferSize, Extent3d, ShaderStages,
-    },
-    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
-    SamplerComponent, SurfaceConfigurationComponent, TextureDescriptorComponent,
-    TextureViewComponent, TextureViewDescriptorComponent,
-};
+    }};
 
 use antigen_winit::{winit::event::WindowEvent, WindowComponent, WindowEventComponent};
 use hecs::World;
@@ -471,13 +466,41 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
 }
 
 pub fn phosphor_update_compute_indirect(world: &mut World) {
-    let query = world.query_mut::<(&LineIndexCountComponent, &mut Changed<[u32; 3]>)>();
-    for (_, (line_index_count, compute_indirect)) in query.into_iter() {
-        let line_count = **line_index_count / 2;
-        if (**compute_indirect)[0] != line_count as u32 {
-            compute_indirect[0] = line_count as u32;
-            compute_indirect.set_changed(true);
-        }
+    let mut query = world
+        .query::<&antigen_wgpu::BufferLengthComponent>()
+        .with::<LineIndex>();
+    let (_, line_index_count) = query.into_iter().next().unwrap();
+
+    let mut query = world.query::<&mut Changed<[u32; 3]>>();
+    let (_, compute_indirect) = query.into_iter().next().unwrap();
+
+    let line_count = **line_index_count / 2;
+    if (**compute_indirect)[0] != line_count as u32 {
+        compute_indirect[0] = line_count as u32;
+        compute_indirect.set_changed(true);
     }
 }
 
+pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
+    let mut query = world
+        .query::<&antigen_wgpu::BufferLengthComponent>()
+        .with::<MeshIndex>();
+    let (_, mesh_index_count) = query.into_iter().next().unwrap();
+
+    let mut query = world.query::<&mut RenderPassDrawIndexedComponent>().with::<BeamMesh>();
+    let (_, render_pass_draw_indexed) = query.into_iter().next().unwrap();
+
+    render_pass_draw_indexed.0 = 0..(**mesh_index_count as u32);
+}
+
+pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {
+    let mut query = world
+        .query::<&antigen_wgpu::BufferLengthComponent>()
+        .with::<LineIndex>();
+    let (_, line_index_count) = query.into_iter().next().unwrap();
+
+    let mut query = world.query::<&mut RenderPassDrawComponent>().with::<BeamLine>();
+    let (_, render_pass_draw) = query.into_iter().next().unwrap();
+
+    render_pass_draw.1 = 0..((**line_index_count as u32) / 2);
+}
