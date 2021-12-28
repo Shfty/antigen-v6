@@ -26,10 +26,10 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="0"
      inkscape:zoom="32"
-     inkscape:cx="-5.484375"
-     inkscape:cy="19.234375"
+     inkscape:cx="-3.890625"
+     inkscape:cy="17.734375"
      inkscape:document-units="px"
-     inkscape:current-layer="layer20"
+     inkscape:current-layer="layer45"
      showgrid="true"
      inkscape:window-width="1920"
      inkscape:window-height="1387"
@@ -115,7 +115,7 @@
      inkscape:groupmode="layer"
      id="layer28"
      inkscape:label="Uppercase"
-     style="display:inline">
+     style="display:none">
     <g
        inkscape:groupmode="layer"
        id="layer2"
@@ -445,9 +445,127 @@
   </g>
   <g
      inkscape:groupmode="layer"
+     id="layer1"
+     inkscape:label="Numbers">
+    <g
+       inkscape:groupmode="layer"
+       id="layer35"
+       inkscape:label="0"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="m 4,11 3,3 V 26 L 4,29 H -4 L -7,26 V 14 l 3,-3 z"
+         id="path428"
+         sodipodi:nodetypes="ccccccccc" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer36"
+       inkscape:label="1"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="M -4,18 3,11 V 29"
+         id="path2610" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer38"
+       inkscape:label="2"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="m -7,16 5,-5 H 2 L 7,16 -7,29 H 7"
+         id="path2612"
+         sodipodi:nodetypes="cccccc" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer39"
+       inkscape:label="3"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="m -7,16 5,-5 h 4 l 5,5 -5,4 5,4 -5,5 h -4 l -5,-5"
+         id="path3554"
+         sodipodi:nodetypes="ccccccccc" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer40"
+       inkscape:label="4"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="M 2,29 V 12 l -9,9 H 7"
+         id="path5196"
+         sodipodi:nodetypes="cccc" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer41"
+       inkscape:label="5"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="M 7,11 H -7 v 9 H 4 l 3,3 v 3 L 4,29 H -7"
+         id="path6156"
+         sodipodi:nodetypes="cccccccc" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer42"
+       inkscape:label="6"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="m 7,11 h -9 l -5,5 v 10 l 3,3 H 5 L 7,27 V 22 L 5,20 H -7"
+         id="path7367" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer43"
+       inkscape:label="7"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="M -7,11 H 7 L -7,29"
+         id="path7369"
+         sodipodi:nodetypes="ccc" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer44"
+       inkscape:label="8"
+       style="display:none">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="m -2,11 h 4 l 3,3 v 3 l -3,3 h -4 l -3,-3 v -3 z"
+         id="path7796"
+         sodipodi:nodetypes="ccccccccc" />
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="m 2,20 3,3 v 4 l -3,3 h -4 l -3,-3 v -4 l 3,-3"
+         id="path10094"
+         sodipodi:nodetypes="cccccccc" />
+    </g>
+    <g
+       inkscape:groupmode="layer"
+       id="layer45"
+       inkscape:label="9"
+       style="display:inline">
+      <path
+         style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         d="M -6,29 H 3 L 7,25 V 14 L 4,11 h -8 l -3,3 v 4 l 3,3 H 7"
+         id="path8212"
+         sodipodi:nodetypes="cccccccccc" />
+    </g>
+  </g>
+  <g
+     inkscape:groupmode="layer"
      id="layer29"
      inkscape:label="Lowercase"
-     style="display:inline">
+     style="display:none">
     <g
        inkscape:groupmode="layer"
        id="layer30"
