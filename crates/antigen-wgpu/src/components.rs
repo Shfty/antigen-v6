@@ -148,3 +148,7 @@ pub enum MeshIndices {}
 
 pub type CommandEncoderDescriptorComponent = Changed<CommandEncoderDescriptor<'static>>;
 pub type CommandEncoderComponent = LazyComponent<CommandEncoder>;
+
+// Compute / Render pass ordering component
+pub enum PassOrder {}
+pub type PassOrderComponent = Usage<PassOrder, usize>;

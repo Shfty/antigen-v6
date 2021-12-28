@@ -643,6 +643,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     builder.add(RenderPipelineComponent::default());
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw_indexed(
+            0,
             Some("Beam Meshes".into()),
             vec![(
                 beam_multisample_entity,
@@ -691,6 +692,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     builder.add(RenderPipelineComponent::default());
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw(
+            1,
             Some("Beam Lines".into()),
             vec![(
                 beam_multisample_entity,
@@ -743,6 +745,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     builder.add(BindGroupLayoutComponent::default());
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw(
+            2,
             Some("Phosphor Decay".into()),
             vec![(
                 phosphor_front_entity,
@@ -783,6 +786,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     builder.add(RenderPipelineComponent::default());
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw(
+            3,
             Some("Tonemap".into()),
             vec![(
                 window_entity,
@@ -842,6 +846,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     builder.add_bundle(
         antigen_wgpu::ComputePassBundle::dispatch_indirect(
+            0,
             ComputePassDescriptor {
                 label: Some("Line Indices".into()),
             },

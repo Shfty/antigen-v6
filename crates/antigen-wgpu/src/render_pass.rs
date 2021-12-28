@@ -8,8 +8,8 @@ use wgpu::{
 };
 
 use crate::{
-    BindGroupComponent, BufferComponent, CommandEncoderComponent, PushConstantQuery,
-    RenderPipelineComponent, TextureViewComponent,
+    BindGroupComponent, BufferComponent, CommandEncoderComponent, PassOrderComponent,
+    PushConstantQuery, RenderPipelineComponent, TextureViewComponent,
 };
 
 pub enum RenderPassTag {}
@@ -74,6 +74,7 @@ pub enum RenderPassBundle {}
 impl RenderPassBundle {
     fn builder_impl(
         builder: &mut EntityBuilder,
+        order: usize,
         label: Option<String>,
         color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
         depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
@@ -88,6 +89,8 @@ impl RenderPassBundle {
         scissor_rect: Option<(u32, u32, u32, u32)>,
         encoder: Entity,
     ) {
+        builder.add(PassOrderComponent::construct(order));
+
         builder.add(RenderPassLabelComponent::construct(label));
 
         let color_attachments = RenderPassColorAttachmentsComponent::construct(
@@ -165,6 +168,7 @@ impl RenderPassBundle {
     }
 
     pub fn draw(
+        order: usize,
         label: Option<String>,
         color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
         depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
@@ -184,6 +188,7 @@ impl RenderPassBundle {
 
         Self::builder_impl(
             &mut builder,
+            order,
             label,
             color_attachments,
             depth_attachment,
@@ -206,6 +211,7 @@ impl RenderPassBundle {
     }
 
     pub fn draw_indexed(
+        order: usize,
         label: Option<String>,
         color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
         depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
@@ -225,6 +231,7 @@ impl RenderPassBundle {
 
         Self::builder_impl(
             &mut builder,
+            order,
             label,
             color_attachments,
             depth_attachment,
@@ -247,6 +254,7 @@ impl RenderPassBundle {
     }
 
     pub fn draw_indirect(
+        order: usize,
         label: Option<String>,
         color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
         depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
@@ -266,6 +274,7 @@ impl RenderPassBundle {
 
         Self::builder_impl(
             &mut builder,
+            order,
             label,
             color_attachments,
             depth_attachment,
@@ -290,6 +299,7 @@ impl RenderPassBundle {
     }
 
     pub fn draw_indexed_indirect(
+        order: usize,
         label: Option<String>,
         color_attachments: Vec<(Entity, Option<Entity>, Operations<Color>)>,
         depth_attachment: Option<(Entity, Option<Operations<f32>>, Option<Operations<u32>>)>,
@@ -309,6 +319,7 @@ impl RenderPassBundle {
 
         Self::builder_impl(
             &mut builder,
+            order,
             label,
             color_attachments,
             depth_attachment,
@@ -335,6 +346,7 @@ impl RenderPassBundle {
 
 #[derive(hecs::Query)]
 pub struct RenderPassQuery<'a> {
+    order: &'a PassOrderComponent,
     label: &'a RenderPassLabelComponent,
     color_attachments: &'a RenderPassColorAttachmentsComponent,
     depth_attachment: &'a RenderPassDepthAttachmentComponent,
@@ -351,9 +363,14 @@ pub struct RenderPassQuery<'a> {
 }
 
 pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
+    let mut query = world.query::<RenderPassQuery>();
+    let mut components = query.into_iter().collect::<Vec<_>>();
+    components.sort_unstable_by(|(_, lhs), (_, rhs)| lhs.order.cmp(rhs.order));
+
     for (
         entity,
         RenderPassQuery {
+            order,
             label,
             color_attachments,
             depth_attachment,
@@ -368,7 +385,7 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             scissor_rect,
             encoder,
         },
-    ) in world.query::<RenderPassQuery>().into_iter()
+    ) in components.into_iter()
     {
         // Collect draw commands
         let mut draw_query = world.query_one::<&RenderPassDrawComponent>(entity).ok();

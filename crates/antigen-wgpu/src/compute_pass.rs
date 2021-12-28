@@ -1,11 +1,10 @@
+use std::collections::BTreeMap;
+
 use antigen_core::{AsUsage, Construct, Indirect, Usage};
 use hecs::{Entity, EntityBuilder, World};
 use wgpu::{BufferAddress, ComputePassDescriptor, DynamicOffset};
 
-use crate::{
-    BindGroupComponent, BufferComponent, CommandEncoderComponent, ComputePipelineComponent,
-    PushConstantQuery,
-};
+use crate::{BindGroupComponent, BufferComponent, CommandEncoderComponent, ComputePipelineComponent, PassOrderComponent, PushConstantQuery};
 
 pub enum ComputePassTag {}
 
@@ -26,11 +25,14 @@ pub enum ComputePassBundle {}
 
 fn compute_pass_bundle_impl(
     builder: &mut EntityBuilder,
+    order: usize,
     desc: ComputePassDescriptor<'static>,
     pipeline_entity: Entity,
     bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
     push_constant_entities: Vec<Entity>,
 ) {
+    builder.add(PassOrderComponent::construct(order));
+
     builder.add(desc);
 
     let pipeline = ComputePassPipelineComponent::construct(pipeline_entity);
@@ -62,6 +64,7 @@ fn compute_pass_bundle_impl(
 
 impl ComputePassBundle {
     pub fn dispatch(
+        order: usize,
         desc: ComputePassDescriptor<'static>,
         pipeline_entity: Entity,
         bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
@@ -72,6 +75,7 @@ impl ComputePassBundle {
 
         compute_pass_bundle_impl(
             &mut builder,
+            order,
             desc,
             pipeline_entity,
             bind_group_entities,
@@ -85,6 +89,7 @@ impl ComputePassBundle {
     }
 
     pub fn dispatch_indirect(
+        order: usize,
         desc: ComputePassDescriptor<'static>,
         pipeline_entity: Entity,
         bind_group_entities: Vec<(Entity, Vec<DynamicOffset>)>,
@@ -96,6 +101,7 @@ impl ComputePassBundle {
 
         compute_pass_bundle_impl(
             &mut builder,
+            order,
             desc,
             pipeline_entity,
             bind_group_entities,
@@ -114,6 +120,7 @@ impl ComputePassBundle {
 
 #[derive(hecs::Query)]
 pub struct ComputePassQuery<'a> {
+    order: &'a PassOrderComponent,
     desc: &'a ComputePassDescriptor<'static>,
     pipeline: &'a ComputePassPipelineComponent,
     bind_groups: &'a ComputePassBindGroupsComponent,
@@ -123,6 +130,11 @@ pub struct ComputePassQuery<'a> {
 }
 
 pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
+    let mut query = world.query::<ComputePassQuery>();
+
+    let mut components = query.into_iter().collect::<Vec<_>>();
+    components.sort_unstable_by(|(_, lhs), (_, rhs)| lhs.order.cmp(rhs.order));
+
     for (
         entity,
         ComputePassQuery {
@@ -132,8 +144,9 @@ pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
             push_constants,
             dispatch,
             encoder,
+            ..
         },
-    ) in world.query::<ComputePassQuery>().into_iter()
+    ) in components.into_iter()
     {
         let encoder = encoder.get_mut()?;
 
