@@ -71,6 +71,7 @@ impl OscilloscopeBundle {
     }
 }
 
+/// Assembles mesh vertices and line indices
 pub enum LinesBundle {}
 
 impl LinesBundle {
@@ -108,6 +109,7 @@ impl LinesBundle {
     }
 }
 
+/// Assemble line indices for a vector of vertices in line list format
 pub enum LineListBundle {}
 
 impl LineListBundle {
@@ -139,6 +141,7 @@ impl LineListBundle {
     }
 }
 
+/// Assemble line indices for a vector of vertices in line strip format
 pub enum LineStripBundle {}
 
 impl LineStripBundle {
@@ -173,6 +176,7 @@ impl LineStripBundle {
     }
 }
 
+/// Assemble line indices for pre-existing mesh vertices
 pub enum LineIndicesBundle {}
 
 impl LineIndicesBundle {
@@ -199,6 +203,7 @@ impl LineIndicesBundle {
     }
 }
 
+/// Assemble the Box Bot
 pub enum BoxBotBundle {}
 
 impl BoxBotBundle {
@@ -370,12 +375,14 @@ impl BoxBotBundle {
     }
 }
 
+/// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
 pub fn pad_align_triangle_list(indices: &mut Vec<u16>) {
     while (buffer_size_of::<u16>() * indices.len() as BufferAddress) % COPY_BUFFER_ALIGNMENT > 0 {
         indices.extend(std::iter::repeat(0).take(3));
     }
 }
 
+/// Assemble mesh vertices and indices
 pub enum MeshBundle {}
 
 impl MeshBundle {
@@ -419,6 +426,7 @@ impl MeshBundle {
     }
 }
 
+/// Assemble triangle indices for a list of vertices in triangle list format
 pub enum TriangleListBundle {}
 
 impl TriangleListBundle {
@@ -450,6 +458,7 @@ impl TriangleListBundle {
     }
 }
 
+/// Assemble triangle indices for a list of vertices in triangle fan format
 pub enum TriangleFanBundle {}
 
 impl TriangleFanBundle {
