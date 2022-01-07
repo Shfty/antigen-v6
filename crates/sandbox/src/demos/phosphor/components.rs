@@ -39,15 +39,6 @@ pub struct Tonemap;
 
 pub enum MapFile {}
 
-#[derive(Debug)]
-pub enum VertexCount {}
-
-#[derive(Debug)]
-pub enum MeshIndexCount {}
-
-#[derive(Debug)]
-pub enum LineIndexCount {}
-
 // Usage-tagged components
 pub type StartTimeComponent = Usage<StartTime, Instant>;
 pub type TimestampComponent = Usage<Timestamp, Instant>;
@@ -55,10 +46,8 @@ pub type TotalTimeComponent = Usage<TotalTime, f32>;
 pub type DeltaTimeComponent = Usage<DeltaTime, f32>;
 pub type PerspectiveMatrixComponent = Usage<Perspective, [[f32; 4]; 4]>;
 pub type OrthographicMatrixComponent = Usage<Orthographic, [[f32; 4]; 4]>;
-pub type VertexCountComponent = Usage<VertexCount, u64>;
-pub type MeshIndexCountComponent = Usage<MeshIndexCount, u64>;
-pub type LineIndexCountComponent = Usage<LineIndexCount, u64>;
 
+/// Singleton shader data
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct UniformData {
@@ -73,6 +62,7 @@ pub struct UniformData {
 
 pub type OriginComponent = Usage<Origin, (f32, f32, f32)>;
 
+/// Vertex data for 2D line meshes
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LineVertexData {
@@ -80,6 +70,7 @@ pub struct LineVertexData {
     pub end: f32,
 }
 
+/// Instance data representing a single line
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LineInstanceData {
@@ -93,6 +84,7 @@ impl ToBytes for LineInstanceData {
     }
 }
 
+/// Vertex data for 3D triangle meshes
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct MeshVertexData {

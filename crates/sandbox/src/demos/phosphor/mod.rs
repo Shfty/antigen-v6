@@ -840,6 +840,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         ..Default::default()
     }));
 
+    // Command encoder
     builder.add_bundle(antigen_wgpu::CommandEncoderBundle::new(
         CommandEncoderDescriptor {
             label: Some("Phosphor Encoder"),
@@ -847,6 +848,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         renderer_entity,
     ));
 
+    // Line index compute pass
     builder.add_bundle(
         antigen_wgpu::ComputePassBundle::dispatch_indirect(
             0,
