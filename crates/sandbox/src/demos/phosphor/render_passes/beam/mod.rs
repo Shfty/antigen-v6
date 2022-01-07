@@ -102,16 +102,18 @@ pub fn phosphor_prepare_beam_mesh(
 pub fn phosphor_prepare_beam_line(
     device: &DeviceComponent,
     uniform_bind_group_layout: &BindGroupLayoutComponent,
+    compute_bind_group_layout: &BindGroupLayoutComponent,
     beam_line_shader: &ShaderModuleComponent,
     beam_line_pipeline: &mut RenderPipelineComponent,
 ) -> Option<()> {
     let uniform_bind_group_layout = uniform_bind_group_layout.get()?;
+    let compute_bind_group_layout = compute_bind_group_layout.get()?;
     let beam_line_shader = beam_line_shader.get()?;
 
     if beam_line_pipeline.is_pending() {
         let pipeline_layout = device.create_pipeline_layout(&mut PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&uniform_bind_group_layout],
+            bind_group_layouts: &[&uniform_bind_group_layout, &compute_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -135,62 +137,6 @@ pub fn phosphor_prepare_beam_line(
                                 format: VertexFormat::Float32,
                                 offset: buffer_size_of::<[f32; 3]>(),
                                 shader_location: 1,
-                            },
-                        ],
-                    },
-                    VertexBufferLayout {
-                        array_stride: buffer_size_of::<LineInstanceData>(),
-                        step_mode: VertexStepMode::Instance,
-                        attributes: &[
-                            VertexAttribute {
-                                format: VertexFormat::Float32x3,
-                                offset: 0,
-                                shader_location: 2,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32x3,
-                                offset: buffer_size_of::<[f32; 3]>(),
-                                shader_location: 3,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32x3,
-                                offset: buffer_size_of::<[f32; 6]>(),
-                                shader_location: 4,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32,
-                                offset: buffer_size_of::<[f32; 9]>(),
-                                shader_location: 5,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32,
-                                offset: buffer_size_of::<[f32; 10]>(),
-                                shader_location: 6,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32x3,
-                                offset: buffer_size_of::<[f32; 12]>(),
-                                shader_location: 7,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32x3,
-                                offset: buffer_size_of::<[f32; 15]>(),
-                                shader_location: 8,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32x3,
-                                offset: buffer_size_of::<[f32; 18]>(),
-                                shader_location: 9,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32,
-                                offset: buffer_size_of::<[f32; 21]>(),
-                                shader_location: 10,
-                            },
-                            VertexAttribute {
-                                format: VertexFormat::Float32,
-                                offset: buffer_size_of::<[f32; 22]>(),
-                                shader_location: 11,
                             },
                         ],
                     },

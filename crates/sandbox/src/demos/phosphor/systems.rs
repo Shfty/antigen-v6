@@ -3,10 +3,17 @@ use std::time::Instant;
 use super::*;
 use antigen_core::{Changed, ChangedTrait, Indirect};
 
-use antigen_wgpu::{BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent, RenderPassDrawComponent, RenderPassDrawIndexedComponent, SamplerComponent, SurfaceConfigurationComponent, TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent, wgpu::{
+use antigen_wgpu::{
+    wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-        BindingType, BufferBindingType, BufferSize, Extent3d, ShaderStages,
-    }};
+        BindingType, BufferBindingType, BufferSize, ComputePipelineDescriptor, Extent3d,
+        PipelineLayoutDescriptor, ShaderStages,
+    },
+    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
+    RenderPassDrawComponent, RenderPassDrawIndexedComponent, SamplerComponent,
+    SurfaceConfigurationComponent, TextureDescriptorComponent, TextureViewComponent,
+    TextureViewDescriptorComponent,
+};
 
 use antigen_winit::{winit::event::WindowEvent, WindowComponent, WindowEventComponent};
 use hecs::World;
@@ -70,6 +77,73 @@ pub fn phosphor_prepare_uniform_bind_group(
     Some(())
 }
 
+pub fn phosphor_prepare_compute(
+    device: &DeviceComponent,
+    mesh_vertex_buffer: &BufferComponent,
+    line_index_buffer: &BufferComponent,
+    bind_group_layout: &mut BindGroupLayoutComponent,
+    bind_group: &mut BindGroupComponent,
+) -> Option<()> {
+    let mesh_vertex_buffer = mesh_vertex_buffer.get()?;
+    let line_index_buffer = line_index_buffer.get()?;
+
+    let bind_group_layout = match bind_group_layout.get() {
+        Some(bind_group_layout) => bind_group_layout,
+        None => {
+            let compute_bind_group_layout =
+                device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                    label: Some("Compute Bind Group Layout"),
+                    entries: &[
+                        BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: ShaderStages::VERTEX,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: BufferSize::new(48),
+                            },
+                            count: None,
+                        },
+                        BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: ShaderStages::VERTEX,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: BufferSize::new(4),
+                            },
+                            count: None,
+                        },
+                    ],
+                });
+
+            bind_group_layout.set_ready(compute_bind_group_layout);
+            bind_group_layout.get().unwrap()
+        }
+    };
+
+    if bind_group.is_pending() {
+        let compute_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            layout: &bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: mesh_vertex_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: line_index_buffer.as_entire_binding(),
+                },
+            ],
+            label: None,
+        });
+
+        bind_group.set_ready(compute_bind_group);
+    }
+
+    Some(())
+}
+
 pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent) -> Option<()> {
     let mut query = world.query_one::<&SamplerComponent>(entity).unwrap();
     let sampler = query.get().unwrap();
@@ -96,9 +170,6 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     let mut query = world.query::<(&BufferComponent,)>().with::<LineIndex>();
     let (_, (line_index_buffer,)) = query.into_iter().next()?;
 
-    let mut query = world.query::<(&BufferComponent,)>().with::<LineInstance>();
-    let (_, (line_instance_buffer,)) = query.into_iter().next()?;
-
     let mut query = world
         .query::<(&TextureViewComponent,)>()
         .with::<BeamBuffer>();
@@ -123,30 +194,26 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
 
     let mut query = world
         .query::<(
-            &ShaderModuleComponent,
-            &mut ComputePipelineComponent,
             &mut BindGroupLayoutComponent,
             &mut BindGroupComponent,
         )>()
         .with::<ComputeLineInstances>();
-    let (_, (compute_shader, compute_pipeline, compute_bind_group_layout, compute_bind_group)) =
+    let (_, (compute_bind_group_layout, compute_bind_group)) =
         query.into_iter().next()?;
     println!("Fetched compute pass entity");
 
     phosphor_prepare_compute(
         device,
-        compute_shader,
         mesh_vertex_buffer,
         line_index_buffer,
-        line_instance_buffer,
         compute_bind_group_layout,
         compute_bind_group,
-        compute_pipeline,
     )?;
 
     let mut query = world
         .query::<(&ShaderModuleComponent, &mut RenderPipelineComponent)>()
         .with::<BeamMesh>();
+
     let (_, (beam_mesh_shader, beam_mesh_pipeline)) = query.into_iter().next()?;
     println!("Fetched beam mesh pass entity");
 
@@ -166,6 +233,7 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     phosphor_prepare_beam_line(
         device,
         uniform_bind_group_layout,
+        compute_bind_group_layout,
         beam_line_shader,
         beam_line_pipeline,
     )?;
@@ -487,7 +555,9 @@ pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
         .with::<MeshIndex>();
     let (_, mesh_index_count) = query.into_iter().next().unwrap();
 
-    let mut query = world.query::<&mut RenderPassDrawIndexedComponent>().with::<BeamMesh>();
+    let mut query = world
+        .query::<&mut RenderPassDrawIndexedComponent>()
+        .with::<BeamMesh>();
     let (_, render_pass_draw_indexed) = query.into_iter().next().unwrap();
 
     render_pass_draw_indexed.0 = 0..(**mesh_index_count as u32);
@@ -499,7 +569,9 @@ pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {
         .with::<LineIndex>();
     let (_, line_index_count) = query.into_iter().next().unwrap();
 
-    let mut query = world.query::<&mut RenderPassDrawComponent>().with::<BeamLine>();
+    let mut query = world
+        .query::<&mut RenderPassDrawComponent>()
+        .with::<BeamLine>();
     let (_, render_pass_draw) = query.into_iter().next().unwrap();
 
     render_pass_draw.1 = 0..((**line_index_count as u32) / 2);

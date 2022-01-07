@@ -331,3 +331,9 @@
 "intensity" "2"
 "delta_intensity" "-2"
 }
+// entity 7
+{
+"classname" "text"
+"origin" "-96 0 156"
+"text" "Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0."
+}

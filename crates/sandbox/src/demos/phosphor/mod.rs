@@ -628,16 +628,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     // Compute pass
     let compute_pass_entity = world.spawn((
         ComputeLineInstances,
-        ComputePipelineComponent::default(),
         BindGroupLayoutComponent::default(),
         BindGroupComponent::default(),
     ));
-
-    load_shader::<Filesystem, _>(
-        channel,
-        compute_pass_entity,
-        "crates/sandbox/src/demos/phosphor/shaders/line_instances.wgsl",
-    );
 
     // Beam mesh pass
     let beam_mesh_pass_entity = world.reserve_entity();
@@ -719,7 +712,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 (line_instance_entity, 0..960000),
             ],
             None,
-            vec![(uniform_entity, vec![])],
+            vec![(uniform_entity, vec![]), (compute_pass_entity, vec![])],
             vec![],
             None,
             None,
@@ -847,22 +840,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         },
         renderer_entity,
     ));
-
-    // Line index compute pass
-    builder.add_bundle(
-        antigen_wgpu::ComputePassBundle::dispatch_indirect(
-            0,
-            ComputePassDescriptor {
-                label: Some("Line Indices".into()),
-            },
-            compute_pass_entity,
-            vec![(compute_pass_entity, vec![])],
-            vec![],
-            uniform_entity,
-            buffer_size_of::<[f32; 36]>(),
-        )
-        .build(),
-    );
 
     builder.add_bundle(antigen_wgpu::BufferDataBundle::new(
         [0u32, 1, 1],

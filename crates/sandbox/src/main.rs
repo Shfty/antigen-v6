@@ -36,13 +36,25 @@
 //           * CommandBufferComponent<T>(BTreeMap<T, CommandBuffer>) where T: PartialOrd ?
 //             * Provide T during render pass init
 //             * Use type defaults for better ergonomics
-// 
+//
 // TODO: [✓] Update render pass draw ranges via system
+//
+// TODO: [✓] Replace line instances compute shader with storage buffer usage
+//           * Bind mesh vertices as storage buffer
+//           * Calculate base index as instance_index * 2
+//
+// TODO: [ ] Line mesh instancing for phosphor renderer
+//           * As per line_instancing notes in crate root
+//           * Objective is to be able to load each SVG font grapheme once,
+//             draw multiple copies without duplicating vertex data
+//           * Will require a mesh instance abstraction to encode mesh ID + world position
+//           * Should also inform data design for triangle mesh instancing,
+//             and provide the basis for loading map entities as individual meshes / ECS entities
 //
 // TODO: [ ] Improve mesh / line spawning ergonomics
 //           * Manually creating a local mutable index and writing it back is too much boilerplate
 //           * Solve via wrapper function?
-// 
+//
 // TODO: [ ] Implement generalized render pass setup
 //
 // TODO: [ ] Implement filesystem thread map loading / building
