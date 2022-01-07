@@ -8,44 +8,25 @@ use hecs::{Entity, EntityBuilder};
 
 use super::{MeshVertexData, OriginComponent, Oscilloscope, BLACK, BLUE, GREEN, RED, WHITE};
 
-pub enum OscilloscopeBundle {}
+/// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
+pub fn pad_align_triangle_list(indices: &mut Vec<u16>) {
+    while (buffer_size_of::<u16>() * indices.len() as BufferAddress) % COPY_BUFFER_ALIGNMENT > 0 {
+        indices.extend(std::iter::repeat(0).take(3));
+    }
+}
 
-impl OscilloscopeBundle {
+/// Assemble mesh vertices
+pub enum MeshVerticesBundle {}
+
+impl MeshVerticesBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
-        line_index_entity: Entity,
         vertex_head: &mut BufferAddress,
-        index_head: &mut BufferAddress,
-        origin: (f32, f32, f32),
-        color: (f32, f32, f32),
-        oscilloscope: Oscilloscope,
-        intensity: f32,
-        delta_intensity: f32,
+        vertices: Vec<MeshVertexData>,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        builder.add(OriginComponent::construct(origin));
-
-        builder.add(oscilloscope);
-
-        let vertices = vec![
-            MeshVertexData {
-                position: [0.0, 0.0, 0.0],
-                surface_color: [color.0, color.1, color.2],
-                line_color: [color.0, color.1, color.2],
-                intensity,
-                delta_intensity,
-                ..Default::default()
-            },
-            MeshVertexData {
-                position: [0.0, 0.0, 0.0],
-                surface_color: [color.0, color.1, color.2],
-                line_color: [color.0, color.1, color.2],
-                intensity,
-                delta_intensity,
-                ..Default::default()
-            },
-        ];
+        let vertex_count = vertices.len();
 
         let vertex_data = BufferDataBundle::new(
             vertices,
@@ -54,18 +35,34 @@ impl OscilloscopeBundle {
         );
         builder.add_bundle(vertex_data);
 
-        let indices = vec![(*vertex_head as u32), (*vertex_head + 1) as u32];
-        println!("Ocilloscope indices: {:#?}", indices);
+        *vertex_head += vertex_count as BufferAddress;
+
+        builder
+    }
+}
+
+/// Assemble line indices for pre-existing mesh vertices
+pub enum LineIndicesBundle {}
+
+impl LineIndicesBundle {
+    pub fn builder(
+        line_index_entity: Entity,
+        line_index_head: &mut BufferAddress,
+        indices: Vec<u32>,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        let index_count = indices.len();
 
         let index_data = BufferDataBundle::new(
             indices,
-            buffer_size_of::<u32>() * *index_head as BufferAddress,
+            buffer_size_of::<u32>() * *line_index_head as BufferAddress,
             line_index_entity,
         );
+
         builder.add_bundle(index_data);
 
-        *vertex_head += 2;
-        *index_head += 2;
+        *line_index_head += index_count as BufferAddress;
 
         builder
     }
@@ -85,25 +82,12 @@ impl LinesBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let vertex_count = vertices.len();
-        let index_count = indices.len();
-
-        let vertex_data = BufferDataBundle::new(
-            vertices,
-            buffer_size_of::<MeshVertexData>() * *vertex_head as BufferAddress,
-            mesh_vertex_entity,
+        builder.add_bundle(
+            MeshVerticesBundle::builder(mesh_vertex_entity, vertex_head, vertices).build(),
         );
-        builder.add_bundle(vertex_data);
 
-        let index_data = BufferDataBundle::new(
-            indices,
-            buffer_size_of::<u32>() * *index_head as BufferAddress,
-            line_index_entity,
-        );
-        builder.add_bundle(index_data);
-
-        *vertex_head += vertex_count as BufferAddress;
-        *index_head += index_count as BufferAddress;
+        builder
+            .add_bundle(LineIndicesBundle::builder(line_index_entity, index_head, indices).build());
 
         builder
     }
@@ -176,30 +160,175 @@ impl LineStripBundle {
     }
 }
 
-/// Assemble line indices for pre-existing mesh vertices
-pub enum LineIndicesBundle {}
+/// Assembles an oscilloscope entity
+pub enum OscilloscopeBundle {}
 
-impl LineIndicesBundle {
+impl OscilloscopeBundle {
     pub fn builder(
+        mesh_vertex_entity: Entity,
         line_index_entity: Entity,
-        line_index_head: &mut BufferAddress,
-        indices: Vec<u32>,
+        vertex_head: &mut BufferAddress,
+        index_head: &mut BufferAddress,
+        origin: (f32, f32, f32),
+        color: (f32, f32, f32),
+        oscilloscope: Oscilloscope,
+        intensity: f32,
+        delta_intensity: f32,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let index_count = indices.len();
+        builder.add(OriginComponent::construct(origin));
+
+        builder.add(oscilloscope);
+
+        let vertices = vec![
+            MeshVertexData {
+                position: [0.0, 0.0, 0.0],
+                surface_color: [color.0, color.1, color.2],
+                line_color: [color.0, color.1, color.2],
+                intensity,
+                delta_intensity,
+                ..Default::default()
+            },
+            MeshVertexData {
+                position: [0.0, 0.0, 0.0],
+                surface_color: [color.0, color.1, color.2],
+                line_color: [color.0, color.1, color.2],
+                intensity,
+                delta_intensity,
+                ..Default::default()
+            },
+        ];
+
+        let vertex_data = BufferDataBundle::new(
+            vertices,
+            buffer_size_of::<MeshVertexData>() * *vertex_head as BufferAddress,
+            mesh_vertex_entity,
+        );
+        builder.add_bundle(vertex_data);
+
+        let indices = vec![(*vertex_head as u32), (*vertex_head + 1) as u32];
+        println!("Ocilloscope indices: {:#?}", indices);
 
         let index_data = BufferDataBundle::new(
             indices,
-            buffer_size_of::<u32>() * *line_index_head as BufferAddress,
+            buffer_size_of::<u32>() * *index_head as BufferAddress,
             line_index_entity,
         );
-
         builder.add_bundle(index_data);
 
-        *line_index_head += index_count as BufferAddress;
+        *vertex_head += 2;
+        *index_head += 2;
 
         builder
+    }
+}
+
+/// Assemble mesh vertices and indices
+pub enum MeshBundle {}
+
+impl MeshBundle {
+    pub fn builder(
+        mesh_vertex_entity: Entity,
+        mesh_index_entity: Entity,
+        vertex_head: &mut BufferAddress,
+        index_head: &mut BufferAddress,
+        vertices: Vec<MeshVertexData>,
+        mut indices: Vec<u16>,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        let vertex_offset = buffer_size_of::<MeshVertexData>() * *vertex_head;
+        let index_offset = buffer_size_of::<u16>() * *index_head;
+
+        pad_align_triangle_list(&mut indices);
+
+        let vertex_count = vertices.len();
+        let index_count = indices.len();
+
+        println!("Index count: {}", index_count);
+        println!("Index offset: {}", index_offset);
+
+        builder.add_bundle(BufferDataBundle::new(
+            vertices,
+            vertex_offset,
+            mesh_vertex_entity,
+        ));
+
+        builder.add_bundle(BufferDataBundle::new(
+            indices,
+            index_offset,
+            mesh_index_entity,
+        ));
+
+        *vertex_head += vertex_count as BufferAddress;
+        *index_head += index_count as BufferAddress;
+
+        builder
+    }
+}
+
+/// Assemble triangle indices for a list of vertices in triangle list format
+pub enum TriangleListBundle {}
+
+impl TriangleListBundle {
+    pub fn builder(
+        mesh_vertex_entity: Entity,
+        mesh_index_entity: Entity,
+        vertex_buffer_index: &mut BufferAddress,
+        index_buffer_index: &mut BufferAddress,
+        mut base_index: u16,
+        vertices: Vec<MeshVertexData>,
+    ) -> EntityBuilder {
+        let indices = vertices
+            .chunks(3)
+            .flat_map(|_| {
+                let is = [base_index, base_index + 1, base_index + 2];
+                base_index += 3;
+                is
+            })
+            .collect::<Vec<_>>();
+
+        MeshBundle::builder(
+            mesh_vertex_entity,
+            mesh_index_entity,
+            vertex_buffer_index,
+            index_buffer_index,
+            vertices,
+            indices,
+        )
+    }
+}
+
+/// Assemble triangle indices for a list of vertices in triangle fan format
+pub enum TriangleFanBundle {}
+
+impl TriangleFanBundle {
+    pub fn builder(
+        mesh_vertex_entity: Entity,
+        mesh_index_entity: Entity,
+        vertex_buffer_index: &mut BufferAddress,
+        index_buffer_index: &mut BufferAddress,
+        base_index: u16,
+        vertices: Vec<MeshVertexData>,
+    ) -> EntityBuilder {
+        let mut current_index = base_index;
+        let indices = (0..vertices.len() - 2)
+            .flat_map(|_| {
+                let is = [base_index, current_index + 1, current_index + 2];
+                current_index += 1;
+                is
+            })
+            .collect::<Vec<_>>();
+
+        MeshBundle::builder(
+            mesh_vertex_entity,
+            mesh_index_entity,
+            vertex_buffer_index,
+            index_buffer_index,
+            vertices,
+            indices,
+        )
     }
 }
 
@@ -372,121 +501,6 @@ impl BoxBotBundle {
         ));
 
         builders
-    }
-}
-
-/// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
-pub fn pad_align_triangle_list(indices: &mut Vec<u16>) {
-    while (buffer_size_of::<u16>() * indices.len() as BufferAddress) % COPY_BUFFER_ALIGNMENT > 0 {
-        indices.extend(std::iter::repeat(0).take(3));
-    }
-}
-
-/// Assemble mesh vertices and indices
-pub enum MeshBundle {}
-
-impl MeshBundle {
-    pub fn builder(
-        mesh_vertex_entity: Entity,
-        mesh_index_entity: Entity,
-        vertex_head: &mut BufferAddress,
-        index_head: &mut BufferAddress,
-        vertices: Vec<MeshVertexData>,
-        mut indices: Vec<u16>,
-    ) -> EntityBuilder {
-        let mut builder = EntityBuilder::new();
-
-        let vertex_offset = buffer_size_of::<MeshVertexData>() * *vertex_head;
-        let index_offset = buffer_size_of::<u16>() * *index_head;
-
-        pad_align_triangle_list(&mut indices);
-
-        let vertex_count = vertices.len();
-        let index_count = indices.len();
-
-        println!("Index count: {}", index_count);
-        println!("Index offset: {}", index_offset);
-
-        builder.add_bundle(BufferDataBundle::new(
-            vertices,
-            vertex_offset,
-            mesh_vertex_entity,
-        ));
-
-        builder.add_bundle(BufferDataBundle::new(
-            indices,
-            index_offset,
-            mesh_index_entity,
-        ));
-
-        *vertex_head += vertex_count as BufferAddress;
-        *index_head += index_count as BufferAddress;
-
-        builder
-    }
-}
-
-/// Assemble triangle indices for a list of vertices in triangle list format
-pub enum TriangleListBundle {}
-
-impl TriangleListBundle {
-    pub fn builder(
-        mesh_vertex_entity: Entity,
-        mesh_index_entity: Entity,
-        vertex_buffer_index: &mut BufferAddress,
-        index_buffer_index: &mut BufferAddress,
-        mut base_index: u16,
-        vertices: Vec<MeshVertexData>,
-    ) -> EntityBuilder {
-        let indices = vertices
-            .chunks(3)
-            .flat_map(|_| {
-                let is = [base_index, base_index + 1, base_index + 2];
-                base_index += 3;
-                is
-            })
-            .collect::<Vec<_>>();
-
-        MeshBundle::builder(
-            mesh_vertex_entity,
-            mesh_index_entity,
-            vertex_buffer_index,
-            index_buffer_index,
-            vertices,
-            indices,
-        )
-    }
-}
-
-/// Assemble triangle indices for a list of vertices in triangle fan format
-pub enum TriangleFanBundle {}
-
-impl TriangleFanBundle {
-    pub fn builder(
-        mesh_vertex_entity: Entity,
-        mesh_index_entity: Entity,
-        vertex_buffer_index: &mut BufferAddress,
-        index_buffer_index: &mut BufferAddress,
-        base_index: u16,
-        vertices: Vec<MeshVertexData>,
-    ) -> EntityBuilder {
-        let mut current_index = base_index;
-        let indices = (0..vertices.len() - 2)
-            .flat_map(|_| {
-                let is = [base_index, current_index + 1, current_index + 2];
-                current_index += 1;
-                is
-            })
-            .collect::<Vec<_>>();
-
-        MeshBundle::builder(
-            mesh_vertex_entity,
-            mesh_index_entity,
-            vertex_buffer_index,
-            index_buffer_index,
-            vertices,
-            indices,
-        )
     }
 }
 
