@@ -29,7 +29,7 @@ pub struct Orthographic;
 pub enum Origin {}
 
 pub struct Uniform;
-pub struct ComputeLineInstances;
+pub struct StorageBuffers;
 pub struct PhosphorDecay;
 pub struct PhosphorFrontBuffer;
 pub struct PhosphorBackBuffer;
@@ -56,8 +56,6 @@ pub struct UniformData {
     total_time: f32,
     delta_time: f32,
     _pad_0: [f32; 2],
-    compute_indirect: [u32; 3],
-    _pad_w1: u32,
 }
 
 pub type OriginComponent = Usage<Origin, (f32, f32, f32)>;

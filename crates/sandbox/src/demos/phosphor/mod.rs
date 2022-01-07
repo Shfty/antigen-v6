@@ -128,13 +128,12 @@ use antigen_wgpu::{
     buffer_size_of, spawn_shader_from_file_string,
     wgpu::{
         AddressMode, BufferAddress, BufferDescriptor, BufferUsages, Color,
-        CommandEncoderDescriptor, ComputePassDescriptor, Extent3d, FilterMode, IndexFormat, LoadOp,
-        Maintain, Operations, SamplerDescriptor, TextureAspect, TextureDescriptor,
-        TextureDimension, TextureFormat, TextureUsages, TextureViewDescriptor,
+        CommandEncoderDescriptor, Extent3d, FilterMode, IndexFormat, LoadOp, Maintain, Operations,
+        SamplerDescriptor, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
+        TextureUsages, TextureViewDescriptor,
     },
-    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, ComputePipelineComponent,
-    RenderPipelineComponent, ShaderModuleComponent, ShaderModuleDescriptorComponent,
-    SurfaceConfigurationComponent, TextureViewComponent,
+    BindGroupComponent, BindGroupLayoutComponent, RenderPipelineComponent, ShaderModuleComponent,
+    ShaderModuleDescriptorComponent, SurfaceConfigurationComponent, TextureViewComponent,
 };
 
 use antigen_shambler::shambler::GeoMap;
@@ -625,9 +624,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .build();
     world.insert(window_entity, bundle).unwrap();
 
-    // Compute pass
-    let compute_pass_entity = world.spawn((
-        ComputeLineInstances,
+    // Storage bind group
+    let storage_bind_group_entity = world.spawn((
+        StorageBuffers,
         BindGroupLayoutComponent::default(),
         BindGroupComponent::default(),
     ));
@@ -712,7 +711,10 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 (line_instance_entity, 0..960000),
             ],
             None,
-            vec![(uniform_entity, vec![]), (compute_pass_entity, vec![])],
+            vec![
+                (uniform_entity, vec![]),
+                (storage_bind_group_entity, vec![]),
+            ],
             vec![],
             None,
             None,
@@ -839,12 +841,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             label: Some("Phosphor Encoder"),
         },
         renderer_entity,
-    ));
-
-    builder.add_bundle(antigen_wgpu::BufferDataBundle::new(
-        [0u32, 1, 1],
-        buffer_size_of::<[f32; 36]>(),
-        uniform_entity,
     ));
 
     // Misc
@@ -1478,9 +1474,7 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::buffer_write_system::<Vec<u32>>(world);
             antigen_wgpu::buffer_write_system::<Vec<MeshVertexData>>(world);
             antigen_wgpu::buffer_write_system::<MeshIndexDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<[u32; 3]>(world);
         }
-        phosphor_update_compute_indirect(world);
         phosphor_update_beam_mesh_draw_count_system(world);
         phosphor_update_beam_line_draw_count_system(world);
         phosphor_prepare_system(world);
@@ -1494,7 +1488,6 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
         }
         phosphor_update_oscilloscopes_system(world);
         antigen_wgpu::create_command_encoders_system(world);
-        antigen_wgpu::dispatch_compute_passes_system(world);
         antigen_wgpu::draw_render_passes_system(world);
         antigen_core::swap_with_system::<TextureViewComponent>(world);
         antigen_core::swap_with_system::<BindGroupComponent>(world);

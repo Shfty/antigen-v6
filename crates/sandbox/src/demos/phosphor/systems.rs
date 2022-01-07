@@ -6,8 +6,8 @@ use antigen_core::{Changed, ChangedTrait, Indirect};
 use antigen_wgpu::{
     wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-        BindingType, BufferBindingType, BufferSize, ComputePipelineDescriptor, Extent3d,
-        PipelineLayoutDescriptor, ShaderStages,
+        BindingType, BufferBindingType, BufferSize, Extent3d,
+        ShaderStages,
     },
     BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
     RenderPassDrawComponent, RenderPassDrawIndexedComponent, SamplerComponent,
@@ -77,7 +77,7 @@ pub fn phosphor_prepare_uniform_bind_group(
     Some(())
 }
 
-pub fn phosphor_prepare_compute(
+pub fn phosphor_prepare_storage_bind_group(
     device: &DeviceComponent,
     mesh_vertex_buffer: &BufferComponent,
     line_index_buffer: &BufferComponent,
@@ -90,9 +90,9 @@ pub fn phosphor_prepare_compute(
     let bind_group_layout = match bind_group_layout.get() {
         Some(bind_group_layout) => bind_group_layout,
         None => {
-            let compute_bind_group_layout =
+            let storage_bind_group_layout =
                 device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: Some("Compute Bind Group Layout"),
+                    label: Some("Storage Buffer Bind Group Layout"),
                     entries: &[
                         BindGroupLayoutEntry {
                             binding: 0,
@@ -117,13 +117,13 @@ pub fn phosphor_prepare_compute(
                     ],
                 });
 
-            bind_group_layout.set_ready(compute_bind_group_layout);
+            bind_group_layout.set_ready(storage_bind_group_layout);
             bind_group_layout.get().unwrap()
         }
     };
 
     if bind_group.is_pending() {
-        let compute_bind_group = device.create_bind_group(&BindGroupDescriptor {
+        let storage_bind_group = device.create_bind_group(&BindGroupDescriptor {
             layout: &bind_group_layout,
             entries: &[
                 BindGroupEntry {
@@ -138,7 +138,7 @@ pub fn phosphor_prepare_compute(
             label: None,
         });
 
-        bind_group.set_ready(compute_bind_group);
+        bind_group.set_ready(storage_bind_group);
     }
 
     Some(())
@@ -197,17 +197,17 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
             &mut BindGroupLayoutComponent,
             &mut BindGroupComponent,
         )>()
-        .with::<ComputeLineInstances>();
-    let (_, (compute_bind_group_layout, compute_bind_group)) =
+        .with::<StorageBuffers>();
+    let (_, (storage_bind_group_layout, storage_bind_group)) =
         query.into_iter().next()?;
-    println!("Fetched compute pass entity");
+    println!("Fetched storage bind group entity");
 
-    phosphor_prepare_compute(
+    phosphor_prepare_storage_bind_group(
         device,
         mesh_vertex_buffer,
         line_index_buffer,
-        compute_bind_group_layout,
-        compute_bind_group,
+        storage_bind_group_layout,
+        storage_bind_group,
     )?;
 
     let mut query = world
@@ -233,7 +233,7 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     phosphor_prepare_beam_line(
         device,
         uniform_bind_group_layout,
-        compute_bind_group_layout,
+        storage_bind_group_layout,
         beam_line_shader,
         beam_line_pipeline,
     )?;
@@ -530,22 +530,6 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
             500.0,
         );
         perspective_matrix.set_changed(true);
-    }
-}
-
-pub fn phosphor_update_compute_indirect(world: &mut World) {
-    let mut query = world
-        .query::<&antigen_wgpu::BufferLengthComponent>()
-        .with::<LineIndex>();
-    let (_, line_index_count) = query.into_iter().next().unwrap();
-
-    let mut query = world.query::<&mut Changed<[u32; 3]>>();
-    let (_, compute_indirect) = query.into_iter().next().unwrap();
-
-    let line_count = **line_index_count / 2;
-    if (**compute_indirect)[0] != line_count as u32 {
-        compute_indirect[0] = line_count as u32;
-        compute_indirect.set_changed(true);
     }
 }
 

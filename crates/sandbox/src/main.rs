@@ -39,9 +39,10 @@
 //
 // TODO: [✓] Update render pass draw ranges via system
 //
-// TODO: [✓] Replace line instances compute shader with storage buffer usage
+// TODO: [>] Replace line instances compute shader with storage buffer usage
 //           * Bind mesh vertices as storage buffer
 //           * Calculate base index as instance_index * 2
+//           [ ] Clean up remaining references to compute
 //
 // TODO: [ ] Line mesh instancing for phosphor renderer
 //           * As per line_instancing notes in crate root
