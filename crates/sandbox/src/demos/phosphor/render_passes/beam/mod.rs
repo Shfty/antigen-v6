@@ -11,7 +11,7 @@ use antigen_wgpu::{
 };
 
 use crate::demos::phosphor::{
-    LineInstanceData, LineVertexData, MeshVertexData, HDR_TEXTURE_FORMAT,
+    LineVertexData, MeshVertexData, HDR_TEXTURE_FORMAT,
 };
 
 pub fn phosphor_prepare_beam_mesh(

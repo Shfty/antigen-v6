@@ -21,7 +21,9 @@ pub struct MeshVertex;
 pub struct MeshIndex;
 pub struct LineVertex;
 pub struct LineIndex;
-pub struct LineInstance;
+pub struct Meshes;
+pub struct MeshInstances;
+pub struct LineInstances;
 
 pub struct Perspective;
 pub struct Orthographic;
@@ -68,12 +70,16 @@ pub struct LineVertexData {
     pub end: f32,
 }
 
+pub type LineVertexDataComponent = Vec<LineVertexData>;
+
+pub type LineIndexDataComponent = Vec<u32>;
+
 /// Instance data representing a single line
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct LineInstanceData {
-    pub v0: MeshVertexData,
-    pub v1: MeshVertexData,
+    pub mesh_instance: u32,
+    pub line_index: u32,
 }
 
 impl ToBytes for LineInstanceData {
@@ -81,6 +87,8 @@ impl ToBytes for LineInstanceData {
         bytemuck::bytes_of(self)
     }
 }
+
+pub type LineInstanceDataComponent = Vec<LineInstanceData>;
 
 /// Vertex data for 3D triangle meshes
 #[repr(C)]
@@ -116,6 +124,26 @@ impl MeshVertexData {
 pub type MeshVertexDataComponent = Vec<MeshVertexData>;
 
 pub type MeshIndexDataComponent = Vec<u16>;
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
+pub struct LineMeshData {
+    pub vertex_offset: u32,
+    pub vertex_count: u32,
+    pub index_offset: u32,
+    pub index_count: u32,
+}
+
+pub type LineMeshDataComponent = Vec<LineMeshData>;
+
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
+pub struct LineMeshInstanceData {
+    pub position: [f32; 3],
+    pub mesh: u32,
+}
+
+pub type LineMeshInstanceDataComponent = Vec<LineMeshInstanceData>;
 
 pub struct Oscilloscope {
     f: Box<dyn Fn(f32) -> (f32, f32, f32) + Send + Sync>,

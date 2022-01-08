@@ -6,7 +6,10 @@ use antigen_wgpu::{
 };
 use hecs::{Entity, EntityBuilder};
 
-use super::{MeshVertexData, OriginComponent, Oscilloscope, BLACK, BLUE, GREEN, RED, WHITE};
+use super::{
+    LineInstanceData, LineMeshData, LineMeshInstanceData, MeshVertexData, OriginComponent,
+    Oscilloscope, BLACK, BLUE, GREEN, RED, WHITE,
+};
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
 pub fn pad_align_triangle_list(indices: &mut Vec<u16>) {
@@ -75,12 +78,25 @@ impl LinesBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
         line_index_entity: Entity,
+        line_mesh_entity: Entity,
+        line_mesh_instance_entity: Entity,
+        line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
+        line_mesh_head: &mut BufferAddress,
+        line_mesh_instance_head: &mut BufferAddress,
+        line_instance_head: &mut BufferAddress,
         vertices: Vec<MeshVertexData>,
         indices: Vec<u32>,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let vertex_offset = *vertex_head;
+        let vertex_count = vertices.len();
+        let index_offset = *index_head;
+        let index_count = indices.len();
+        let line_mesh = *line_mesh_head;
+        let line_count = index_count / 2;
 
         builder.add_bundle(
             MeshVerticesBundle::builder(mesh_vertex_entity, vertex_head, vertices).build(),
@@ -88,6 +104,103 @@ impl LinesBundle {
 
         builder
             .add_bundle(LineIndicesBundle::builder(line_index_entity, index_head, indices).build());
+
+        builder.add_bundle(
+            LineMeshBundle::builder(
+                line_mesh_entity,
+                line_mesh_head,
+                vertex_offset as u32,
+                vertex_count as u32,
+                index_offset as u32,
+                index_count as u32,
+            )
+            .build(),
+        );
+
+        builder.add_bundle(
+            LineMeshInstanceBundle::builder(
+                line_mesh_instance_entity,
+                line_instance_entity,
+                line_mesh_instance_head,
+                line_instance_head,
+                [0.0; 3],
+                line_mesh as u32,
+                line_count as u32,
+            )
+            .build(),
+        );
+
+        builder
+    }
+}
+
+pub enum LineMeshBundle {}
+
+impl LineMeshBundle {
+    pub fn builder(
+        line_mesh_entity: Entity,
+        line_mesh_head: &mut BufferAddress,
+        vertex_offset: u32,
+        vertex_count: u32,
+        index_offset: u32,
+        index_count: u32,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        builder.add_bundle(BufferDataBundle::new(
+            vec![LineMeshData {
+                vertex_offset: vertex_offset as u32,
+                vertex_count: vertex_count as u32,
+                index_offset: index_offset as u32,
+                index_count: index_count as u32,
+            }],
+            buffer_size_of::<LineMeshData>() * *line_mesh_head,
+            line_mesh_entity,
+        ));
+
+        *line_mesh_head = *line_mesh_head + 1;
+
+        builder
+    }
+}
+
+pub enum LineMeshInstanceBundle {}
+
+impl LineMeshInstanceBundle {
+    pub fn builder(
+        line_mesh_instance_entity: Entity,
+        line_instance_entity: Entity,
+        line_mesh_instance_head: &mut BufferAddress,
+        line_instance_head: &mut BufferAddress,
+        position: [f32; 3],
+        line_mesh: u32,
+        line_count: u32,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        builder.add_bundle(BufferDataBundle::new(
+            vec![LineMeshInstanceData {
+                position,
+                mesh: line_mesh,
+            }],
+            buffer_size_of::<LineMeshInstanceData>() * *line_mesh_instance_head,
+            line_mesh_instance_entity,
+        ));
+
+        builder.add_bundle(BufferDataBundle::new(
+            (0..line_count)
+                .into_iter()
+                .map(|i| LineInstanceData {
+                    mesh_instance: *line_mesh_instance_head as u32,
+                    line_index: i,
+                })
+                .collect::<Vec<_>>(),
+            buffer_size_of::<LineInstanceData>() * *line_instance_head,
+            line_instance_entity,
+        ));
+
+        *line_mesh_instance_head = *line_mesh_instance_head + 1;
+        *line_instance_head = *line_instance_head + line_count as BufferAddress;
 
         builder
     }
@@ -100,11 +213,17 @@ impl LineListBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
         line_index_entity: Entity,
+        line_mesh_entity: Entity,
+        line_mesh_instance_entity: Entity,
+        line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
+        line_mesh_head: &mut BufferAddress,
+        line_mesh_instance_head: &mut BufferAddress,
+        line_instance_head: &mut BufferAddress,
         vertices: Vec<MeshVertexData>,
     ) -> EntityBuilder {
-        let mut vs = *vertex_head as u32;
+        let mut vs = 0u32;
         let indices = vertices
             .chunks(2)
             .flat_map(|_| {
@@ -117,8 +236,14 @@ impl LineListBundle {
         LinesBundle::builder(
             mesh_vertex_entity,
             line_index_entity,
+            line_mesh_entity,
+            line_mesh_instance_entity,
+            line_instance_entity,
             vertex_head,
             index_head,
+            line_mesh_head,
+            line_mesh_instance_head,
+            line_instance_head,
             vertices,
             indices,
         )
@@ -132,12 +257,17 @@ impl LineStripBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
         line_index_entity: Entity,
+        line_mesh_entity: Entity,
+        line_mesh_instance_entity: Entity,
+        line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
+        line_mesh_head: &mut BufferAddress,
+        line_mesh_instance_head: &mut BufferAddress,
+        line_instance_head: &mut BufferAddress,
         vertices: Vec<MeshVertexData>,
     ) -> EntityBuilder {
-        let mut indices =
-            (*vertex_head..(*vertex_head + vertices.len() as BufferAddress)).collect::<Vec<_>>();
+        let mut indices = (0..vertices.len() as BufferAddress).collect::<Vec<_>>();
 
         let first = indices.remove(0) as u32;
         let last = indices.pop().unwrap() as u32;
@@ -152,8 +282,14 @@ impl LineStripBundle {
         LinesBundle::builder(
             mesh_vertex_entity,
             line_index_entity,
+            line_mesh_entity,
+            line_mesh_instance_entity,
+            line_instance_entity,
             vertex_head,
             index_head,
+            line_mesh_head,
+            line_mesh_instance_head,
+            line_instance_head,
             vertices,
             indices,
         )
@@ -167,8 +303,14 @@ impl OscilloscopeBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
         line_index_entity: Entity,
-        vertex_head: &mut BufferAddress,
-        index_head: &mut BufferAddress,
+        line_mesh_entity: Entity,
+        line_mesh_instance_entity: Entity,
+        line_instance_entity: Entity,
+        mesh_vertex_head: &mut BufferAddress,
+        line_index_head: &mut BufferAddress,
+        line_mesh_head: &mut BufferAddress,
+        line_mesh_instance_head: &mut BufferAddress,
+        line_instance_head: &mut BufferAddress,
         origin: (f32, f32, f32),
         color: (f32, f32, f32),
         oscilloscope: Oscilloscope,
@@ -200,34 +342,34 @@ impl OscilloscopeBundle {
             },
         ];
 
-        let vertex_data = BufferDataBundle::new(
-            vertices,
-            buffer_size_of::<MeshVertexData>() * *vertex_head as BufferAddress,
-            mesh_vertex_entity,
+        let indices = vec![0u32, 1u32];
+
+        builder.add_bundle(
+            LinesBundle::builder(
+                mesh_vertex_entity,
+                line_index_entity,
+                line_mesh_entity,
+                line_mesh_instance_entity,
+                line_instance_entity,
+                mesh_vertex_head,
+                line_index_head,
+                line_mesh_head,
+                line_mesh_instance_head,
+                line_instance_head,
+                vertices,
+                indices,
+            )
+            .build(),
         );
-        builder.add_bundle(vertex_data);
-
-        let indices = vec![(*vertex_head as u32), (*vertex_head + 1) as u32];
-        println!("Ocilloscope indices: {:#?}", indices);
-
-        let index_data = BufferDataBundle::new(
-            indices,
-            buffer_size_of::<u32>() * *index_head as BufferAddress,
-            line_index_entity,
-        );
-        builder.add_bundle(index_data);
-
-        *vertex_head += 2;
-        *index_head += 2;
 
         builder
     }
 }
 
 /// Assemble mesh vertices and indices
-pub enum MeshBundle {}
+pub enum TrianglesBundle {}
 
-impl MeshBundle {
+impl TrianglesBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
         mesh_index_entity: Entity,
@@ -245,9 +387,6 @@ impl MeshBundle {
 
         let vertex_count = vertices.len();
         let index_count = indices.len();
-
-        println!("Index count: {}", index_count);
-        println!("Index offset: {}", index_offset);
 
         builder.add_bundle(BufferDataBundle::new(
             vertices,
@@ -289,7 +428,7 @@ impl TriangleListBundle {
             })
             .collect::<Vec<_>>();
 
-        MeshBundle::builder(
+        TrianglesBundle::builder(
             mesh_vertex_entity,
             mesh_index_entity,
             vertex_buffer_index,
@@ -321,7 +460,7 @@ impl TriangleFanBundle {
             })
             .collect::<Vec<_>>();
 
-        MeshBundle::builder(
+        TrianglesBundle::builder(
             mesh_vertex_entity,
             mesh_index_entity,
             vertex_buffer_index,
@@ -340,9 +479,15 @@ impl BoxBotBundle {
         mesh_vertex_entity: Entity,
         mesh_index_entity: Entity,
         line_index_entity: Entity,
-        vertex_head: &mut BufferAddress,
+        line_mesh_entity: Entity,
+        line_mesh_instance_entity: Entity,
+        line_instance_entity: Entity,
+        mesh_vertex_head: &mut BufferAddress,
         mesh_index_head: &mut BufferAddress,
         line_index_head: &mut BufferAddress,
+        line_mesh_head: &mut BufferAddress,
+        line_mesh_instance_head: &mut BufferAddress,
+        line_instance_head: &mut BufferAddress,
         (x, y, z): (f32, f32, f32),
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
@@ -351,8 +496,14 @@ impl BoxBotBundle {
         builders.push(LineStripBundle::builder(
             mesh_vertex_entity,
             line_index_entity,
-            vertex_head,
+            line_mesh_entity,
+            line_mesh_instance_entity,
+            line_instance_entity,
+            mesh_vertex_head,
             line_index_head,
+            line_mesh_head,
+            line_mesh_instance_head,
+            line_instance_head,
             vec![
                 MeshVertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
                 MeshVertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
@@ -373,8 +524,14 @@ impl BoxBotBundle {
         builders.push(LineStripBundle::builder(
             mesh_vertex_entity,
             line_index_entity,
-            vertex_head,
+            line_mesh_entity,
+            line_mesh_instance_entity,
+            line_instance_entity,
+            mesh_vertex_head,
             line_index_head,
+            line_mesh_head,
+            line_mesh_instance_head,
+            line_instance_head,
             vec![
                 MeshVertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
                 MeshVertexData::new((25.0, 25.0, -25.0), GREEN, RED, 2.0, -30.0),
@@ -395,8 +552,14 @@ impl BoxBotBundle {
         builders.push(LineListBundle::builder(
             mesh_vertex_entity,
             line_index_entity,
-            vertex_head,
+            line_mesh_entity,
+            line_mesh_instance_entity,
+            line_instance_entity,
+            mesh_vertex_head,
             line_index_head,
+            line_mesh_head,
+            line_mesh_instance_head,
+            line_instance_head,
             vec![
                 MeshVertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
                 MeshVertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
@@ -418,10 +581,10 @@ impl BoxBotBundle {
         ));
 
         // Body cube
-        builders.push(MeshBundle::builder(
+        builders.push(TrianglesBundle::builder(
             mesh_vertex_entity,
             mesh_index_entity,
-            vertex_head,
+            mesh_vertex_head,
             mesh_index_head,
             vec![
                 MeshVertexData::new((1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
@@ -454,15 +617,15 @@ impl BoxBotBundle {
                 1, 5, 6, 1, 6, 2,
             ]
             .into_iter()
-            .map(|id| id + (*vertex_head) as u16)
+            .map(|id| id + (*mesh_vertex_head) as u16)
             .collect(),
         ));
 
         // Visor cube
-        builders.push(MeshBundle::builder(
+        builders.push(TrianglesBundle::builder(
             mesh_vertex_entity,
             mesh_index_entity,
-            vertex_head,
+            mesh_vertex_head,
             mesh_index_head,
             vec![
                 MeshVertexData::new((1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
@@ -496,7 +659,7 @@ impl BoxBotBundle {
                 1, 5, 6, 1, 6, 2,
             ]
             .into_iter()
-            .map(|id| id + (*vertex_head as u16))
+            .map(|id| id + (*mesh_vertex_head as u16))
             .collect(),
         ));
 

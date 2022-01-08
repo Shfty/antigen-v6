@@ -13,12 +13,41 @@ struct MeshVertex {
     m2: vec4<f32>;
 };
 
+struct LineMesh {
+    vertex_offset: u32;
+    vertex_count: u32;
+    index_offset: u32;
+    index_count: u32;
+};
+
+struct LineMeshInstance {
+    pos: vec3<f32>;
+    mesh_id: u32;
+};
+
+struct LineInstance {
+    mesh_instance_id: u32;
+    line_index: u32;
+};
+
 struct MeshVertices {
     vertices: [[stride(48)]] array<MeshVertex>;
 };
 
 struct LineIndices {
     indices: [[stride(4)]] array<u32>;
+};
+
+struct LineMeshes {
+    meshes: [[stride(16)]] array<LineMesh>;
+};
+
+struct LineMeshInstances {
+    instances: [[stride(16)]] array<LineMeshInstance>;
+};
+
+struct LineInstances {
+    instances: [[stride(8)]] array<LineInstance>;
 };
 
 [[group(0), binding(0)]]
@@ -29,6 +58,15 @@ var<storage, read> mesh_vertices: MeshVertices;
 
 [[group(1), binding(1)]]
 var<storage, read> line_indices: LineIndices;
+
+[[group(1), binding(2)]]
+var<storage, read> line_meshes: LineMeshes;
+
+[[group(1), binding(3)]]
+var<storage, read> line_mesh_instances: LineMeshInstances;
+
+[[group(1), binding(4)]]
+var<storage, read> line_instances: LineInstances;
 
 struct VertexInput {
     [[builtin(vertex_index)]] v_index: u32;
@@ -58,11 +96,23 @@ fn vs_main(
     [[builtin(instance_index)]] instance: u32,
     in: VertexInput
 ) -> VertexOutput {
-    let i0 = instance * u32(2);
-    let i1 = i0 + u32(1);
+    let line_instance = line_instances.instances[instance];
+    let mesh_instance_id = line_instance.mesh_instance_id;
+    let line_index = line_instance.line_index;
 
-    let i0 = line_indices.indices[i0];
-    let i1 = line_indices.indices[i1];
+    let mesh_instance = line_mesh_instances.instances[mesh_instance_id];
+    let pos = mesh_instance.pos;
+    let mesh_id = mesh_instance.mesh_id;
+
+    let mesh = line_meshes.meshes[mesh_id];
+    let vertex_offset = mesh.vertex_offset;
+    let index_offset = mesh.index_offset;
+
+    let idx0 = index_offset + line_index * u32(2);
+    let idx1 = idx0 + u32(1);
+
+    let i0 = vertex_offset + line_indices.indices[idx0];
+    let i1 = vertex_offset + line_indices.indices[idx1];
 
     let v0 = mesh_vertices.vertices[i0];
     let v0_pos = v0.m0.xyz;
