@@ -391,9 +391,8 @@ pub fn phosphor_update_oscilloscopes_system(world: &mut World) {
     let mut query = world.query::<&Changed<DeltaTimeComponent>>();
     let (_, delta_time) = query.iter().next().expect("No delta time component");
 
-    for (entity, (origin, oscilloscope, vertex_data)) in world
+    for (entity, (oscilloscope, vertex_data)) in world
         .query::<(
-            &OriginComponent,
             &Oscilloscope,
             &mut Changed<MeshVertexDataComponent>,
         )>()
@@ -402,15 +401,14 @@ pub fn phosphor_update_oscilloscopes_system(world: &mut World) {
         println!("Updating oscilloscope for entity {:?}", entity);
 
         {
-            let (x, y, z) = **origin;
             let (fx, fy, fz) = oscilloscope.eval(***total_time);
 
             vertex_data[0] = vertex_data[1];
             vertex_data[0].intensity += vertex_data[0].delta_intensity * ***delta_time;
 
-            vertex_data[1].position[0] = x + fx;
-            vertex_data[1].position[1] = y + fy;
-            vertex_data[1].position[2] = z + fz;
+            vertex_data[1].position[0] = fx;
+            vertex_data[1].position[1] = fy;
+            vertex_data[1].position[2] = fz;
         }
 
         vertex_data.set_changed(true);
@@ -605,13 +603,13 @@ pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
 pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {
     let mut query = world
         .query::<&antigen_wgpu::BufferLengthComponent>()
-        .with::<LineIndex>();
-    let (_, line_index_count) = query.into_iter().next().unwrap();
+        .with::<LineInstances>();
+    let (_, line_instance_count) = query.into_iter().next().unwrap();
 
     let mut query = world
         .query::<&mut RenderPassDrawComponent>()
         .with::<BeamLine>();
     let (_, render_pass_draw) = query.into_iter().next().unwrap();
 
-    render_pass_draw.1 = 0..((**line_index_count as u32) / 2);
+    render_pass_draw.1 = 0..(**line_instance_count as u32);
 }

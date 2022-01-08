@@ -101,7 +101,7 @@ fn vs_main(
     let line_index = line_instance.line_index;
 
     let mesh_instance = line_mesh_instances.instances[mesh_instance_id];
-    let pos = mesh_instance.pos;
+    let instance_pos = mesh_instance.pos;
     let mesh_id = mesh_instance.mesh_id;
 
     let mesh = line_meshes.meshes[mesh_id];
@@ -115,14 +115,14 @@ fn vs_main(
     let i1 = vertex_offset + line_indices.indices[idx1];
 
     let v0 = mesh_vertices.vertices[i0];
-    let v0_pos = v0.m0.xyz;
+    let v0_pos = instance_pos + v0.m0.xyz;
     let v0_surface_color = vec3<f32>(v0.m0.w, v0.m1.xy);
     let v0_line_color = vec3<f32>(v0.m1.zw, v0.m2.x);
     let v0_intensity = v0.m2.y;
     let v0_delta_intensity = v0.m2.z;
 
     let v1 = mesh_vertices.vertices[i1];
-    let v1_pos = v1.m0.xyz;
+    let v1_pos = instance_pos + v1.m0.xyz;
     let v1_surface_color = vec3<f32>(v1.m0.w, v1.m1.xy);
     let v1_line_color = vec3<f32>(v1.m1.zw, v1.m2.x);
     let v1_intensity = v1.m2.y;

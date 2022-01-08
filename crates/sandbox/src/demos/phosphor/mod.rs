@@ -1047,7 +1047,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 let vertices = vertices
                     .into_iter()
                     .map(|(x, y)| MeshVertexData {
-                        position: [(*x + ofs_x) * 0.5, (-*y + ofs_y) * 0.5, 0.0],
+                        position: [*x * 0.5, -*y * 0.5, 0.0],
                         surface_color: [0.0, 0.0, 0.0],
                         line_color: [1.0, 0.5, 0.0],
                         intensity: 0.5,
@@ -1056,22 +1056,37 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                     })
                     .collect();
 
-                let indices = indices.into_iter().map(|index| *index as u32).collect();
+                let indices = indices
+                    .into_iter()
+                    .map(|index| *index as u32)
+                    .collect::<Vec<_>>();
+
+                let line_mesh = *line_mesh_head;
+                let line_count = indices.len() / 2;
 
                 world.spawn(
-                    LinesBundle::builder(
+                    LineMeshBundle::builder(
                         mesh_vertex_entity,
                         line_index_entity,
                         line_mesh_entity,
-                        line_mesh_instance_entity,
-                        line_instance_entity,
                         vertex_head,
                         line_index_head,
                         line_mesh_head,
-                        line_mesh_instance_head,
-                        line_instance_head,
                         vertices,
                         indices,
+                    )
+                    .build(),
+                );
+
+                world.spawn(
+                    LineMeshInstanceBundle::builder(
+                        line_mesh_instance_entity,
+                        line_instance_entity,
+                        line_mesh_instance_head,
+                        line_instance_head,
+                        [ofs_x * 0.5, ofs_y * 0.5, 0.0],
+                        line_mesh as u32,
+                        line_count as u32,
                     )
                     .build(),
                 );
@@ -1199,6 +1214,8 @@ fn assemble_test_geometry(
     );
 
     // Gradient 3 Triangle
+    let line_mesh = *line_mesh_head as u32;
+    let line_count = 4;
     world.spawn(
         LineStripBundle::builder(
             mesh_vertex_entity,
@@ -1212,16 +1229,31 @@ fn assemble_test_geometry(
             line_mesh_instance_head,
             line_instance_head,
             vec![
-                MeshVertexData::new((-50.0, -20.0, 0.0), RED, RED, 5.0, -20.0),
-                MeshVertexData::new((-90.0, -80.0, 0.0), GREEN, GREEN, 4.0, -20.0),
-                MeshVertexData::new((-10.0, -80.0, 0.0), BLUE, BLUE, 3.0, -20.0),
-                MeshVertexData::new((-50.0, -20.0, 0.0), RED, RED, 2.0, -20.0),
+                MeshVertexData::new((0.0, -20.0, 0.0), RED, RED, 5.0, -20.0),
+                MeshVertexData::new((-40.0, -80.0, 0.0), GREEN, GREEN, 4.0, -20.0),
+                MeshVertexData::new((40.0, -80.0, 0.0), BLUE, BLUE, 3.0, -20.0),
+                MeshVertexData::new((0.0, -20.0, 0.0), RED, RED, 2.0, -20.0),
             ],
         )
         .build(),
     );
 
+    world.spawn(
+        LineMeshInstanceBundle::builder(
+            line_mesh_instance_entity,
+            line_instance_entity,
+            line_mesh_instance_head,
+            line_instance_head,
+            [-50.0, 0.0, 0.0],
+            line_mesh,
+            line_count,
+        )
+        .build(),
+    );
+
     // Gradients 0-2 Triangle
+    let line_mesh = *line_mesh_head as u32;
+    let line_count = 6;
     world.spawn(
         LineStripBundle::builder(
             mesh_vertex_entity,
@@ -1235,13 +1267,26 @@ fn assemble_test_geometry(
             line_mesh_instance_head,
             line_instance_head,
             vec![
-                MeshVertexData::new((50.0, -80.0, 0.0), BLUE, BLUE, 7.0, -10.0),
-                MeshVertexData::new((90.0, -20.0, 0.0), BLUE, BLUE, 6.0, -10.0),
-                MeshVertexData::new((90.0, -20.0, 0.0), GREEN, GREEN, 5.0, -10.0),
-                MeshVertexData::new((10.0, -20.0, 0.0), GREEN, GREEN, 4.0, -10.0),
-                MeshVertexData::new((10.0, -20.0, 0.0), RED, RED, 3.0, -10.0),
-                MeshVertexData::new((50.0, -80.0, 0.0), RED, RED, 2.0, -10.0),
+                MeshVertexData::new((0.0, -80.0, 0.0), BLUE, BLUE, 7.0, -10.0),
+                MeshVertexData::new((40.0, -20.0, 0.0), BLUE, BLUE, 6.0, -10.0),
+                MeshVertexData::new((40.0, -20.0, 0.0), GREEN, GREEN, 5.0, -10.0),
+                MeshVertexData::new((-40.0, -20.0, 0.0), GREEN, GREEN, 4.0, -10.0),
+                MeshVertexData::new((-40.0, -20.0, 0.0), RED, RED, 3.0, -10.0),
+                MeshVertexData::new((0.0, -80.0, 0.0), RED, RED, 2.0, -10.0),
             ],
+        )
+        .build(),
+    );
+
+    world.spawn(
+        LineMeshInstanceBundle::builder(
+            line_mesh_instance_entity,
+            line_instance_entity,
+            line_mesh_instance_head,
+            line_instance_head,
+            [50.0, 0.0, 0.0],
+            line_mesh,
+            line_count,
         )
         .build(),
     );
@@ -1501,7 +1546,7 @@ impl MapData {
                 triangle_indices,
             ),
             LineIndicesBundle::builder(line_index_entity, line_index_head, line_indices),
-            LineMeshBundle::builder(
+            LineMeshDataBundle::builder(
                 line_mesh_entity,
                 line_mesh_head,
                 base_vertex,

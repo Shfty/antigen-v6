@@ -72,20 +72,16 @@ impl LineIndicesBundle {
 }
 
 /// Assembles mesh vertices and line indices
-pub enum LinesBundle {}
+pub enum LineMeshBundle {}
 
-impl LinesBundle {
+impl LineMeshBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
         line_index_entity: Entity,
         line_mesh_entity: Entity,
-        line_mesh_instance_entity: Entity,
-        line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
         line_mesh_head: &mut BufferAddress,
-        line_mesh_instance_head: &mut BufferAddress,
-        line_instance_head: &mut BufferAddress,
         vertices: Vec<MeshVertexData>,
         indices: Vec<u32>,
     ) -> EntityBuilder {
@@ -106,7 +102,7 @@ impl LinesBundle {
             .add_bundle(LineIndicesBundle::builder(line_index_entity, index_head, indices).build());
 
         builder.add_bundle(
-            LineMeshBundle::builder(
+            LineMeshDataBundle::builder(
                 line_mesh_entity,
                 line_mesh_head,
                 vertex_offset as u32,
@@ -117,26 +113,13 @@ impl LinesBundle {
             .build(),
         );
 
-        builder.add_bundle(
-            LineMeshInstanceBundle::builder(
-                line_mesh_instance_entity,
-                line_instance_entity,
-                line_mesh_instance_head,
-                line_instance_head,
-                [0.0; 3],
-                line_mesh as u32,
-                line_count as u32,
-            )
-            .build(),
-        );
-
         builder
     }
 }
 
-pub enum LineMeshBundle {}
+pub enum LineMeshDataBundle {}
 
-impl LineMeshBundle {
+impl LineMeshDataBundle {
     pub fn builder(
         line_mesh_entity: Entity,
         line_mesh_head: &mut BufferAddress,
@@ -149,10 +132,10 @@ impl LineMeshBundle {
 
         builder.add_bundle(BufferDataBundle::new(
             vec![LineMeshData {
-                vertex_offset: vertex_offset as u32,
-                vertex_count: vertex_count as u32,
-                index_offset: index_offset as u32,
-                index_count: index_count as u32,
+                vertex_offset: vertex_offset,
+                vertex_count: vertex_count,
+                index_offset: index_offset,
+                index_count: index_count,
             }],
             buffer_size_of::<LineMeshData>() * *line_mesh_head,
             line_mesh_entity,
@@ -233,17 +216,13 @@ impl LineListBundle {
             })
             .collect::<Vec<_>>();
 
-        LinesBundle::builder(
+        LineMeshBundle::builder(
             mesh_vertex_entity,
             line_index_entity,
             line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
             vertex_head,
             index_head,
             line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
             vertices,
             indices,
         )
@@ -279,17 +258,13 @@ impl LineStripBundle {
 
         println!("Line strip indices: {:#?}", indices);
 
-        LinesBundle::builder(
+        LineMeshBundle::builder(
             mesh_vertex_entity,
             line_index_entity,
             line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
             vertex_head,
             index_head,
             line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
             vertices,
             indices,
         )
@@ -319,8 +294,6 @@ impl OscilloscopeBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        builder.add(OriginComponent::construct(origin));
-
         builder.add(oscilloscope);
 
         let vertices = vec![
@@ -343,21 +316,32 @@ impl OscilloscopeBundle {
         ];
 
         let indices = vec![0u32, 1u32];
+        let line_mesh = *line_mesh_head as u32;
+        let line_count = 1;
 
         builder.add_bundle(
-            LinesBundle::builder(
+            LineMeshBundle::builder(
                 mesh_vertex_entity,
                 line_index_entity,
                 line_mesh_entity,
-                line_mesh_instance_entity,
-                line_instance_entity,
                 mesh_vertex_head,
                 line_index_head,
                 line_mesh_head,
-                line_mesh_instance_head,
-                line_instance_head,
                 vertices,
                 indices,
+            )
+            .build(),
+        );
+
+        builder.add_bundle(
+            LineMeshInstanceBundle::builder(
+                line_mesh_instance_entity,
+                line_instance_entity,
+                line_mesh_instance_head,
+                line_instance_head,
+                [origin.0, origin.1, origin.2],
+                line_mesh,
+                line_count
             )
             .build(),
         );
