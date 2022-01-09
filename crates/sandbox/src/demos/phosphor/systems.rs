@@ -6,7 +6,8 @@ use antigen_core::{Changed, ChangedTrait, Indirect};
 use antigen_wgpu::{
     wgpu::{
         BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-        BindingType, BufferBindingType, BufferSize, Extent3d, ShaderStages,
+        BindingResource, BindingType, BufferBinding, BufferBindingType, BufferSize, Extent3d,
+        ShaderStages,
     },
     BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
     RenderPassDrawComponent, RenderPassDrawIndexedComponent, SamplerComponent,
@@ -79,17 +80,19 @@ pub fn phosphor_prepare_uniform_bind_group(
 pub fn phosphor_prepare_storage_bind_group(
     device: &DeviceComponent,
     vertex_buffer: &BufferComponent,
+    triangle_mesh_instance_buffer: &BufferComponent,
     line_index_buffer: &BufferComponent,
-    mesh_buffer: &BufferComponent,
-    mesh_instance_buffer: &BufferComponent,
+    line_mesh_buffer: &BufferComponent,
+    line_mesh_instance_buffer: &BufferComponent,
     line_instance_buffer: &BufferComponent,
     bind_group_layout: &mut BindGroupLayoutComponent,
     bind_group: &mut BindGroupComponent,
 ) -> Option<()> {
     let vertex_buffer = vertex_buffer.get()?;
+    let triangle_mesh_instance_buffer = triangle_mesh_instance_buffer.get()?;
     let line_index_buffer = line_index_buffer.get()?;
-    let mesh_buffer = mesh_buffer.get()?;
-    let mesh_instance_buffer = mesh_instance_buffer.get()?;
+    let line_mesh_buffer = line_mesh_buffer.get()?;
+    let line_mesh_instance_buffer = line_mesh_instance_buffer.get()?;
     let line_instance_buffer = line_instance_buffer.get()?;
 
     let bind_group_layout = match bind_group_layout.get() {
@@ -114,8 +117,8 @@ pub fn phosphor_prepare_storage_bind_group(
                             visibility: ShaderStages::VERTEX,
                             ty: BindingType::Buffer {
                                 ty: BufferBindingType::Storage { read_only: true },
-                                has_dynamic_offset: false,
-                                min_binding_size: BufferSize::new(4),
+                                has_dynamic_offset: true,
+                                min_binding_size: BufferSize::new(16),
                             },
                             count: None,
                         },
@@ -125,7 +128,7 @@ pub fn phosphor_prepare_storage_bind_group(
                             ty: BindingType::Buffer {
                                 ty: BufferBindingType::Storage { read_only: true },
                                 has_dynamic_offset: false,
-                                min_binding_size: BufferSize::new(16),
+                                min_binding_size: BufferSize::new(4),
                             },
                             count: None,
                         },
@@ -141,6 +144,16 @@ pub fn phosphor_prepare_storage_bind_group(
                         },
                         BindGroupLayoutEntry {
                             binding: 4,
+                            visibility: ShaderStages::VERTEX,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: BufferSize::new(16),
+                            },
+                            count: None,
+                        },
+                        BindGroupLayoutEntry {
+                            binding: 5,
                             visibility: ShaderStages::VERTEX,
                             ty: BindingType::Buffer {
                                 ty: BufferBindingType::Storage { read_only: true },
@@ -167,18 +180,26 @@ pub fn phosphor_prepare_storage_bind_group(
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: line_index_buffer.as_entire_binding(),
+                    resource: BindingResource::Buffer(BufferBinding {
+                        buffer: triangle_mesh_instance_buffer,
+                        offset: 0,
+                        size: BufferSize::new(buffer_size_of::<TriangleMeshInstanceData>()),
+                    }),
                 },
                 BindGroupEntry {
                     binding: 2,
-                    resource: mesh_buffer.as_entire_binding(),
+                    resource: line_index_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 3,
-                    resource: mesh_instance_buffer.as_entire_binding(),
+                    resource: line_mesh_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 4,
+                    resource: line_mesh_instance_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 5,
                     resource: line_instance_buffer.as_entire_binding(),
                 },
             ],
@@ -214,14 +235,21 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     let mut query = world.query::<(&BufferComponent,)>().with::<MeshVertex>();
     let (_, (vertex_buffer,)) = query.into_iter().next()?;
 
+    let mut query = world
+        .query::<(&BufferComponent,)>()
+        .with::<TriangleMeshInstances>();
+    let (_, (triangle_mesh_instance_buffer,)) = query.into_iter().next()?;
+
     let mut query = world.query::<(&BufferComponent,)>().with::<LineIndex>();
     let (_, (line_index_buffer,)) = query.into_iter().next()?;
 
     let mut query = world.query::<(&BufferComponent,)>().with::<LineMeshes>();
-    let (_, (mesh_buffer,)) = query.into_iter().next()?;
+    let (_, (line_mesh_buffer,)) = query.into_iter().next()?;
 
-    let mut query = world.query::<(&BufferComponent,)>().with::<LineMeshInstances>();
-    let (_, (mesh_instance_buffer,)) = query.into_iter().next()?;
+    let mut query = world
+        .query::<(&BufferComponent,)>()
+        .with::<LineMeshInstances>();
+    let (_, (line_mesh_instance_buffer,)) = query.into_iter().next()?;
 
     let mut query = world.query::<(&BufferComponent,)>().with::<LineInstances>();
     let (_, (line_instance_buffer,)) = query.into_iter().next()?;
@@ -257,9 +285,10 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     phosphor_prepare_storage_bind_group(
         device,
         vertex_buffer,
+        triangle_mesh_instance_buffer,
         line_index_buffer,
-        mesh_buffer,
-        mesh_instance_buffer,
+        line_mesh_buffer,
+        line_mesh_instance_buffer,
         line_instance_buffer,
         storage_bind_group_layout,
         storage_bind_group,
@@ -275,6 +304,7 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     phosphor_prepare_beam_mesh(
         device,
         uniform_bind_group_layout,
+        storage_bind_group_layout,
         beam_mesh_shader,
         beam_mesh_pipeline,
     )?;
@@ -392,10 +422,7 @@ pub fn phosphor_update_oscilloscopes_system(world: &mut World) {
     let (_, delta_time) = query.iter().next().expect("No delta time component");
 
     for (entity, (oscilloscope, vertex_data)) in world
-        .query::<(
-            &Oscilloscope,
-            &mut Changed<VertexDataComponent>,
-        )>()
+        .query::<(&Oscilloscope, &mut Changed<VertexDataComponent>)>()
         .into_iter()
     {
         println!("Updating oscilloscope for entity {:?}", entity);

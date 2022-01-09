@@ -720,14 +720,22 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 beam_multisample_entity,
                 Some(beam_buffer_entity),
                 Operations {
-                    load: LoadOp::Clear(CLEAR_COLOR),
+                    load: if offset == 0 {
+                        LoadOp::Clear(CLEAR_COLOR)
+                    } else {
+                        LoadOp::Load
+                    },
                     store: true,
                 },
             )],
             Some((
                 beam_depth_buffer_entity,
                 Some(Operations {
-                    load: LoadOp::Clear(1.0),
+                    load: if offset == 0 {
+                        LoadOp::Clear(1.0)
+                    } else {
+                        LoadOp::Load
+                    },
                     store: true,
                 }),
                 None,
@@ -735,13 +743,22 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             beam_mesh_pass_entity,
             vec![(vertex_entity, 0..480000)],
             Some((triangle_index_entity, 0..20000, IndexFormat::Uint16)),
-            vec![(uniform_entity, vec![])],
+            vec![
+                (uniform_entity, vec![]),
+                (
+                    storage_bind_group_entity,
+                    vec![(buffer_size_of::<TriangleMeshInstanceData>() * offset) as u32],
+                ),
+            ],
             vec![],
             None,
             None,
             None,
             None,
-            (triangle_mesh_entity, offset),
+            (
+                triangle_mesh_entity,
+                buffer_size_of::<TriangleMeshData>() * offset,
+            ),
             renderer_entity,
         )
     };
@@ -779,7 +796,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             None,
             vec![
                 (uniform_entity, vec![]),
-                (storage_bind_group_entity, vec![]),
+                (storage_bind_group_entity, vec![0]),
             ],
             vec![],
             None,
@@ -1060,6 +1077,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
             .unwrap();
 
+        let mut triangle_mesh_instance_head = **world
+            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(
+                triangle_mesh_instance_entity,
+            )
+            .unwrap();
+
         let mut line_index_head = **world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
             .unwrap();
@@ -1079,6 +1102,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let vertex_head = &mut vertex_head;
         let triangle_index_head = &mut triangle_index_head;
         let triangle_mesh_head = &mut triangle_mesh_head;
+        let triangle_mesh_instance_head = &mut triangle_mesh_instance_head;
         let line_index_head = &mut line_index_head;
         let line_mesh_head = &mut line_mesh_head;
         let line_mesh_instance_head = &mut line_mesh_instance_head;
@@ -1087,16 +1111,21 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let mut visual_brushes = map_data.build_visual_brushes(
             vertex_entity,
             triangle_index_entity,
+            triangle_mesh_entity,
+            triangle_mesh_instance_entity,
             line_index_entity,
             line_mesh_entity,
             line_mesh_instance_entity,
             line_instance_entity,
             vertex_head,
             triangle_index_head,
+            triangle_mesh_head,
+            triangle_mesh_instance_head,
             line_index_head,
             line_mesh_head,
             line_mesh_instance_head,
             line_instance_head,
+            triangle_indexed_indirect_builder,
         );
         let bundles = visual_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
@@ -1104,34 +1133,25 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let mut point_entities = map_data.build_point_entities(
             vertex_entity,
             triangle_index_entity,
+            triangle_mesh_entity,
+            triangle_mesh_instance_entity,
             line_index_entity,
             line_mesh_entity,
             line_mesh_instance_entity,
             line_instance_entity,
             vertex_head,
             triangle_index_head,
+            triangle_mesh_head,
+            triangle_mesh_instance_head,
             line_index_head,
             line_mesh_head,
             line_mesh_instance_head,
             line_instance_head,
             &font_meshes,
+            triangle_indexed_indirect_builder,
         );
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
-
-        // Singleton mesh instance
-        world.spawn(
-            TriangleMeshDataBundle::builder(
-                triangle_mesh_entity,
-                triangle_mesh_head,
-                *triangle_index_head as u32,
-                1,
-                0,
-                0,
-                triangle_indexed_indirect_builder,
-            )
-            .build(),
-        );
 
         **world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
@@ -1144,6 +1164,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         **world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
             .unwrap() = *triangle_mesh_head;
+
+        **world
+            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(
+                triangle_mesh_instance_entity,
+            )
+            .unwrap() = *triangle_mesh_instance_head;
 
         **world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
@@ -1488,16 +1514,21 @@ impl MapData {
         &self,
         vertex_entity: Entity,
         triangle_index_entity: Entity,
+        triangle_mesh_entity: Entity,
+        triangle_mesh_instance_entity: Entity,
         line_index_entity: Entity,
         line_mesh_entity: Entity,
         line_mesh_instance_entity: Entity,
         line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         triangle_index_head: &mut BufferAddress,
+        triangle_mesh_head: &mut BufferAddress,
+        triangle_mesh_instance_head: &mut BufferAddress,
         line_index_head: &mut BufferAddress,
         line_mesh_head: &mut BufferAddress,
         line_mesh_instance_head: &mut BufferAddress,
         line_instance_head: &mut BufferAddress,
+        triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder,
     ) -> Vec<EntityBuilder> {
         // Generate mesh
         let mut mesh_vertices: Vec<VertexData> = Default::default();
@@ -1508,9 +1539,10 @@ impl MapData {
 
         // Gather mesh and line geometry
         let base_vertex = *vertex_head as u32;
-        let base_index = *line_index_head as u32;
+        let base_triangle_index = *triangle_index_head as u32;
+        let base_line_index = *line_index_head as u32;
 
-        let mut local_vertex_head = *vertex_head as u16;
+        let mut local_vertex_head = 0u16;
         let mut local_index_head = 0u32;
 
         for face_id in &self.geo_map.faces {
@@ -1595,10 +1627,13 @@ impl MapData {
         }
 
         let vertex_count = mesh_vertices.len() as u32;
-        let index_count = line_indices.len() as u32;
+        let triangle_index_count = triangle_indices.len() as u32;
+        let triangle_mesh = *triangle_mesh_head as u32;
+        let line_index_count = line_indices.len() as u32;
         let line_mesh = *line_mesh_head as u32;
-        let line_count = index_count / 2;
+        let line_count = line_index_count / 2;
 
+        // Singleton mesh instance
         vec![
             TriangleMeshBundle::builder(
                 vertex_entity,
@@ -1608,14 +1643,29 @@ impl MapData {
                 mesh_vertices,
                 triangle_indices,
             ),
+            TriangleMeshDataBundle::builder(
+                triangle_mesh_entity,
+                triangle_mesh_head,
+                triangle_index_count,
+                1,
+                base_triangle_index,
+                base_vertex,
+                triangle_indexed_indirect_builder,
+            ),
+            TriangleMeshInstanceDataBundle::builder(
+                triangle_mesh_instance_entity,
+                triangle_mesh_instance_head,
+                [0.0; 3],
+                triangle_mesh,
+            ),
             LineIndicesBundle::builder(line_index_entity, line_index_head, line_indices),
             LineMeshDataBundle::builder(
                 line_mesh_entity,
                 line_mesh_head,
                 base_vertex,
                 vertex_count,
-                base_index,
-                index_count,
+                base_line_index,
+                line_index_count,
             ),
             LineMeshInstanceBundle::builder(
                 line_mesh_instance_entity,
@@ -1633,17 +1683,22 @@ impl MapData {
         &self,
         vertex_entity: Entity,
         triangle_index_entity: Entity,
+        triangle_mesh_entity: Entity,
+        triangle_mesh_instance_entity: Entity,
         line_index_entity: Entity,
         line_mesh_entity: Entity,
         line_mesh_instance_entity: Entity,
         line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         triangle_index_head: &mut BufferAddress,
+        triangle_mesh_head: &mut BufferAddress,
+        triangle_mesh_instance_head: &mut BufferAddress,
         line_index_head: &mut BufferAddress,
         line_mesh_head: &mut BufferAddress,
         line_mesh_instance_head: &mut BufferAddress,
         line_instance_head: &mut BufferAddress,
         font_meshes: &FontMeshes,
+        triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
 
@@ -1721,17 +1776,22 @@ impl MapData {
                 BoxBotMeshBundle::builders(
                     vertex_entity,
                     triangle_index_entity,
+                    triangle_mesh_entity,
+                    triangle_mesh_instance_entity,
                     line_index_entity,
                     line_mesh_entity,
                     line_mesh_instance_entity,
                     line_instance_entity,
                     vertex_head,
                     triangle_index_head,
+                    triangle_mesh_head,
+                    triangle_mesh_instance_head,
                     line_index_head,
                     line_mesh_head,
                     line_mesh_instance_head,
                     line_instance_head,
                     (x, y, z),
+                    triangle_indexed_indirect_builder,
                 )
                 .into_iter(),
             );

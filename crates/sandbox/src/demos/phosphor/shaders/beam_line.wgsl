@@ -56,16 +56,16 @@ var<uniform> r_uniforms: Uniforms;
 [[group(1), binding(0)]]
 var<storage, read> mesh_vertices: MeshVertices;
 
-[[group(1), binding(1)]]
+[[group(1), binding(2)]]
 var<storage, read> line_indices: LineIndices;
 
-[[group(1), binding(2)]]
+[[group(1), binding(3)]]
 var<storage, read> line_meshes: LineMeshes;
 
-[[group(1), binding(3)]]
+[[group(1), binding(4)]]
 var<storage, read> line_mesh_instances: LineMeshInstances;
 
-[[group(1), binding(4)]]
+[[group(1), binding(5)]]
 var<storage, read> line_instances: LineInstances;
 
 struct VertexInput {

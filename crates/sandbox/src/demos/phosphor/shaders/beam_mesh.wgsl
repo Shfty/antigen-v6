@@ -7,8 +7,20 @@ struct Uniforms {
     delta_time: f32;
 };
 
+struct TriangleMeshInstance {
+    pos: vec3<f32>;
+    mesh_id: u32;
+};
+
+struct TriangleMeshInstances {
+    instances: [[stride(16)]] array<TriangleMeshInstance>;
+};
+
 [[group(0), binding(0)]]
 var<uniform> r_uniforms: Uniforms;
+
+[[group(1), binding(1)]]
+var<storage, read> triangle_mesh_instances: TriangleMeshInstances;
 
 struct VertexInput {
     [[builtin(vertex_index)]] v_index: u32;
@@ -28,10 +40,16 @@ struct VertexOutput {
 
 [[stage(vertex)]]
 fn vs_main(
+    [[builtin(instance_index)]] instance: u32,
     in: VertexInput
 ) -> VertexOutput {
+    let instance = triangle_mesh_instances.instances[instance];
+    let instance_pos = instance.pos;
+
+    let pos = instance_pos + in.position;
+
     var output: VertexOutput;
-    output.position = r_uniforms.perspective * vec4<f32>(in.position, 1.0);
+    output.position = r_uniforms.perspective * vec4<f32>(pos, 1.0);
     output.color = in.surface_color;
     output.intensity = in.intensity;
     output.delta_intensity = in.delta_intensity;

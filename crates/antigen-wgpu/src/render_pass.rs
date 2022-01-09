@@ -367,10 +367,16 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
     let mut components = query.into_iter().collect::<Vec<_>>();
     components.sort_unstable_by(|(_, lhs), (_, rhs)| lhs.order.cmp(rhs.order));
 
+    let mut components = components.into_iter().collect::<Vec<_>>();
+    components.sort_unstable_by(
+        |(_, RenderPassQuery { order: lhs, .. }), (_, RenderPassQuery { order: rhs, .. })| {
+            lhs.cmp(rhs)
+        },
+    );
+
     for (
         entity,
         RenderPassQuery {
-            order,
             label,
             color_attachments,
             depth_attachment,
@@ -384,6 +390,7 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             viewport,
             scissor_rect,
             encoder,
+            ..
         },
     ) in components.into_iter()
     {

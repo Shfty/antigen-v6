@@ -54,7 +54,10 @@
 //           [✓] First working implementation with new data model
 //           [✓] Separate mesh loading and instance creation
 //           [✓] Implement text object - read string from map file, spawn grapheme line mesh instances
-//           [ ] Instancing for triangle meshes
+//           [>] Instancing for triangle meshes
+//               [✓] Fix incorrect instance positioning in beam_mesh vertex shader
+//               [ ] Separate instance creation from mesh loading
+//           [ ] Load room brush entities as separate meshes
 //
 // TODO: [ ] Improve mesh / line spawning ergonomics
 //           * Manually creating a local mutable index and writing it back is too much boilerplate
@@ -72,7 +75,7 @@
 mod demos;
 
 use antigen_core::{receive_messages, try_receive_messages, WorldChannel, WorldExchange};
-use antigen_wgpu::wgpu::DeviceDescriptor;
+use antigen_wgpu::wgpu::{DeviceDescriptor, Limits};
 use antigen_winit::EventLoopHandler;
 use std::{
     thread::JoinHandle,
@@ -118,7 +121,10 @@ fn main() {
         &DeviceDescriptor {
             label: Some("Device"),
             features: Default::default(),
-            limits: Default::default(),
+            limits: Limits {
+                min_storage_buffer_offset_alignment: 16,
+                ..Default::default()
+            },
         },
         None,
         None,
