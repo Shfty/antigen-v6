@@ -78,7 +78,7 @@ pub fn phosphor_prepare_uniform_bind_group(
 
 pub fn phosphor_prepare_storage_bind_group(
     device: &DeviceComponent,
-    mesh_vertex_buffer: &BufferComponent,
+    vertex_buffer: &BufferComponent,
     line_index_buffer: &BufferComponent,
     mesh_buffer: &BufferComponent,
     mesh_instance_buffer: &BufferComponent,
@@ -86,7 +86,7 @@ pub fn phosphor_prepare_storage_bind_group(
     bind_group_layout: &mut BindGroupLayoutComponent,
     bind_group: &mut BindGroupComponent,
 ) -> Option<()> {
-    let mesh_vertex_buffer = mesh_vertex_buffer.get()?;
+    let vertex_buffer = vertex_buffer.get()?;
     let line_index_buffer = line_index_buffer.get()?;
     let mesh_buffer = mesh_buffer.get()?;
     let mesh_instance_buffer = mesh_instance_buffer.get()?;
@@ -163,7 +163,7 @@ pub fn phosphor_prepare_storage_bind_group(
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: mesh_vertex_buffer.as_entire_binding(),
+                    resource: vertex_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 1,
@@ -212,15 +212,15 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
         query.into_iter().next()?;
 
     let mut query = world.query::<(&BufferComponent,)>().with::<MeshVertex>();
-    let (_, (mesh_vertex_buffer,)) = query.into_iter().next()?;
+    let (_, (vertex_buffer,)) = query.into_iter().next()?;
 
     let mut query = world.query::<(&BufferComponent,)>().with::<LineIndex>();
     let (_, (line_index_buffer,)) = query.into_iter().next()?;
 
-    let mut query = world.query::<(&BufferComponent,)>().with::<Meshes>();
+    let mut query = world.query::<(&BufferComponent,)>().with::<LineMeshes>();
     let (_, (mesh_buffer,)) = query.into_iter().next()?;
 
-    let mut query = world.query::<(&BufferComponent,)>().with::<MeshInstances>();
+    let mut query = world.query::<(&BufferComponent,)>().with::<LineMeshInstances>();
     let (_, (mesh_instance_buffer,)) = query.into_iter().next()?;
 
     let mut query = world.query::<(&BufferComponent,)>().with::<LineInstances>();
@@ -256,7 +256,7 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
 
     phosphor_prepare_storage_bind_group(
         device,
-        mesh_vertex_buffer,
+        vertex_buffer,
         line_index_buffer,
         mesh_buffer,
         mesh_instance_buffer,
@@ -394,7 +394,7 @@ pub fn phosphor_update_oscilloscopes_system(world: &mut World) {
     for (entity, (oscilloscope, vertex_data)) in world
         .query::<(
             &Oscilloscope,
-            &mut Changed<MeshVertexDataComponent>,
+            &mut Changed<VertexDataComponent>,
         )>()
         .into_iter()
     {
@@ -587,9 +587,10 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
 }
 
 pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
+    /*
     let mut query = world
         .query::<&antigen_wgpu::BufferLengthComponent>()
-        .with::<MeshIndex>();
+        .with::<TriangleIndex>();
     let (_, mesh_index_count) = query.into_iter().next().unwrap();
 
     let mut query = world
@@ -598,6 +599,7 @@ pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
     let (_, render_pass_draw_indexed) = query.into_iter().next().unwrap();
 
     render_pass_draw_indexed.0 = 0..(**mesh_index_count as u32);
+    */
 }
 
 pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {

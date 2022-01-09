@@ -1,4 +1,3 @@
-use antigen_core::Construct;
 use antigen_wgpu::{
     buffer_size_of,
     wgpu::{BufferAddress, COPY_BUFFER_ALIGNMENT},
@@ -7,8 +6,8 @@ use antigen_wgpu::{
 use hecs::{Entity, EntityBuilder};
 
 use super::{
-    LineInstanceData, LineMeshData, LineMeshInstanceData, MeshVertexData, OriginComponent,
-    Oscilloscope, BLACK, BLUE, GREEN, RED, WHITE,
+    LineInstanceData, LineMeshData, LineMeshInstanceData, Oscilloscope, TriangleMeshData,
+    TriangleMeshInstanceData, VertexData, BLACK, BLUE, GREEN, RED, WHITE,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -19,13 +18,13 @@ pub fn pad_align_triangle_list(indices: &mut Vec<u16>) {
 }
 
 /// Assemble mesh vertices
-pub enum MeshVerticesBundle {}
+pub enum VerticesBundle {}
 
-impl MeshVerticesBundle {
+impl VerticesBundle {
     pub fn builder(
         mesh_vertex_entity: Entity,
         vertex_head: &mut BufferAddress,
-        vertices: Vec<MeshVertexData>,
+        vertices: Vec<VertexData>,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
@@ -33,7 +32,7 @@ impl MeshVerticesBundle {
 
         let vertex_data = BufferDataBundle::new(
             vertices,
-            buffer_size_of::<MeshVertexData>() * *vertex_head as BufferAddress,
+            buffer_size_of::<VertexData>() * *vertex_head as BufferAddress,
             mesh_vertex_entity,
         );
         builder.add_bundle(vertex_data);
@@ -82,7 +81,7 @@ impl LineMeshBundle {
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
         line_mesh_head: &mut BufferAddress,
-        vertices: Vec<MeshVertexData>,
+        vertices: Vec<VertexData>,
         indices: Vec<u32>,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
@@ -94,9 +93,8 @@ impl LineMeshBundle {
         let line_mesh = *line_mesh_head;
         let line_count = index_count / 2;
 
-        builder.add_bundle(
-            MeshVerticesBundle::builder(mesh_vertex_entity, vertex_head, vertices).build(),
-        );
+        builder
+            .add_bundle(VerticesBundle::builder(mesh_vertex_entity, vertex_head, vertices).build());
 
         builder
             .add_bundle(LineIndicesBundle::builder(line_index_entity, index_head, indices).build());
@@ -197,14 +195,10 @@ impl LineListMeshBundle {
         mesh_vertex_entity: Entity,
         line_index_entity: Entity,
         line_mesh_entity: Entity,
-        line_mesh_instance_entity: Entity,
-        line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
         line_mesh_head: &mut BufferAddress,
-        line_mesh_instance_head: &mut BufferAddress,
-        line_instance_head: &mut BufferAddress,
-        vertices: Vec<MeshVertexData>,
+        vertices: Vec<VertexData>,
     ) -> EntityBuilder {
         let mut vs = 0u32;
         let indices = vertices
@@ -237,14 +231,10 @@ impl LineStripMeshBundle {
         mesh_vertex_entity: Entity,
         line_index_entity: Entity,
         line_mesh_entity: Entity,
-        line_mesh_instance_entity: Entity,
-        line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
         line_mesh_head: &mut BufferAddress,
-        line_mesh_instance_head: &mut BufferAddress,
-        line_instance_head: &mut BufferAddress,
-        vertices: Vec<MeshVertexData>,
+        vertices: Vec<VertexData>,
     ) -> EntityBuilder {
         let mut indices = (0..vertices.len() as BufferAddress).collect::<Vec<_>>();
 
@@ -297,7 +287,7 @@ impl OscilloscopeMeshBundle {
         builder.add(oscilloscope);
 
         let vertices = vec![
-            MeshVertexData {
+            VertexData {
                 position: [0.0, 0.0, 0.0],
                 surface_color: [color.0, color.1, color.2],
                 line_color: [color.0, color.1, color.2],
@@ -305,7 +295,7 @@ impl OscilloscopeMeshBundle {
                 delta_intensity,
                 ..Default::default()
             },
-            MeshVertexData {
+            VertexData {
                 position: [0.0, 0.0, 0.0],
                 surface_color: [color.0, color.1, color.2],
                 line_color: [color.0, color.1, color.2],
@@ -359,12 +349,12 @@ impl TriangleMeshBundle {
         mesh_index_entity: Entity,
         vertex_head: &mut BufferAddress,
         index_head: &mut BufferAddress,
-        vertices: Vec<MeshVertexData>,
+        vertices: Vec<VertexData>,
         mut indices: Vec<u16>,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let vertex_offset = buffer_size_of::<MeshVertexData>() * *vertex_head;
+        let vertex_offset = buffer_size_of::<VertexData>() * *vertex_head;
         let index_offset = buffer_size_of::<u16>() * *index_head;
 
         pad_align_triangle_list(&mut indices);
@@ -391,6 +381,62 @@ impl TriangleMeshBundle {
     }
 }
 
+pub enum TriangleMeshDataBundle {}
+
+impl TriangleMeshDataBundle {
+    pub fn builder(
+        triangle_mesh_entity: Entity,
+        triangle_mesh_head: &mut BufferAddress,
+        vertex_count: u32,
+        instance_count: u32,
+        index_offset: u32,
+        vertex_offset: u32,
+        indexed_indirect_constructor: impl Fn(u64) -> EntityBuilder,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        builder.add_bundle(BufferDataBundle::new(
+            vec![TriangleMeshData {
+                vertex_count,
+                instance_count,
+                index_offset,
+                vertex_offset,
+                ..Default::default()
+            }],
+            buffer_size_of::<TriangleMeshData>() * *triangle_mesh_head as BufferAddress,
+            triangle_mesh_entity,
+        ));
+
+        builder.add_bundle(indexed_indirect_constructor(*triangle_mesh_head).build());
+
+        *triangle_mesh_head = *triangle_mesh_head + 1;
+
+        builder
+    }
+}
+
+pub enum TriangleMeshInstanceDataBundle {}
+
+impl TriangleMeshInstanceDataBundle {
+    pub fn builder(
+        triangle_mesh_instance_entity: Entity,
+        triangle_mesh_instance_head: &mut BufferAddress,
+        position: [f32; 3],
+        mesh: u32,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+
+        builder.add_bundle(BufferDataBundle::new(
+            vec![TriangleMeshInstanceData { position, mesh }],
+            buffer_size_of::<TriangleMeshInstanceData>()
+                * *triangle_mesh_instance_head as BufferAddress,
+            triangle_mesh_instance_entity,
+        ));
+
+        builder
+    }
+}
+
 /// Assemble triangle indices for a list of vertices in triangle list format
 pub enum TriangleListMeshBundle {}
 
@@ -401,7 +447,7 @@ impl TriangleListMeshBundle {
         vertex_buffer_index: &mut BufferAddress,
         index_buffer_index: &mut BufferAddress,
         mut base_index: u16,
-        vertices: Vec<MeshVertexData>,
+        vertices: Vec<VertexData>,
     ) -> EntityBuilder {
         let indices = vertices
             .chunks(3)
@@ -433,7 +479,7 @@ impl TriangleFanMeshBundle {
         vertex_buffer_index: &mut BufferAddress,
         index_buffer_index: &mut BufferAddress,
         base_index: u16,
-        vertices: Vec<MeshVertexData>,
+        vertices: Vec<VertexData>,
     ) -> EntityBuilder {
         let mut current_index = base_index;
         let indices = (0..vertices.len() - 2)
@@ -483,19 +529,15 @@ impl BoxBotMeshBundle {
             mesh_vertex_entity,
             line_index_entity,
             line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
             mesh_vertex_head,
             line_index_head,
             line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
             vec![
-                MeshVertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
-                MeshVertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
-                MeshVertexData::new((25.0, -25.0, 25.0), BLUE, GREEN, 2.0, -30.0),
-                MeshVertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
-                MeshVertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, 25.0), BLUE, GREEN, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
             ],
         ));
 
@@ -515,19 +557,15 @@ impl BoxBotMeshBundle {
             mesh_vertex_entity,
             line_index_entity,
             line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
             mesh_vertex_head,
             line_index_head,
             line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
             vec![
-                MeshVertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
-                MeshVertexData::new((25.0, 25.0, -25.0), GREEN, RED, 2.0, -30.0),
-                MeshVertexData::new((25.0, 25.0, 25.0), BLUE, RED, 2.0, -30.0),
-                MeshVertexData::new((-25.0, 25.0, 25.0), WHITE, RED, 2.0, -30.0),
-                MeshVertexData::new((-25.0, 25.0, -25.0), BLACK, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, -25.0), GREEN, RED, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, 25.0), BLUE, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, 25.0), WHITE, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, -25.0), BLACK, RED, 2.0, -30.0),
             ],
         ));
 
@@ -547,22 +585,18 @@ impl BoxBotMeshBundle {
             mesh_vertex_entity,
             line_index_entity,
             line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
             mesh_vertex_head,
             line_index_head,
             line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
             vec![
-                MeshVertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
-                MeshVertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
-                MeshVertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
-                MeshVertexData::new((25.0, 25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
-                MeshVertexData::new((25.0, -25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
-                MeshVertexData::new((25.0, 25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
-                MeshVertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
-                MeshVertexData::new((-25.0, 25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
             ],
         ));
 
@@ -583,14 +617,14 @@ impl BoxBotMeshBundle {
             mesh_vertex_head,
             mesh_index_head,
             vec![
-                MeshVertexData::new((1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                MeshVertexData::new((-1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                MeshVertexData::new((-1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
-                MeshVertexData::new((1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
-                MeshVertexData::new((1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                MeshVertexData::new((-1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                MeshVertexData::new((-1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
-                MeshVertexData::new((1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((-1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((-1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((-1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((-1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
+                VertexData::new((1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
             ]
             .into_iter()
             .map(|mut vd| {
@@ -624,14 +658,14 @@ impl BoxBotMeshBundle {
             mesh_vertex_head,
             mesh_index_head,
             vec![
-                MeshVertexData::new((1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
-                MeshVertexData::new((-1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
-                MeshVertexData::new((-1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
-                MeshVertexData::new((1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
-                MeshVertexData::new((1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
-                MeshVertexData::new((-1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
-                MeshVertexData::new((-1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
-                MeshVertexData::new((1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((-1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((-1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((-1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((-1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
+                VertexData::new((1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
             ]
             .into_iter()
             .map(|mut vd| {

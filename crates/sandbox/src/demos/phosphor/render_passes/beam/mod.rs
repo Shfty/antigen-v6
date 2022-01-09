@@ -11,7 +11,7 @@ use antigen_wgpu::{
 };
 
 use crate::demos::phosphor::{
-    LineVertexData, MeshVertexData, HDR_TEXTURE_FORMAT,
+    LineVertexData, VertexData, HDR_TEXTURE_FORMAT,
 };
 
 pub fn phosphor_prepare_beam_mesh(
@@ -37,7 +37,7 @@ pub fn phosphor_prepare_beam_mesh(
                 module: &beam_mesh_shader,
                 entry_point: "vs_main",
                 buffers: &[VertexBufferLayout {
-                    array_stride: buffer_size_of::<MeshVertexData>(),
+                    array_stride: buffer_size_of::<VertexData>(),
                     step_mode: VertexStepMode::Vertex,
                     attributes: &[
                         VertexAttribute {
