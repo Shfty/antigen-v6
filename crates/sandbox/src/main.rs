@@ -53,7 +53,7 @@
 //             and provide the basis for loading map entities as individual meshes / ECS entities
 //           [✓] First working implementation with new data model
 //           [✓] Separate mesh loading and instance creation
-//           [ ] Implement text object - read string from map file, spawn grapheme line mesh instances
+//           [✓] Implement text object - read string from map file, spawn grapheme line mesh instances
 //           [ ] Instancing for triangle meshes
 //
 // TODO: [ ] Improve mesh / line spawning ergonomics

@@ -4,7 +4,7 @@
 {
 "mapversion" "220"
 "classname" "worldspawn"
-"_tb_textures" "textures/prototype_1_3"
+"_tb_textures" ""
 }
 // entity 1
 {
@@ -334,6 +334,6 @@
 // entity 7
 {
 "classname" "text"
-"origin" "-96 0 156"
+"origin" "0 0 144"
 "text" "Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0."
 }

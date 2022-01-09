@@ -7,7 +7,7 @@
    viewBox="0 0 15 20"
    version="1.1"
    id="svg8"
-   inkscape:version="1.1.1 (3bf5ae0d25, 2021-09-20)"
+   inkscape:version="1.1.1 (3bf5ae0d25, 2021-09-20, custom)"
    sodipodi:docname="basic.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -25,16 +25,16 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="0"
-     inkscape:zoom="32"
-     inkscape:cx="-3.890625"
-     inkscape:cy="17.734375"
+     inkscape:zoom="181.01934"
+     inkscape:cx="-1.8147233"
+     inkscape:cy="27.452868"
      inkscape:document-units="px"
-     inkscape:current-layer="layer45"
+     inkscape:current-layer="g178"
      showgrid="true"
-     inkscape:window-width="1920"
-     inkscape:window-height="1387"
-     inkscape:window-x="4472"
-     inkscape:window-y="22"
+     inkscape:window-width="2560"
+     inkscape:window-height="1440"
+     inkscape:window-x="1920"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      fit-margin-top="0"
      fit-margin-left="0"
@@ -115,7 +115,8 @@
      inkscape:groupmode="layer"
      id="layer28"
      inkscape:label="Uppercase"
-     style="display:none">
+     style="display:none"
+     sodipodi:insensitive="true">
     <g
        inkscape:groupmode="layer"
        id="layer2"
@@ -446,7 +447,9 @@
   <g
      inkscape:groupmode="layer"
      id="layer1"
-     inkscape:label="Numbers">
+     inkscape:label="Numbers"
+     style="display:none"
+     sodipodi:insensitive="true">
     <g
        inkscape:groupmode="layer"
        id="layer35"
@@ -565,7 +568,8 @@
      inkscape:groupmode="layer"
      id="layer29"
      inkscape:label="Lowercase"
-     style="display:none">
+     style="display:none"
+     sodipodi:insensitive="true">
     <g
        inkscape:groupmode="layer"
        id="layer30"
@@ -907,12 +911,23 @@
      inkscape:groupmode="layer"
      id="layer31"
      inkscape:label="Symbols"
-     style="display:none">
+     style="display:inline">
+    <g
+       inkscape:groupmode="layer"
+       id="g178"
+       inkscape:label=","
+       style="display:inline">
+      <path
+         style="fill:none;stroke:#ffffff;stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1;fill-opacity:1"
+         d="m 0,29 -1,1"
+         id="path1390" />
+    </g>
     <g
        inkscape:groupmode="layer"
        id="layer32"
        inkscape:label="."
-       style="display:none">
+       style="display:none"
+       sodipodi:insensitive="true">
       <path
          style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
          d="m 0,29 v 0"
@@ -922,7 +937,8 @@
        inkscape:groupmode="layer"
        id="layer33"
        inkscape:label="?"
-       style="display:none">
+       style="display:none"
+       sodipodi:insensitive="true">
       <path
          style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
          d="m 0,29 v 0"
