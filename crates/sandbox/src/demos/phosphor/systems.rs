@@ -10,9 +10,9 @@ use antigen_wgpu::{
         ShaderStages,
     },
     BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
-    RenderPassDrawComponent, RenderPassDrawIndexedComponent, SamplerComponent,
-    SurfaceConfigurationComponent, TextureDescriptorComponent, TextureViewComponent,
-    TextureViewDescriptorComponent,
+    RenderPassDrawComponent, RenderPassDrawIndexedComponent,
+    RenderPassDrawIndexedIndirectComponent, SamplerComponent, SurfaceConfigurationComponent,
+    TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
 };
 
 use antigen_winit::{winit::event::WindowEvent, WindowComponent, WindowEventComponent};
@@ -118,7 +118,10 @@ pub fn phosphor_prepare_storage_bind_group(
                             ty: BindingType::Buffer {
                                 ty: BufferBindingType::Storage { read_only: true },
                                 has_dynamic_offset: true,
-                                min_binding_size: BufferSize::new(16),
+                                min_binding_size: BufferSize::new(
+                                    buffer_size_of::<TriangleMeshInstanceData>()
+                                        * MAX_TRIANGLE_MESH_INSTANCES as BufferAddress,
+                                ),
                             },
                             count: None,
                         },
@@ -183,7 +186,10 @@ pub fn phosphor_prepare_storage_bind_group(
                     resource: BindingResource::Buffer(BufferBinding {
                         buffer: triangle_mesh_instance_buffer,
                         offset: 0,
-                        size: BufferSize::new(buffer_size_of::<TriangleMeshInstanceData>()),
+                        size: BufferSize::new(
+                            buffer_size_of::<TriangleMeshInstanceData>()
+                                * MAX_TRIANGLE_MESH_INSTANCES as BufferAddress,
+                        ),
                     }),
                 },
                 BindGroupEntry {
@@ -614,19 +620,19 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
 }
 
 pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
-    /*
     let mut query = world
-        .query::<&antigen_wgpu::BufferLengthComponent>()
-        .with::<TriangleIndex>();
-    let (_, mesh_index_count) = query.into_iter().next().unwrap();
+        .query::<&antigen_wgpu::BufferLengthsComponent>()
+        .with::<TriangleMeshInstances>();
+    let (_, mesh_instance_counts) = query.into_iter().next().unwrap();
 
     let mut query = world
-        .query::<&mut RenderPassDrawIndexedComponent>()
+        .query::<&mut Changed<TriangleMeshDataComponent>>()
         .with::<BeamMesh>();
-    let (_, render_pass_draw_indexed) = query.into_iter().next().unwrap();
 
-    render_pass_draw_indexed.0 = 0..(**mesh_index_count as u32);
-    */
+    for (i, (_, triangle_mesh_data)) in query.into_iter().enumerate() {
+        triangle_mesh_data[0].instance_count = mesh_instance_counts[i] as u32;
+        triangle_mesh_data.set_changed(true);
+    }
 }
 
 pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {

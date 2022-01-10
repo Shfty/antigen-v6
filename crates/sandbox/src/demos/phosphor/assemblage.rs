@@ -7,7 +7,8 @@ use hecs::{Entity, EntityBuilder};
 
 use super::{
     LineInstanceData, LineMeshData, LineMeshInstanceData, Oscilloscope, TriangleMeshData,
-    TriangleMeshInstanceData, VertexData, BLACK, BLUE, GREEN, RED, WHITE,
+    TriangleMeshInstanceData, VertexData, BLACK, BLUE, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED,
+    WHITE,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -386,6 +387,7 @@ impl TriangleMeshDataBundle {
     pub fn builder(
         triangle_mesh_entity: Entity,
         triangle_mesh_head: &mut BufferAddress,
+        triangle_mesh_instance_heads: &mut Vec<BufferAddress>,
         vertex_count: u32,
         instance_count: u32,
         index_offset: u32,
@@ -409,6 +411,7 @@ impl TriangleMeshDataBundle {
         builder.add_bundle(indexed_indirect_constructor(*triangle_mesh_head).build());
 
         *triangle_mesh_head = *triangle_mesh_head + 1;
+        triangle_mesh_instance_heads.push(0);
 
         builder
     }
@@ -419,16 +422,20 @@ pub enum TriangleMeshInstanceDataBundle {}
 impl TriangleMeshInstanceDataBundle {
     pub fn builder(
         triangle_mesh_instance_entity: Entity,
-        triangle_mesh_instance_head: &mut BufferAddress,
+        triangle_mesh_instance_heads: &mut Vec<BufferAddress>,
         position: [f32; 3],
         mesh: u32,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
+        let triangle_mesh_instance_head =
+            triangle_mesh_instance_heads.get_mut(mesh as usize).unwrap();
+
         builder.add_bundle(BufferDataBundle::new(
             vec![TriangleMeshInstanceData { position, mesh }],
             buffer_size_of::<TriangleMeshInstanceData>()
-                * *triangle_mesh_instance_head as BufferAddress,
+                * (*triangle_mesh_instance_head as BufferAddress
+                    + (mesh * MAX_TRIANGLE_MESH_INSTANCES as u32) as BufferAddress),
             triangle_mesh_instance_entity,
         ));
 
@@ -510,116 +517,21 @@ impl BoxBotMeshBundle {
         vertex_entity: Entity,
         triangle_index_entity: Entity,
         triangle_mesh_entity: Entity,
-        triangle_mesh_instance_entity: Entity,
         line_index_entity: Entity,
         line_mesh_entity: Entity,
-        line_mesh_instance_entity: Entity,
-        line_instance_entity: Entity,
         vertex_head: &mut BufferAddress,
         triangle_index_head: &mut BufferAddress,
         triangle_mesh_head: &mut BufferAddress,
-        triangle_mesh_instance_head: &mut BufferAddress,
+        triangle_mesh_instance_heads: &mut Vec<BufferAddress>,
         line_index_head: &mut BufferAddress,
         line_mesh_head: &mut BufferAddress,
-        line_mesh_instance_head: &mut BufferAddress,
-        line_instance_head: &mut BufferAddress,
-        (x, y, z): (f32, f32, f32),
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
 
-        // Cube lines
-        let line_mesh = *line_mesh_head as u32;
-        let line_count = 4;
-        builders.push(LineStripMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            vec![
-                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
-                VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
-                VertexData::new((25.0, -25.0, 25.0), BLUE, GREEN, 2.0, -30.0),
-                VertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
-                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
-            ],
-        ));
-
-        builders.push(LineMeshInstanceBundle::builder(
-            line_mesh_instance_entity,
-            line_instance_entity,
-            line_mesh_instance_head,
-            line_instance_head,
-            [x, y, z],
-            line_mesh,
-            line_count,
-        ));
-
-        let line_mesh = *line_mesh_head as u32;
-        let line_count = 4;
-        builders.push(LineStripMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            vec![
-                VertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
-                VertexData::new((25.0, 25.0, -25.0), GREEN, RED, 2.0, -30.0),
-                VertexData::new((25.0, 25.0, 25.0), BLUE, RED, 2.0, -30.0),
-                VertexData::new((-25.0, 25.0, 25.0), WHITE, RED, 2.0, -30.0),
-                VertexData::new((-25.0, 25.0, -25.0), BLACK, RED, 2.0, -30.0),
-            ],
-        ));
-
-        builders.push(LineMeshInstanceBundle::builder(
-            line_mesh_instance_entity,
-            line_instance_entity,
-            line_mesh_instance_head,
-            line_instance_head,
-            [x, y, z],
-            line_mesh,
-            line_count,
-        ));
-
-        let line_mesh = *line_mesh_head as u32;
-        let line_count = 4;
-        builders.push(LineListMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            vec![
-                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
-                VertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
-                VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
-                VertexData::new((25.0, 25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
-                VertexData::new((25.0, -25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
-                VertexData::new((25.0, 25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
-                VertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
-                VertexData::new((-25.0, 25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
-            ],
-        ));
-
-        builders.push(LineMeshInstanceBundle::builder(
-            line_mesh_instance_entity,
-            line_instance_entity,
-            line_mesh_instance_head,
-            line_instance_head,
-            [x, y, z],
-            line_mesh,
-            line_count,
-        ));
-
         // Body cube
         let base_vertex = *vertex_head as u32;
         let base_triangle_index = *triangle_index_head as u32;
-        let triangle_mesh = *triangle_mesh_head as u32;
 
         builders.push(TriangleMeshBundle::builder(
             vertex_entity,
@@ -643,6 +555,26 @@ impl BoxBotMeshBundle {
                 vd.position[2] *= 25.0;
                 vd
             })
+            .chain(
+                vec![
+                    VertexData::new((1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((-1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((-1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((-1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((-1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
+                ]
+                .into_iter()
+                .map(|mut vd| {
+                    vd.position[0] *= 10.0;
+                    vd.position[1] *= 2.5;
+                    vd.position[2] *= 2.5;
+                    vd.position[2] -= 25.0;
+                    vd
+                }),
+            )
             .collect(),
             vec![
                 // Top
@@ -652,81 +584,69 @@ impl BoxBotMeshBundle {
                 0, 5, 1, 0, 4, 5, // Right
                 0, 3, 7, 0, 7, 4, // Left
                 1, 5, 6, 1, 6, 2,
-            ]
-        ));
-
-        builders.push(TriangleMeshDataBundle::builder(
-            triangle_mesh_entity,
-            triangle_mesh_head,
-            36,
-            1,
-            base_triangle_index,
-            base_vertex,
-            triangle_indexed_indirect_builder,
-        ));
-
-        builders.push(TriangleMeshInstanceDataBundle::builder(
-            triangle_mesh_instance_entity,
-            triangle_mesh_instance_head,
-            [x, y, z],
-            triangle_mesh,
-        ));
-
-        // Visor cube
-        let base_vertex = *vertex_head as u32;
-        let base_triangle_index = *triangle_index_head as u32;
-        let triangle_mesh = *triangle_mesh_head as u32;
-
-        builders.push(TriangleMeshBundle::builder(
-            vertex_entity,
-            triangle_index_entity,
-            vertex_head,
-            triangle_index_head,
-            vec![
-                VertexData::new((1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
-                VertexData::new((-1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
-                VertexData::new((-1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
-                VertexData::new((1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
-                VertexData::new((1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
-                VertexData::new((-1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
-                VertexData::new((-1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
-                VertexData::new((1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
             ]
             .into_iter()
-            .map(|mut vd| {
-                vd.position[0] *= 10.0;
-                vd.position[1] *= 2.5;
-                vd.position[2] *= 2.5;
-                vd.position[2] -= 25.0;
-                vd
-            })
+            .chain(
+                vec![
+                    // Top
+                    0, 1, 2, 0, 2, 3, // Bottom
+                    4, 7, 5, 7, 6, 5, // Front
+                    3, 2, 6, 3, 6, 7, // Back
+                    0, 5, 1, 0, 4, 5, // Right
+                    0, 3, 7, 0, 7, 4, // Left
+                    1, 5, 6, 1, 6, 2,
+                ]
+                .into_iter()
+                .map(|i| i + 8),
+            )
             .collect(),
-            vec![
-                // Top
-                0, 1, 2, 0, 2, 3, // Bottom
-                4, 7, 5, 7, 6, 5, // Front
-                3, 2, 6, 3, 6, 7, // Back
-                0, 5, 1, 0, 4, 5, // Right
-                0, 3, 7, 0, 7, 4, // Left
-                1, 5, 6, 1, 6, 2,
-            ]
         ));
 
         builders.push(TriangleMeshDataBundle::builder(
             triangle_mesh_entity,
             triangle_mesh_head,
-            36,
-            1,
+            triangle_mesh_instance_heads,
+            36 * 2,
+            0,
             base_triangle_index,
             base_vertex,
             triangle_indexed_indirect_builder,
         ));
 
-        builders.push(TriangleMeshInstanceDataBundle::builder(
-            triangle_mesh_instance_entity,
-            triangle_mesh_instance_head,
-            [x, y, z],
-            triangle_mesh,
+        // Cube lines
+        builders.push(LineListMeshBundle::builder(
+            vertex_entity,
+            line_index_entity,
+            line_mesh_entity,
+            vertex_head,
+            line_index_head,
+            line_mesh_head,
+            vec![
+                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, 25.0), BLUE, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, 25.0), BLUE, GREEN, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, -25.0), GREEN, RED, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, -25.0), GREEN, RED, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, 25.0), BLUE, RED, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, 25.0), BLUE, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, 25.0), WHITE, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, 25.0), WHITE, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, -25.0), BLACK, RED, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, -25.0), RED, RED, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
+                VertexData::new((25.0, -25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
+                VertexData::new((25.0, 25.0, 25.0), BLUE, BLUE, 2.0, -30.0),
+                VertexData::new((-25.0, -25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
+                VertexData::new((-25.0, 25.0, 25.0), WHITE, WHITE, 2.0, -30.0),
+            ],
         ));
 
         builders

@@ -1,6 +1,13 @@
 use antigen_core::{Changed, LazyComponent, Usage};
 
-use wgpu::{Adapter, BindGroup, BindGroupLayout, Buffer, BufferAddress, BufferDescriptor, CommandBuffer, CommandEncoder, CommandEncoderDescriptor, ComputePipeline, Device, ImageCopyTextureBase, ImageDataLayout, Instance, PipelineLayout, Queue, RenderBundle, RenderPipeline, Sampler, SamplerDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderModuleDescriptorSpirV, Surface, SurfaceConfiguration, SurfaceTexture, Texture, TextureDescriptor, TextureView, TextureViewDescriptor, util::BufferInitDescriptor};
+use wgpu::{
+    util::BufferInitDescriptor, Adapter, BindGroup, BindGroupLayout, Buffer, BufferAddress,
+    BufferDescriptor, CommandBuffer, CommandEncoder, CommandEncoderDescriptor, ComputePipeline,
+    Device, ImageCopyTextureBase, ImageDataLayout, Instance, PipelineLayout, Queue, RenderBundle,
+    RenderPipeline, Sampler, SamplerDescriptor, ShaderModule, ShaderModuleDescriptor,
+    ShaderModuleDescriptorSpirV, Surface, SurfaceConfiguration, SurfaceTexture, Texture,
+    TextureDescriptor, TextureView, TextureViewDescriptor,
+};
 
 use std::{marker::PhantomData, sync::Arc};
 
@@ -156,3 +163,4 @@ pub type PassOrderComponent = Usage<PassOrder, usize>;
 // Buffer length component
 pub enum BufferLength {}
 pub type BufferLengthComponent = Usage<BufferLength, BufferAddress>;
+pub type BufferLengthsComponent = Usage<BufferLength, Vec<BufferAddress>>;
