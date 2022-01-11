@@ -51,7 +51,7 @@
 //           [ ] Investigate calculating subsectors from internal faces
 //           [ ] Paralellize shambler
 //
-//       [ ] Figure out how to flush command buffers at runtime
+//       [✓] Figure out how to flush command buffers at runtime
 //           * Needed to add, remove components or entities
 //           * Want to avoid the Godot issue of stalling the main thread for object allocation
 //           * Only the allocating thread should block
@@ -148,6 +148,18 @@ use hecs::{Entity, EntityBuilder, World};
 use crate::{Filesystem, Render};
 
 pub type FontMeshes = BTreeMap<String, BTreeMap<String, (u32, u32)>>;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct BufferEntities {
+    pub vertex_entity: Entity,
+    pub triangle_index_entity: Entity,
+    pub triangle_mesh_entity: Entity,
+    pub triangle_mesh_instance_entity: Entity,
+    pub line_index_entity: Entity,
+    pub line_mesh_entity: Entity,
+    pub line_mesh_instance_entity: Entity,
+    pub line_instance_entity: Entity,
+}
 
 const HDR_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 const MAX_MESH_VERTICES: usize = 10000;
@@ -958,35 +970,20 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let bundle = builder.build();
     world.insert(renderer_entity, bundle).unwrap();
 
+    let buffer_entities = BufferEntities {
+        vertex_entity,
+        triangle_index_entity,
+        triangle_mesh_entity,
+        triangle_mesh_instance_entity,
+        line_index_entity,
+        line_mesh_entity,
+        line_mesh_instance_entity,
+        line_instance_entity,
+    };
+
     // Load SVG meshes
     let mut font_meshes = FontMeshes::default();
     {
-        let mut vertex_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
-            .unwrap();
-
-        let mut line_index_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
-            .unwrap();
-
-        let mut line_mesh_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap();
-
-        let mut line_mesh_instance_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
-            .unwrap();
-
-        let mut line_instance_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
-            .unwrap();
-
-        let vertex_head = &mut vertex_head;
-        let line_index_head = &mut line_index_head;
-        let line_mesh_head = &mut line_mesh_head;
-        let line_mesh_instance_head = &mut line_mesh_instance_head;
-        let line_instance_head = &mut line_instance_head;
-
         let svg = SvgLayers::parse("crates/sandbox/src/demos/phosphor/fonts/basic.svg")
             .expect("Failed to parse SVG");
         let meshes = svg.meshes();
@@ -1009,7 +1006,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                     .map(|index| *index as u32)
                     .collect::<Vec<_>>();
 
-                let line_mesh = *line_mesh_head as u32;
+                let line_mesh = **world
+                    .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
+                    .unwrap() as u32;
                 let line_count = indices.len() as u32 / 2;
 
                 font_meshes
@@ -1017,53 +1016,17 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                     .or_default()
                     .insert(grapheme.clone(), (line_mesh, line_count));
 
-                world.spawn(
-                    LineMeshBundle::builder(
-                        vertex_entity,
-                        line_index_entity,
-                        line_mesh_entity,
-                        vertex_head,
-                        line_index_head,
-                        line_mesh_head,
-                        vertices,
-                        indices,
-                    )
-                    .build(),
-                );
+                let mut builder =
+                    LineMeshBundle::builder(world, buffer_entities, vertices, indices);
+                let bundle = builder.build();
+
+                world.spawn(bundle);
             }
         }
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
-            .unwrap() = *vertex_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
-            .unwrap() = *line_index_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap() = *line_mesh_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
-            .unwrap() = *line_mesh_instance_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
-            .unwrap() = *line_instance_head;
     }
 
     // Assemble test geometry
-    assemble_test_geometry(
-        world,
-        vertex_entity,
-        line_index_entity,
-        line_mesh_entity,
-        line_mesh_instance_entity,
-        line_instance_entity,
-        &font_meshes,
-    );
+    assemble_test_geometry(world, buffer_entities, &font_meshes);
 
     /*
     load_map::<MapFile, Filesystem, _>(
@@ -1082,317 +1045,127 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let geo_map = GeoMap::from(map);
         let map_data = MapData::from(geo_map);
 
-        let mut vertex_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
-            .unwrap();
-
-        let mut triangle_index_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_index_entity)
-            .unwrap();
-
-        let mut triangle_mesh_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
-            .unwrap();
-
-        let mut triangle_mesh_instance_heads = &mut *world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthsComponent>(
-                triangle_mesh_instance_entity,
-            )
-            .unwrap()
-            .clone();
-
-        let mut line_index_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
-            .unwrap();
-
-        let mut line_mesh_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap();
-
-        let mut line_mesh_instance_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
-            .unwrap();
-
-        let mut line_instance_head = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
-            .unwrap();
-
-        let vertex_head = &mut vertex_head;
-        let triangle_index_head = &mut triangle_index_head;
-        let triangle_mesh_head = &mut triangle_mesh_head;
-        let triangle_mesh_instance_heads = &mut triangle_mesh_instance_heads;
-        let line_index_head = &mut line_index_head;
-        let line_mesh_head = &mut line_mesh_head;
-        let line_mesh_instance_head = &mut line_mesh_instance_head;
-        let line_instance_head = &mut line_instance_head;
-
-        let mut room_brushes = map_data.build_rooms(
-            vertex_entity,
-            triangle_index_entity,
-            triangle_mesh_entity,
-            triangle_mesh_instance_entity,
-            line_index_entity,
-            line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
-            vertex_head,
-            triangle_index_head,
-            triangle_mesh_head,
-            triangle_mesh_instance_heads,
-            line_index_head,
-            line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
-            triangle_indexed_indirect_builder,
-        );
+        let mut room_brushes =
+            map_data.build_rooms(world, buffer_entities, triangle_indexed_indirect_builder);
         let bundles = room_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
-        let (mut mesh_brushes, mesh_brush_ids) = map_data.build_meshes(
-            vertex_entity,
-            triangle_index_entity,
-            triangle_mesh_entity,
-            line_index_entity,
-            line_mesh_entity,
-            vertex_head,
-            triangle_index_head,
-            triangle_mesh_head,
-            triangle_mesh_instance_heads,
-            line_index_head,
-            line_mesh_head,
-            triangle_indexed_indirect_builder,
-        );
+        let (mut mesh_brushes, mesh_brush_ids) =
+            map_data.build_meshes(world, buffer_entities, triangle_indexed_indirect_builder);
         let bundles = mesh_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
         let mut point_entities = map_data.build_point_entities(
-            vertex_entity,
-            triangle_index_entity,
-            triangle_mesh_entity,
-            triangle_mesh_instance_entity,
-            line_index_entity,
-            line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
-            vertex_head,
-            triangle_index_head,
-            triangle_mesh_head,
-            triangle_mesh_instance_heads,
-            line_index_head,
-            line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
+            world,
+            buffer_entities,
             &font_meshes,
             &mesh_brush_ids,
             triangle_indexed_indirect_builder,
         );
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
-            .unwrap() = *vertex_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_index_entity)
-            .unwrap() = *triangle_index_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
-            .unwrap() = *triangle_mesh_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthsComponent>(
-                triangle_mesh_instance_entity,
-            )
-            .unwrap() = triangle_mesh_instance_heads.clone();
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
-            .unwrap() = *line_index_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap() = *line_mesh_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
-            .unwrap() = *line_mesh_instance_head;
-
-        **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
-            .unwrap() = *line_instance_head;
     }
 }
 
 fn assemble_test_geometry(
     world: &mut World,
-    vertex_entity: Entity,
-    line_index_entity: Entity,
-    line_mesh_entity: Entity,
-    line_mesh_instance_entity: Entity,
-    line_instance_entity: Entity,
+    buffer_entities: BufferEntities,
     font_meshes: &FontMeshes,
 ) {
-    let mut vertex_head = **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
-        .unwrap();
-
-    let mut line_index_head = **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
-        .unwrap();
-
-    let mut line_mesh_head = **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-        .unwrap();
-
-    let mut line_mesh_instance_head = **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
-        .unwrap();
-
-    let mut line_instance_head = **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
-        .unwrap();
-
-    let vertex_head = &mut vertex_head;
-    let line_index_head = &mut line_index_head;
-    let line_mesh_head = &mut line_mesh_head;
-    let line_mesh_instance_head = &mut line_mesh_instance_head;
-    let line_instance_head = &mut line_instance_head;
-
     // Oscilloscopes
-    world.spawn(
-        OscilloscopeMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
-            (-80.0, 40.0, -80.0),
-            RED,
-            Oscilloscope::new(3.33, 30.0, |f| (f.sin(), f.cos(), f.sin())),
-            2.0,
-            -1.0,
-        )
-        .build(),
+    let mut builder = OscilloscopeMeshBundle::builder(
+        world,
+        buffer_entities,
+        (-80.0, 40.0, -80.0),
+        RED,
+        Oscilloscope::new(3.33, 30.0, |f| (f.sin(), f.cos(), f.sin())),
+        2.0,
+        -1.0,
     );
+    let bundle = builder.build();
+    world.spawn(bundle);
 
-    world.spawn(
-        OscilloscopeMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
-            (-80.0, 40.0, 0.0),
-            GREEN,
-            Oscilloscope::new(2.22, 30.0, |f| (f.sin(), (f * 1.2).sin(), (f * 1.4).cos())),
-            2.0,
-            -2.0,
-        )
-        .build(),
+    let mut builder = OscilloscopeMeshBundle::builder(
+        world,
+        buffer_entities,
+        (-80.0, 40.0, 0.0),
+        GREEN,
+        Oscilloscope::new(2.22, 30.0, |f| (f.sin(), (f * 1.2).sin(), (f * 1.4).cos())),
+        2.0,
+        -2.0,
     );
+    let bundle = builder.build();
+    world.spawn(bundle);
 
-    world.spawn(
-        OscilloscopeMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            line_mesh_instance_entity,
-            line_instance_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            line_mesh_instance_head,
-            line_instance_head,
-            (-80.0, 40.0, 80.0),
-            BLUE,
-            Oscilloscope::new(3.33, 30.0, |f| (f.cos(), (f * 1.2).cos(), (f * 1.4).cos())),
-            2.0,
-            -4.0,
-        )
-        .build(),
+    let mut builder = OscilloscopeMeshBundle::builder(
+        world,
+        buffer_entities,
+        (-80.0, 40.0, 80.0),
+        BLUE,
+        Oscilloscope::new(3.33, 30.0, |f| (f.cos(), (f * 1.2).cos(), (f * 1.4).cos())),
+        2.0,
+        -4.0,
     );
+    let bundle = builder.build();
+    world.spawn(bundle);
 
     // Gradient 3 Triangle
-    let line_mesh = *line_mesh_head as u32;
+    let line_mesh = **world
+        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(buffer_entities.line_mesh_entity)
+        .unwrap() as u32;
     let line_count = 4;
-    world.spawn(
-        LineStripMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            vec![
-                VertexData::new((0.0, -20.0, 0.0), RED, RED, 5.0, -20.0),
-                VertexData::new((-40.0, -80.0, 0.0), GREEN, GREEN, 4.0, -20.0),
-                VertexData::new((40.0, -80.0, 0.0), BLUE, BLUE, 3.0, -20.0),
-                VertexData::new((0.0, -20.0, 0.0), RED, RED, 2.0, -20.0),
-            ],
-        )
-        .build(),
+    let mut builder = LineStripMeshBundle::builder(
+        world,
+        buffer_entities,
+        vec![
+            VertexData::new((0.0, -20.0, 0.0), RED, RED, 5.0, -20.0),
+            VertexData::new((-40.0, -80.0, 0.0), GREEN, GREEN, 4.0, -20.0),
+            VertexData::new((40.0, -80.0, 0.0), BLUE, BLUE, 3.0, -20.0),
+            VertexData::new((0.0, -20.0, 0.0), RED, RED, 2.0, -20.0),
+        ],
     );
+    let bundle = builder.build();
+    world.spawn(bundle);
 
-    world.spawn(
-        LineMeshInstanceBundle::builder(
-            line_mesh_instance_entity,
-            line_instance_entity,
-            line_mesh_instance_head,
-            line_instance_head,
-            [-50.0, 0.0, 0.0],
-            line_mesh,
-            line_count,
-        )
-        .build(),
+    let mut builder = LineMeshInstanceBundle::builder(
+        world,
+        buffer_entities,
+        [-50.0, 0.0, 0.0],
+        line_mesh,
+        line_count,
     );
+    let bundle = builder.build();
+    world.spawn(bundle);
 
     // Gradients 0-2 Triangle
-    let line_mesh = *line_mesh_head as u32;
+    let line_mesh = **world
+        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(buffer_entities.line_mesh_entity)
+        .unwrap() as u32;
     let line_count = 6;
-    world.spawn(
-        LineStripMeshBundle::builder(
-            vertex_entity,
-            line_index_entity,
-            line_mesh_entity,
-            vertex_head,
-            line_index_head,
-            line_mesh_head,
-            vec![
-                VertexData::new((0.0, -80.0, 0.0), BLUE, BLUE, 7.0, -10.0),
-                VertexData::new((40.0, -20.0, 0.0), BLUE, BLUE, 6.0, -10.0),
-                VertexData::new((40.0, -20.0, 0.0), GREEN, GREEN, 5.0, -10.0),
-                VertexData::new((-40.0, -20.0, 0.0), GREEN, GREEN, 4.0, -10.0),
-                VertexData::new((-40.0, -20.0, 0.0), RED, RED, 3.0, -10.0),
-                VertexData::new((0.0, -80.0, 0.0), RED, RED, 2.0, -10.0),
-            ],
-        )
-        .build(),
+    let mut builder = LineStripMeshBundle::builder(
+        world,
+        buffer_entities,
+        vec![
+            VertexData::new((0.0, -80.0, 0.0), BLUE, BLUE, 7.0, -10.0),
+            VertexData::new((40.0, -20.0, 0.0), BLUE, BLUE, 6.0, -10.0),
+            VertexData::new((40.0, -20.0, 0.0), GREEN, GREEN, 5.0, -10.0),
+            VertexData::new((-40.0, -20.0, 0.0), GREEN, GREEN, 4.0, -10.0),
+            VertexData::new((-40.0, -20.0, 0.0), RED, RED, 3.0, -10.0),
+            VertexData::new((0.0, -80.0, 0.0), RED, RED, 2.0, -10.0),
+        ],
     );
+    let bundle = builder.build();
+    world.spawn(bundle);
 
-    world.spawn(
-        LineMeshInstanceBundle::builder(
-            line_mesh_instance_entity,
-            line_instance_entity,
-            line_mesh_instance_head,
-            line_instance_head,
-            [50.0, 0.0, 0.0],
-            line_mesh,
-            line_count,
-        )
-        .build(),
+    let mut builder = LineMeshInstanceBundle::builder(
+        world,
+        buffer_entities,
+        [50.0, 0.0, 0.0],
+        line_mesh,
+        line_count,
     );
+    let bundle = builder.build();
+    world.spawn(bundle);
 
     // Spawn text mesh instances
     for (iy, (_, graphemes)) in font_meshes.iter().enumerate() {
@@ -1401,40 +1174,18 @@ fn assemble_test_geometry(
             let ofs_x = (-step * 13.0) + ix as f32 * 20.0;
             let ofs_y = iy as f32 * 30.0;
 
-            world.spawn(
-                LineMeshInstanceBundle::builder(
-                    line_mesh_instance_entity,
-                    line_instance_entity,
-                    line_mesh_instance_head,
-                    line_instance_head,
-                    [ofs_x * 0.5, ofs_y * 0.5, 0.0],
-                    *line_mesh,
-                    *line_count,
-                )
-                .build(),
+            let mut builder = LineMeshInstanceBundle::builder(
+                world,
+                buffer_entities,
+                [ofs_x * 0.5, ofs_y * 0.5, 0.0],
+                *line_mesh,
+                *line_count,
             );
+            let bundle = builder.build();
+
+            world.spawn(bundle);
         }
     }
-
-    **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
-        .unwrap() = *vertex_head;
-
-    **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
-        .unwrap() = *line_index_head;
-
-    **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-        .unwrap() = *line_mesh_head;
-
-    **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
-        .unwrap() = *line_mesh_instance_head;
-
-    **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
-        .unwrap() = *line_instance_head;
 }
 
 struct MapData {
@@ -1662,22 +1413,17 @@ impl MapData {
 
     pub fn build_rooms(
         &self,
-        vertex_entity: Entity,
-        triangle_index_entity: Entity,
-        triangle_mesh_entity: Entity,
-        triangle_mesh_instance_entity: Entity,
-        line_index_entity: Entity,
-        line_mesh_entity: Entity,
-        line_mesh_instance_entity: Entity,
-        line_instance_entity: Entity,
-        vertex_head: &mut BufferAddress,
-        triangle_index_head: &mut BufferAddress,
-        triangle_mesh_head: &mut BufferAddress,
-        triangle_mesh_instance_heads: &mut Vec<BufferAddress>,
-        line_index_head: &mut BufferAddress,
-        line_mesh_head: &mut BufferAddress,
-        line_mesh_instance_head: &mut BufferAddress,
-        line_instance_head: &mut BufferAddress,
+        world: &mut World,
+        buffer_entities
+        @
+        BufferEntities {
+            vertex_entity,
+            triangle_index_entity,
+            triangle_mesh_entity,
+            line_index_entity,
+            line_mesh_entity,
+            ..
+        }: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
@@ -1696,9 +1442,25 @@ impl MapData {
             let scale_factor = 1.0;
 
             // Gather mesh and line geometry
-            let base_vertex = *vertex_head as u32;
-            let base_triangle_index = *triangle_index_head as u32;
-            let base_line_index = *line_index_head as u32;
+            let base_vertex = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
+                .unwrap() as u32;
+
+            let base_triangle_index = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_index_entity)
+                .unwrap() as u32;
+
+            let triangle_mesh = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
+                .unwrap() as u32;
+
+            let base_line_index = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
+                .unwrap() as u32;
+
+            let line_mesh = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
+                .unwrap() as u32;
 
             let mut local_vertex_head = 0u16;
             let mut local_index_head = 0u32;
@@ -1748,25 +1510,21 @@ impl MapData {
 
             let vertex_count = mesh_vertices.len() as u32;
             let triangle_index_count = triangle_indices.len() as u32;
-            let triangle_mesh = *triangle_mesh_head as u32;
             let line_index_count = line_indices.len() as u32;
-            let line_mesh = *line_mesh_head as u32;
+
             let line_count = line_index_count / 2;
 
             // Singleton mesh instance
             builders.extend([
                 TriangleMeshBundle::builder(
-                    vertex_entity,
-                    triangle_index_entity,
-                    vertex_head,
-                    triangle_index_head,
+                    world,
+                    buffer_entities,
                     mesh_vertices,
                     triangle_indices,
                 ),
                 TriangleMeshDataBundle::builder(
-                    triangle_mesh_entity,
-                    triangle_mesh_head,
-                    triangle_mesh_instance_heads,
+                    world,
+                    buffer_entities,
                     triangle_index_count,
                     0,
                     base_triangle_index,
@@ -1774,25 +1532,23 @@ impl MapData {
                     triangle_indexed_indirect_builder,
                 ),
                 TriangleMeshInstanceDataBundle::builder(
-                    triangle_mesh_instance_entity,
-                    triangle_mesh_instance_heads,
+                    world,
+                    buffer_entities,
                     [entity_center.x, entity_center.z, entity_center.y],
                     triangle_mesh,
                 ),
-                LineIndicesBundle::builder(line_index_entity, line_index_head, line_indices),
+                LineIndicesBundle::builder(world, buffer_entities, line_indices),
                 LineMeshDataBundle::builder(
-                    line_mesh_entity,
-                    line_mesh_head,
+                    world,
+                    buffer_entities,
                     base_vertex,
                     vertex_count,
                     base_line_index,
                     line_index_count,
                 ),
                 LineMeshInstanceBundle::builder(
-                    line_mesh_instance_entity,
-                    line_instance_entity,
-                    line_mesh_instance_head,
-                    line_instance_head,
+                    world,
+                    buffer_entities,
                     [entity_center.x, entity_center.z, entity_center.y],
                     line_mesh,
                     line_count,
@@ -1805,17 +1561,17 @@ impl MapData {
 
     pub fn build_meshes(
         &self,
-        vertex_entity: Entity,
-        triangle_index_entity: Entity,
-        triangle_mesh_entity: Entity,
-        line_index_entity: Entity,
-        line_mesh_entity: Entity,
-        vertex_head: &mut BufferAddress,
-        triangle_index_head: &mut BufferAddress,
-        triangle_mesh_head: &mut BufferAddress,
-        triangle_mesh_instance_heads: &mut Vec<BufferAddress>,
-        line_index_head: &mut BufferAddress,
-        line_mesh_head: &mut BufferAddress,
+        world: &mut World,
+        buffer_entities
+        @
+        BufferEntities {
+            vertex_entity,
+            triangle_index_entity,
+            triangle_mesh_entity,
+            line_index_entity,
+            line_mesh_entity,
+            ..
+        }: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> (Vec<EntityBuilder>, BTreeMap<String, (u32, u32, u32)>) {
         let mut builders = vec![];
@@ -1841,9 +1597,25 @@ impl MapData {
             let scale_factor = 1.0;
 
             // Gather mesh and line geometry
-            let base_vertex = *vertex_head as u32;
-            let base_triangle_index = *triangle_index_head as u32;
-            let base_line_index = *line_index_head as u32;
+            let base_vertex = **world
+                .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(vertex_entity)
+                .unwrap() as u32;
+
+            let base_triangle_index = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_index_entity)
+                .unwrap() as u32;
+
+            let triangle_mesh = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
+                .unwrap() as u32;
+
+            let base_line_index = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
+                .unwrap() as u32;
+
+            let line_mesh = **world
+                .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
+                .unwrap() as u32;
 
             let mut local_vertex_head = 0u16;
             let mut local_index_head = 0u32;
@@ -1893,37 +1665,30 @@ impl MapData {
 
             meshes.insert(
                 entity_mesh_name,
-                (
-                    *triangle_mesh_head as u32,
-                    *line_mesh_head as u32,
-                    line_index_count / 2,
-                ),
+                (triangle_mesh, line_mesh as u32, line_index_count / 2),
             );
 
             // Singleton mesh instance
             builders.extend([
                 TriangleMeshBundle::builder(
-                    vertex_entity,
-                    triangle_index_entity,
-                    vertex_head,
-                    triangle_index_head,
+                    world,
+                    buffer_entities,
                     mesh_vertices,
                     triangle_indices,
                 ),
                 TriangleMeshDataBundle::builder(
-                    triangle_mesh_entity,
-                    triangle_mesh_head,
-                    triangle_mesh_instance_heads,
+                    world,
+                    buffer_entities,
                     triangle_index_count,
                     0,
                     base_triangle_index,
                     base_vertex,
                     triangle_indexed_indirect_builder,
                 ),
-                LineIndicesBundle::builder(line_index_entity, line_index_head, line_indices),
+                LineIndicesBundle::builder(world, buffer_entities, line_indices),
                 LineMeshDataBundle::builder(
-                    line_mesh_entity,
-                    line_mesh_head,
+                    world,
+                    buffer_entities,
                     base_vertex,
                     vertex_count,
                     base_line_index,
@@ -1935,83 +1700,75 @@ impl MapData {
         (builders, meshes)
     }
 
+    fn property_f32_3(
+        key: &str,
+        properties: &Properties,
+    ) -> Result<(f32, f32, f32), Box<dyn Error>> {
+        let property = properties
+            .0
+            .iter()
+            .find(|p| p.key == key)
+            .ok_or("Key not found")?;
+
+        let mut value = property.value.split_whitespace();
+        let x = value.next().unwrap().parse::<f32>()?;
+        let y = value.next().unwrap().parse::<f32>()?;
+        let z = value.next().unwrap().parse::<f32>()?;
+        Ok((x, y, z))
+    }
+
+    fn property_f32(key: &str, properties: &Properties) -> Result<f32, Box<dyn Error>> {
+        Ok(properties
+            .0
+            .iter()
+            .find(|p| p.key == key)
+            .ok_or("Key not found")?
+            .value
+            .parse::<f32>()?)
+    }
+
+    fn property_expression_f32(
+        key: &str,
+        properties: &Properties,
+    ) -> Result<Expression<f32>, Box<dyn Error>> {
+        let value = properties
+            .0
+            .iter()
+            .find(|p| p.key == key)
+            .ok_or("Key not found")?
+            .value
+            .as_str();
+        Ok(expression::parse_expression(value))
+    }
+
+    fn property_string<'a>(
+        key: &str,
+        properties: &'a Properties,
+    ) -> Result<&'a str, Box<dyn Error>> {
+        Ok(properties
+            .0
+            .iter()
+            .find(|p| p.key == key)
+            .ok_or("Key not found")?
+            .value
+            .as_str())
+    }
+
     pub fn build_point_entities(
         &self,
-        vertex_entity: Entity,
-        triangle_index_entity: Entity,
-        triangle_mesh_entity: Entity,
-        triangle_mesh_instance_entity: Entity,
-        line_index_entity: Entity,
-        line_mesh_entity: Entity,
-        line_mesh_instance_entity: Entity,
-        line_instance_entity: Entity,
-        vertex_head: &mut BufferAddress,
-        triangle_index_head: &mut BufferAddress,
-        triangle_mesh_head: &mut BufferAddress,
-        triangle_mesh_instance_heads: &mut Vec<BufferAddress>,
-        line_index_head: &mut BufferAddress,
-        line_mesh_head: &mut BufferAddress,
-        line_mesh_instance_head: &mut BufferAddress,
-        line_instance_head: &mut BufferAddress,
+        world: &mut World,
+        buffer_entities
+        @
+        BufferEntities {
+            triangle_mesh_entity,
+            line_mesh_entity,
+            ..
+        }: BufferEntities,
         font_meshes: &FontMeshes,
         mesh_brush_ids: &BTreeMap<String, (u32, u32, u32)>,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
-
-        fn property_f32_3(
-            key: &str,
-            properties: &Properties,
-        ) -> Result<(f32, f32, f32), Box<dyn Error>> {
-            let property = properties
-                .0
-                .iter()
-                .find(|p| p.key == key)
-                .ok_or("Key not found")?;
-
-            let mut value = property.value.split_whitespace();
-            let x = value.next().unwrap().parse::<f32>()?;
-            let y = value.next().unwrap().parse::<f32>()?;
-            let z = value.next().unwrap().parse::<f32>()?;
-            Ok((x, y, z))
-        }
-
-        fn property_f32(key: &str, properties: &Properties) -> Result<f32, Box<dyn Error>> {
-            Ok(properties
-                .0
-                .iter()
-                .find(|p| p.key == key)
-                .ok_or("Key not found")?
-                .value
-                .parse::<f32>()?)
-        }
-
-        fn property_expression_f32(
-            key: &str,
-            properties: &Properties,
-        ) -> Result<Expression<f32>, Box<dyn Error>> {
-            let value = properties
-                .0
-                .iter()
-                .find(|p| p.key == key)
-                .ok_or("Key not found")?
-                .value
-                .as_str();
-            Ok(expression::parse_expression(value))
-        }
-
-        fn property_string<'a>(
-            key: &str,
-            properties: &'a Properties,
-        ) -> Result<&'a str, Box<dyn Error>> {
-            Ok(properties
-                .0
-                .iter()
-                .find(|p| p.key == key)
-                .ok_or("Key not found")?
-                .value
-                .as_str())
-        }
 
         // Spawn player start entities
         let player_start_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
@@ -2027,39 +1784,34 @@ impl MapData {
             }
         });
 
-        let triangle_mesh = *triangle_mesh_head as u32;
-        let line_mesh = *line_mesh_head as u32;
+        let triangle_mesh = **world
+            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
+            .unwrap() as u32;
+
+        let line_mesh = **world
+            .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
+            .unwrap() as u32;
+
         let line_count = 12;
         builders.extend(BoxBotMeshBundle::builders(
-            vertex_entity,
-            triangle_index_entity,
-            triangle_mesh_entity,
-            line_index_entity,
-            line_mesh_entity,
-            vertex_head,
-            triangle_index_head,
-            triangle_mesh_head,
-            triangle_mesh_instance_heads,
-            line_index_head,
-            line_mesh_head,
+            world,
+            buffer_entities,
             triangle_indexed_indirect_builder,
         ));
 
         for player_start in player_start_entities.into_iter() {
-            let (x, z, y) = property_f32_3("origin", player_start).unwrap();
+            let (x, z, y) = Self::property_f32_3("origin", player_start).unwrap();
 
             builders.extend(vec![
                 TriangleMeshInstanceDataBundle::builder(
-                    triangle_mesh_instance_entity,
-                    triangle_mesh_instance_heads,
+                    world,
+                    buffer_entities,
                     [x, y, z],
                     triangle_mesh,
                 ),
                 LineMeshInstanceBundle::builder(
-                    line_mesh_instance_entity,
-                    line_instance_entity,
-                    line_mesh_instance_head,
-                    line_instance_head,
+                    world,
+                    buffer_entities,
                     [x, y, z],
                     line_mesh,
                     line_count,
@@ -2082,29 +1834,21 @@ impl MapData {
         });
 
         for oscilloscope in oscilloscope_entities.into_iter() {
-            let (x, y, z) = property_f32_3("origin", oscilloscope).unwrap();
+            let (x, y, z) = Self::property_f32_3("origin", oscilloscope).unwrap();
             let origin = (x, z, y);
-            let color = property_f32_3("color", oscilloscope).unwrap();
-            let intensity = property_f32("intensity", oscilloscope).unwrap();
-            let delta_intensity = property_f32("delta_intensity", oscilloscope).unwrap();
-            let speed = property_f32("speed", oscilloscope).unwrap();
-            let magnitude = property_f32("magnitude", oscilloscope).unwrap();
+            let color = Self::property_f32_3("color", oscilloscope).unwrap();
+            let intensity = Self::property_f32("intensity", oscilloscope).unwrap();
+            let delta_intensity = Self::property_f32("delta_intensity", oscilloscope).unwrap();
+            let speed = Self::property_f32("speed", oscilloscope).unwrap();
+            let magnitude = Self::property_f32("magnitude", oscilloscope).unwrap();
 
-            let x = property_expression_f32("x", oscilloscope).unwrap();
-            let y = property_expression_f32("y", oscilloscope).unwrap();
-            let z = property_expression_f32("z", oscilloscope).unwrap();
+            let x = Self::property_expression_f32("x", oscilloscope).unwrap();
+            let y = Self::property_expression_f32("y", oscilloscope).unwrap();
+            let z = Self::property_expression_f32("z", oscilloscope).unwrap();
 
             builders.push(OscilloscopeMeshBundle::builder(
-                vertex_entity,
-                line_index_entity,
-                line_mesh_entity,
-                line_mesh_instance_entity,
-                line_instance_entity,
-                vertex_head,
-                line_index_head,
-                line_mesh_head,
-                line_mesh_instance_head,
-                line_instance_head,
+                world,
+                buffer_entities,
                 origin,
                 color,
                 Oscilloscope::new(speed, magnitude, move |f| {
@@ -2131,24 +1875,22 @@ impl MapData {
         });
 
         for properties in mesh_instance_entities.into_iter() {
-            let (x, y, z) = property_f32_3("origin", properties).unwrap();
+            let (x, y, z) = Self::property_f32_3("origin", properties).unwrap();
             let origin = (x, z, y);
 
-            let target = property_string("target", properties).unwrap();
+            let target = Self::property_string("target", properties).unwrap();
             let (triangle_mesh, line_mesh, line_count) = mesh_brush_ids[target];
 
             builders.extend([
                 TriangleMeshInstanceDataBundle::builder(
-                    triangle_mesh_instance_entity,
-                    triangle_mesh_instance_heads,
+                    world,
+                    buffer_entities,
                     [origin.0, origin.1, origin.2],
                     triangle_mesh,
                 ),
                 LineMeshInstanceBundle::builder(
-                    line_mesh_instance_entity,
-                    line_instance_entity,
-                    line_mesh_instance_head,
-                    line_instance_head,
+                    world,
+                    buffer_entities,
                     [origin.0, origin.1, origin.2],
                     line_mesh,
                     line_count,
@@ -2171,10 +1913,10 @@ impl MapData {
         });
 
         for properties in text_entities.into_iter() {
-            let (x, y, z) = property_f32_3("origin", properties).unwrap();
+            let (x, y, z) = Self::property_f32_3("origin", properties).unwrap();
             let origin = (x, z, y);
 
-            let text = property_string("text", properties).unwrap();
+            let text = Self::property_string("text", properties).unwrap();
 
             let graphemes = font_meshes
                 .values()
@@ -2202,10 +1944,8 @@ impl MapData {
                         .unwrap_or_else(|| panic!("No grapheme for {}", c));
 
                     builders.push(LineMeshInstanceBundle::builder(
-                        line_mesh_instance_entity,
-                        line_instance_entity,
-                        line_mesh_instance_head,
-                        line_instance_head,
+                        world,
+                        buffer_entities,
                         [origin.0 + ofs_x * 0.5, origin.1 - ofs_y * 0.5, origin.2],
                         *line_mesh,
                         *line_count,

@@ -10,8 +10,7 @@ use antigen_wgpu::{
         ShaderStages,
     },
     BindGroupComponent, BindGroupLayoutComponent, BufferComponent, DeviceComponent,
-    RenderPassDrawComponent, RenderPassDrawIndexedComponent,
-    RenderPassDrawIndexedIndirectComponent, SamplerComponent, SurfaceConfigurationComponent,
+    RenderPassDrawComponent, SamplerComponent, SurfaceConfigurationComponent,
     TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
 };
 

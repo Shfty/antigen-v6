@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use antigen_core::{AsUsage, Construct, Indirect, Usage};
 use hecs::{Entity, EntityBuilder, World};
 use wgpu::{BufferAddress, ComputePassDescriptor, DynamicOffset};

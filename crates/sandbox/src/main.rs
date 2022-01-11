@@ -54,14 +54,23 @@
 //           [✓] First working implementation with new data model
 //           [✓] Separate mesh loading and instance creation
 //           [✓] Implement text object - read string from map file, spawn grapheme line mesh instances
-//           [>] Instancing for triangle meshes
+//           [✓] Instancing for triangle meshes
 //               [✓] Fix incorrect instance positioning in beam_mesh vertex shader
 //               [✓] Separate instance creation from mesh loading
-//           [ ] Load room brush entities as separate meshes
+//           [✓] Load room brush entities as separate meshes
 //
-// TODO: [ ] Improve mesh / line spawning ergonomics
+// TODO: [✓] Improve mesh / line spawning ergonomics
 //           * Manually creating a local mutable index and writing it back is too much boilerplate
-//           * Solve via wrapper function?
+//           * Too many state variables to pass around
+//           * Is it feasible to read entities from the world when creating a builder?
+//             * Ostensibly yes, since the count components are fetched by calling code
+// 
+// TODO: [ ] Rotation and scale support for triangle and line meshes
+//           * Use quaternions for rotation
+//           * Vec3 for scale
+//
+// TODO: [ ] Respect angle and mangle when spawning point entities
+//           * Will need to convert from quake-forward to wgpu-forward
 //
 // TODO: [ ] Implement generalized render pass setup
 //
@@ -71,6 +80,15 @@
 //             * Render thread kicks of load on FS thread, provides ID
 //               * FS thread sends components + entity ID to render thread
 //                 * Render thread inserts entities with IDs in context
+//
+// TODO: [ ] Integrate rapier physics
+//
+// TODO: [ ] Implement compute-based frustum culling
+//
+// TODO: [ ] Implement portal rendering
+//
+// TODO: [ ] Investigate box portals for room-inside-room
+//
 
 mod demos;
 
