@@ -8,12 +8,13 @@ struct Uniforms {
 };
 
 struct TriangleMeshInstance {
-    pos: vec3<f32>;
-    mesh_id: u32;
+    pos: vec4<f32>;
+    rot: vec4<f32>;
+    scale: vec4<f32>;
 };
 
 struct TriangleMeshInstances {
-    instances: [[stride(16)]] array<TriangleMeshInstance>;
+    instances: [[stride(48)]] array<TriangleMeshInstance>;
 };
 
 [[group(0), binding(0)]]
@@ -44,9 +45,10 @@ fn vs_main(
     in: VertexInput
 ) -> VertexOutput {
     let instance = triangle_mesh_instances.instances[instance];
-    let instance_pos = instance.pos;
+    let instance_pos = instance.pos.xyz;
+    let instance_scale = instance.scale.xyz;
 
-    let pos = instance_pos + in.position;
+    let pos = instance_pos + (in.position * instance_scale);
 
     var output: VertexOutput;
     output.position = r_uniforms.perspective * vec4<f32>(pos, 1.0);

@@ -150,7 +150,7 @@ pub fn phosphor_prepare_storage_bind_group(
                             ty: BindingType::Buffer {
                                 ty: BufferBindingType::Storage { read_only: true },
                                 has_dynamic_offset: false,
-                                min_binding_size: BufferSize::new(16),
+                                min_binding_size: BufferSize::new(48),
                             },
                             count: None,
                         },

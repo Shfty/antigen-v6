@@ -23,6 +23,8 @@ struct LineMesh {
 struct LineMeshInstance {
     pos: vec3<f32>;
     mesh_id: u32;
+    rot: vec4<f32>;
+    scale: vec3<f32>;
 };
 
 struct LineInstance {
@@ -43,7 +45,7 @@ struct LineMeshes {
 };
 
 struct LineMeshInstances {
-    instances: [[stride(16)]] array<LineMeshInstance>;
+    instances: [[stride(48)]] array<LineMeshInstance>;
 };
 
 struct LineInstances {
@@ -102,6 +104,7 @@ fn vs_main(
 
     let mesh_instance = line_mesh_instances.instances[mesh_instance_id];
     let instance_pos = mesh_instance.pos;
+    let instance_scale = mesh_instance.scale;
     let mesh_id = mesh_instance.mesh_id;
 
     let mesh = line_meshes.meshes[mesh_id];
@@ -115,14 +118,14 @@ fn vs_main(
     let i1 = vertex_offset + line_indices.indices[idx1];
 
     let v0 = mesh_vertices.vertices[i0];
-    let v0_pos = instance_pos + v0.m0.xyz;
+    let v0_pos = instance_pos + (v0.m0.xyz * instance_scale);
     let v0_surface_color = vec3<f32>(v0.m0.w, v0.m1.xy);
     let v0_line_color = vec3<f32>(v0.m1.zw, v0.m2.x);
     let v0_intensity = v0.m2.y;
     let v0_delta_intensity = v0.m2.z;
 
     let v1 = mesh_vertices.vertices[i1];
-    let v1_pos = instance_pos + v1.m0.xyz;
+    let v1_pos = instance_pos + (v1.m0.xyz * instance_scale);
     let v1_surface_color = vec3<f32>(v1.m0.w, v1.m1.xy);
     let v1_line_color = vec3<f32>(v1.m1.zw, v1.m2.x);
     let v1_intensity = v1.m2.y;

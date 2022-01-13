@@ -127,18 +127,13 @@ pub type TriangleMeshDataComponent = Vec<TriangleMeshData>;
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
 pub struct TriangleMeshInstanceData {
     pub position: [f32; 3],
-    pub mesh: u32,
+    pub _pad1: f32,
+    pub rotation: [f32; 4],
+    pub scale: [f32; 3],
+    pub _pad2: f32,
 }
 
 pub type TriangleMeshInstanceDataComponent = Vec<TriangleMeshInstanceData>;
-
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
-pub struct TriangleInstanceData {
-    pub mesh_instance: u32,
-}
-
-pub type TriangleInstanceDataComponent = Vec<TriangleInstanceData>;
 
 pub type LineIndexData = u32;
 pub type LineIndexDataComponent = Vec<LineIndexData>;
@@ -159,6 +154,9 @@ pub type LineMeshDataComponent = Vec<LineMeshData>;
 pub struct LineMeshInstanceData {
     pub position: [f32; 3],
     pub mesh: u32,
+    pub rotation: [f32; 4],
+    pub scale: [f32; 3],
+    pub _pad: f32,
 }
 
 pub type LineMeshInstanceDataComponent = Vec<LineMeshInstanceData>;

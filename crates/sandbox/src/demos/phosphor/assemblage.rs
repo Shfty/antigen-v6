@@ -177,6 +177,8 @@ impl LineMeshInstanceBundle {
             ..
         }: BufferEntities,
         position: [f32; 3],
+        rotation: [f32; 4],
+        scale: [f32; 3],
         line_mesh: u32,
         line_count: u32,
     ) -> EntityBuilder {
@@ -190,6 +192,9 @@ impl LineMeshInstanceBundle {
             vec![LineMeshInstanceData {
                 position,
                 mesh: line_mesh,
+                rotation,
+                scale,
+                ..Default::default()
             }],
             buffer_size_of::<LineMeshInstanceData>() * **line_mesh_instance_head,
             line_mesh_instance_entity,
@@ -320,6 +325,8 @@ impl OscilloscopeMeshBundle {
                 world,
                 buffer_entities,
                 [origin.0, origin.1, origin.2],
+                [0.0; 4],
+                [1.0; 3],
                 line_mesh,
                 line_count,
             )
@@ -443,8 +450,10 @@ impl TriangleMeshInstanceDataBundle {
             triangle_mesh_instance_entity,
             ..
         }: BufferEntities,
-        position: [f32; 3],
         mesh: u32,
+        position: [f32; 3],
+        rotation: [f32; 4],
+        scale: [f32; 3],
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
@@ -458,7 +467,12 @@ impl TriangleMeshInstanceDataBundle {
             triangle_mesh_instance_heads.get_mut(mesh as usize).unwrap();
 
         builder.add_bundle(BufferDataBundle::new(
-            vec![TriangleMeshInstanceData { position, mesh }],
+            vec![TriangleMeshInstanceData {
+                position,
+                rotation,
+                scale,
+                ..Default::default()
+            }],
             buffer_size_of::<TriangleMeshInstanceData>()
                 * (*triangle_mesh_instance_head as BufferAddress
                     + (mesh * MAX_TRIANGLE_MESH_INSTANCES as u32) as BufferAddress),

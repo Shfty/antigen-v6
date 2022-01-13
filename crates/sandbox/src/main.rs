@@ -65,14 +65,12 @@
 //           * Is it feasible to read entities from the world when creating a builder?
 //             * Ostensibly yes, since the count components are fetched by calling code
 // 
-// TODO: [ ] Rotation and scale support for triangle and line meshes
-//           * Use quaternions for rotation
-//           * Vec3 for scale
+// TODO: [>] Rotation and scale support for triangle and line meshes
+//           * [ ] Use quaternions for rotation
+//           * [✓] Vec3 for scale
 //
 // TODO: [ ] Respect angle and mangle when spawning point entities
 //           * Will need to convert from quake-forward to wgpu-forward
-//
-// TODO: [ ] Implement generalized render pass setup
 //
 // TODO: [ ] Implement filesystem thread map loading / building
 //           * Need to figure out how to update buffer offsets from entities created off-thread
@@ -84,6 +82,10 @@
 // TODO: [ ] Integrate rapier physics
 //
 // TODO: [ ] Implement compute-based frustum culling
+//
+// TODO: [ ] Implement generalized render pass setup
+//
+// TODO: [ ] Implement bloom pass
 //
 // TODO: [ ] Implement portal rendering
 //
