@@ -282,7 +282,7 @@ impl OscilloscopeMeshBundle {
         buffer_entities @ BufferEntities {
             line_mesh_entity, ..
         }: BufferEntities,
-        origin: (f32, f32, f32),
+        origin: [f32; 3],
         color: (f32, f32, f32),
         oscilloscope: Oscilloscope,
         intensity: f32,
@@ -324,7 +324,7 @@ impl OscilloscopeMeshBundle {
             LineMeshInstanceBundle::builder(
                 world,
                 buffer_entities,
-                [origin.0, origin.1, origin.2],
+                origin.into(),
                 [0.0, 0.0, 0.0, 1.0],
                 [1.0; 3],
                 line_mesh,

@@ -987,7 +987,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 let vertices = vertices
                     .into_iter()
                     .map(|(x, y)| VertexData {
-                        position: [*x * 0.5, -*y * 0.5, 0.0],
+                        position: [*x, -*y, 0.0],
                         surface_color: [0.0, 0.0, 0.0],
                         line_color: [1.0, 0.5, 0.0],
                         intensity: 0.5,
@@ -1071,7 +1071,7 @@ fn assemble_test_geometry(
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
         buffer_entities,
-        (-80.0, 40.0, -80.0),
+        [-80.0, 40.0, -80.0],
         RED,
         Oscilloscope::new(3.33, 30.0, |f| (f.sin(), f.cos(), f.sin())),
         2.0,
@@ -1083,7 +1083,7 @@ fn assemble_test_geometry(
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
         buffer_entities,
-        (-80.0, 40.0, 0.0),
+        [-80.0, 40.0, 0.0],
         GREEN,
         Oscilloscope::new(2.22, 30.0, |f| (f.sin(), (f * 1.2).sin(), (f * 1.4).cos())),
         2.0,
@@ -1095,7 +1095,7 @@ fn assemble_test_geometry(
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
         buffer_entities,
-        (-80.0, 40.0, 80.0),
+        [-80.0, 40.0, 80.0],
         BLUE,
         Oscilloscope::new(3.33, 30.0, |f| (f.cos(), (f * 1.2).cos(), (f * 1.4).cos())),
         2.0,
@@ -1178,7 +1178,7 @@ fn assemble_test_geometry(
                 buffer_entities,
                 [ofs_x * 0.5, ofs_y * 0.5, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
-                [1.0; 3],
+                [0.5; 3],
                 *line_mesh,
                 *line_count,
             );
@@ -1705,6 +1705,34 @@ impl MapData {
         (builders, meshes)
     }
 
+    fn property_origin(properties: &Properties) -> nalgebra::Vector3<f32> {
+        let (x, z, y) = Self::property_f32_3("origin", properties).unwrap();
+        nalgebra::vector![x, y, z]
+    }
+
+    fn property_rotation(properties: &Properties, convert: bool) -> nalgebra::UnitQuaternion<f32> {
+        let y_ofs = if convert { -90.0f32.to_radians() } else { 0.0 };
+        if let Ok((x, y, z)) = Self::property_f32_3("mangle", properties) {
+            nalgebra::UnitQuaternion::from_euler_angles(
+                -z.to_radians(),
+                -y.to_radians() + y_ofs,
+                -x.to_radians(),
+            )
+        } else if let Ok(y) = Self::property_f32("angle", properties) {
+            nalgebra::UnitQuaternion::from_euler_angles(0.0, -y.to_radians() + y_ofs, 0.0)
+        } else {
+            nalgebra::UnitQuaternion::default()
+        }
+    }
+
+    fn property_scale(properties: &Properties) -> nalgebra::Vector3<f32> {
+        if let Ok((x, z, y)) = Self::property_f32_3("scale", properties) {
+            nalgebra::vector![x, z, y]
+        } else {
+            nalgebra::vector![1.0, 1.0, 1.0]
+        }
+    }
+
     fn property_f32_3(
         key: &str,
         properties: &Properties,
@@ -1805,23 +1833,25 @@ impl MapData {
         ));
 
         for player_start in player_start_entities.into_iter() {
-            let (x, z, y) = Self::property_f32_3("origin", player_start).unwrap();
+            let origin = Self::property_origin(player_start);
+            let rotation = Self::property_rotation(player_start, true);
+            let scale = Self::property_scale(player_start);
 
             builders.extend(vec![
                 TriangleMeshInstanceDataBundle::builder(
                     world,
                     buffer_entities,
                     triangle_mesh,
-                    [x, y, z],
-                    [0.0, 0.0, 0.0, 1.0],
-                    [1.0; 3],
+                    origin.into(),
+                    rotation.coords.into(),
+                    scale.into(),
                 ),
                 LineMeshInstanceBundle::builder(
                     world,
                     buffer_entities,
-                    [x, y, z],
-                    [0.0, 0.0, 0.0, 1.0],
-                    [1.0; 3],
+                    origin.into(),
+                    rotation.coords.into(),
+                    scale.into(),
                     line_mesh,
                     line_count,
                 ),
@@ -1843,8 +1873,7 @@ impl MapData {
         });
 
         for oscilloscope in oscilloscope_entities.into_iter() {
-            let (x, y, z) = Self::property_f32_3("origin", oscilloscope).unwrap();
-            let origin = (x, z, y);
+            let origin = Self::property_origin(oscilloscope);
             let color = Self::property_f32_3("color", oscilloscope).unwrap();
             let intensity = Self::property_f32("intensity", oscilloscope).unwrap();
             let delta_intensity = Self::property_f32("delta_intensity", oscilloscope).unwrap();
@@ -1858,7 +1887,7 @@ impl MapData {
             builders.push(OscilloscopeMeshBundle::builder(
                 world,
                 buffer_entities,
-                origin,
+                origin.into(),
                 color,
                 Oscilloscope::new(speed, magnitude, move |f| {
                     let vars = [("f", f)].into_iter().collect::<BTreeMap<_, _>>();
@@ -1884,24 +1913,9 @@ impl MapData {
         });
 
         for properties in mesh_instance_entities.into_iter() {
-            let (x, y, z) = Self::property_f32_3("origin", properties).unwrap();
-            let origin = (x, z, y);
-
-            let rotation = if let Ok((x, y, z)) = Self::property_f32_3("mangle", properties) {
-                let rotation = nalgebra::UnitQuaternion::from_euler_angles(-z.to_radians(), -y.to_radians(), -x.to_radians());
-                (rotation.coords.x, rotation.coords.y, rotation.coords.z, rotation.coords.w)
-            } else if let Ok(y) = Self::property_f32("angle", properties) {
-                let rotation = nalgebra::UnitQuaternion::from_euler_angles(0.0, -y.to_radians(), 0.0);
-                (rotation.coords.x, rotation.coords.y, rotation.coords.z, rotation.coords.w)
-            } else {
-                (0.0, 0.0, 0.0, 1.0)
-            };
-
-        let scale = if let Ok((x, y, z)) = Self::property_f32_3("scale", properties) {
-                (x, z, y)
-            } else {
-                (1.0, 1.0, 1.0)
-            };
+            let origin = Self::property_origin(properties);
+            let rotation = Self::property_rotation(properties, false);
+            let scale = Self::property_scale(properties);
 
             let target = Self::property_string("target", properties).unwrap();
             let (triangle_mesh, line_mesh, line_count) = mesh_brush_ids[target];
@@ -1911,16 +1925,16 @@ impl MapData {
                     world,
                     buffer_entities,
                     triangle_mesh,
-                    [origin.0, origin.1, origin.2],
-                    [rotation.0, rotation.1, rotation.2, rotation.3],
-                    [scale.0, scale.1, scale.2],
+                    origin.into(),
+                    rotation.coords.into(),
+                    scale.into(),
                 ),
                 LineMeshInstanceBundle::builder(
                     world,
                     buffer_entities,
-                    [origin.0, origin.1, origin.2],
-                    [rotation.0, rotation.1, rotation.2, rotation.3],
-                    [scale.0, scale.1, scale.2],
+                    origin.into(),
+                    rotation.coords.into(),
+                    scale.into(),
                     line_mesh,
                     line_count,
                 ),
@@ -1942,8 +1956,9 @@ impl MapData {
         });
 
         for properties in text_entities.into_iter() {
-            let (x, y, z) = Self::property_f32_3("origin", properties).unwrap();
-            let origin = (x, z, y);
+            let origin = Self::property_origin(properties);
+            let rotation = Self::property_rotation(properties, true);
+            let scale = Self::property_scale(properties);
 
             let text = Self::property_string("text", properties).unwrap();
 
@@ -1965,8 +1980,13 @@ impl MapData {
                         continue;
                     }
 
-                    let ofs_x = (-step * 13.0) + ix as f32 * 20.0;
-                    let ofs_y = iy as f32 * 30.0;
+                    let ofs = nalgebra::vector![
+                        (-step * 13.0) + ix as f32 * 20.0,
+                        (iy as f32 * -30.0),
+                        0.0
+                    ];
+                    let ofs = ofs.component_mul(&scale);
+                    let ofs = rotation * ofs;
 
                     let (line_mesh, line_count) = graphemes
                         .get(c.to_string().as_str())
@@ -1975,9 +1995,9 @@ impl MapData {
                     builders.push(LineMeshInstanceBundle::builder(
                         world,
                         buffer_entities,
-                        [origin.0 + ofs_x * 0.5, origin.1 - ofs_y * 0.5, origin.2],
-                        [0.0, 0.0, 0.0, 1.0],
-                        [1.0; 3],
+                        (origin + ofs).into(),
+                        rotation.coords.into(),
+                        scale.into(),
                         *line_mesh,
                         *line_count,
                     ));

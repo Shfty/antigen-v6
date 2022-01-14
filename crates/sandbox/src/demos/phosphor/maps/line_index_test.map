@@ -331,36 +331,39 @@
 "classname" "text"
 "origin" "0 0 144"
 "text" "Antigen\nText\nRendering\nTest\n1234...? 5678! 9, 0."
+"angle" "-90"
+"scale" "0.5 0.5 0.5"
 }
 // entity 7
 {
 "classname" "info_player_start"
 "origin" "80 0 -104"
-"angle" "180"
+"angle" "-90"
+"scale" "0.5 1.0 0.5"
 }
 // entity 8
 {
 "classname" "info_player_start"
 "origin" "-176 0 -4"
-"angle" "180"
+"angle" "0"
 }
 // entity 9
 {
 "classname" "info_player_start"
 "origin" "88 64 -4"
-"angle" "180"
+"angle" "-135"
 }
 // entity 10
 {
 "classname" "info_player_start"
 "origin" "-88 64 -4"
-"angle" "180"
+"angle" "-45"
 }
 // entity 11
 {
 "classname" "info_player_start"
 "origin" "0 128 -4"
-"angle" "180"
+"angle" "-90"
 }
 // entity 12
 {
