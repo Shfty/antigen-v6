@@ -395,12 +395,14 @@
 "classname" "mesh_instance"
 "origin" "-48 -64 -96"
 "target" "polyhedron"
+"scale" "1.5 1.5 1.5"
 }
 // entity 15
 {
 "classname" "mesh_instance"
 "origin" "-48 56 -96"
 "target" "polyhedron"
+"scale" "0.5 0.5 0.5"
 }
 // entity 16
 {

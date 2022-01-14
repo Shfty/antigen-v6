@@ -1892,6 +1892,12 @@ impl MapData {
             let (x, y, z) = Self::property_f32_3("origin", properties).unwrap();
             let origin = (x, z, y);
 
+            let scale = if let Ok((x, y, z)) = Self::property_f32_3("scale", properties) {
+                (x, z, y)
+            } else {
+                (1.0, 1.0, 1.0)
+            };
+
             let target = Self::property_string("target", properties).unwrap();
             let (triangle_mesh, line_mesh, line_count) = mesh_brush_ids[target];
 
@@ -1902,14 +1908,14 @@ impl MapData {
                     triangle_mesh,
                     [origin.0, origin.1, origin.2],
                     [0.0; 4],
-                    [1.0; 3],
+                    [scale.0, scale.1, scale.2],
                 ),
                 LineMeshInstanceBundle::builder(
                     world,
                     buffer_entities,
                     [origin.0, origin.1, origin.2],
                     [0.0; 4],
-                    [1.0; 3],
+                    [scale.0, scale.1, scale.2],
                     line_mesh,
                     line_count,
                 ),
