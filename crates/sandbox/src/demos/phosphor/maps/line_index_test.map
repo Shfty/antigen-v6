@@ -395,14 +395,16 @@
 "classname" "mesh_instance"
 "origin" "-48 -64 -96"
 "target" "polyhedron"
-"scale" "1.5 1.5 1.5"
+"scale" "0.5 0.5 0.5"
+"angle" "45"
 }
 // entity 15
 {
 "classname" "mesh_instance"
 "origin" "-48 56 -96"
 "target" "polyhedron"
-"scale" "0.5 0.5 0.5"
+"scale" "1.5 1.5 1.5"
+"angle" "-45"
 }
 // entity 16
 {
@@ -676,4 +678,138 @@
 ( -16 0 -64 ) ( -16 -32 -64 ) ( -24 -32 -64 ) prototype_1_3/128_green_3 [ -1 0 0 0 ] [ 0 1 0 0 ] 180 1 1
 ( -16 0 -64 ) ( -16 -32 -128 ) ( -16 -32 -64 ) prototype_1_3/128_green_3 [ 0 1 0 0 ] [ 0 0 -1 0 ] 180 1 1
 }
+}
+// entity 18
+{
+"classname" "func_group"
+"_tb_type" "_tb_layer"
+"_tb_name" "Rotation Test"
+"_tb_id" "1"
+"_tb_layer_sort_index" "0"
+}
+// entity 19
+{
+"classname" "mesh_instance"
+"origin" "-184 128 8"
+"target" "arrow"
+"angle" "0"
+"_tb_layer" "1"
+}
+// entity 20
+{
+"classname" "mesh_instance"
+"origin" "-152 128 -24"
+"target" "arrow"
+"angle" "90"
+"_tb_layer" "1"
+}
+// entity 21
+{
+"classname" "mesh_instance"
+"origin" "-120 128 -24"
+"target" "arrow"
+"angle" "180"
+"_tb_layer" "1"
+}
+// entity 22
+{
+"classname" "mesh_instance"
+"origin" "-88 128 -24"
+"target" "arrow"
+"angle" "270"
+"_tb_layer" "1"
+}
+// entity 23
+{
+"classname" "mesh"
+"targetname" "arrow"
+"_tb_layer" "1"
+// brush 0
+{
+( -8 -144 24 ) ( -8 -144 25 ) ( -8 -145 24 ) __TB_empty [ -1.0718754395722282e-15 -1 2.4492935982947064e-16 0 ] [ 0 -2.4492935982947064e-16 -1 0 ] 0 1 1
+( -8 -144 24 ) ( -8 -145 24 ) ( -7 -144 24 ) __TB_empty [ 1.0718754395722282e-15 1 -2.4492935982947064e-16 0 ] [ -1 1.0718754395722282e-15 -2.6253376523135828e-31 0 ] 270 1 1
+( 8 -160 32 ) ( 9 -160 32 ) ( 8 -161 32 ) __TB_empty [ -1.0718754395722282e-15 -1 2.4492935982947064e-16 0 ] [ -1 1.0718754395722282e-15 -2.6253376523135828e-31 0 ] 90 1 1
+( 8 -152 40 ) ( -8 -160 40 ) ( -8 -160 168 ) __TB_empty [ 0.8944271909999164 0.44721359549995704 -1.0953573965284032e-16 -0.39875793 ] [ 0 -2.4492935982947064e-16 -1 0 ] 0 1 1
+( -8 -144 40 ) ( 8 -152 40 ) ( 8 -152 168 ) __TB_empty [ -0.8944271909999155 0.4472135954999589 -1.0953573965284077e-16 0.5071106 ] [ 0 -2.4492935982947064e-16 -1 0 ] 0 1 1
+}
+}
+// entity 24
+{
+"classname" "mesh_instance"
+"origin" "-152 128 8"
+"target" "arrow"
+"mangle" "12.5 0 0"
+"_tb_layer" "1"
+}
+// entity 25
+{
+"classname" "mesh_instance"
+"origin" "-120 128 8"
+"target" "arrow"
+"mangle" "25 0 0"
+"_tb_layer" "1"
+}
+// entity 26
+{
+"classname" "mesh_instance"
+"origin" "-88 128 8"
+"target" "arrow"
+"mangle" "37.5 0 0"
+"_tb_layer" "1"
+}
+// entity 27
+{
+"classname" "mesh_instance"
+"origin" "-184 96 8"
+"target" "arrow"
+"mangle" "0 0 12.5"
+"_tb_layer" "1"
+}
+// entity 28
+{
+"classname" "mesh_instance"
+"origin" "-184 64 8"
+"target" "arrow"
+"mangle" "0 0 25"
+"_tb_layer" "1"
+}
+// entity 29
+{
+"classname" "mesh_instance"
+"origin" "-184 32 8"
+"target" "arrow"
+"mangle" "0 0 37.5"
+"_tb_layer" "1"
+}
+// entity 30
+{
+"classname" "mesh_instance"
+"origin" "-184 128 -24"
+"target" "arrow"
+"angle" "0"
+"_tb_layer" "1"
+}
+// entity 31
+{
+"classname" "mesh_instance"
+"origin" "-184 128 40"
+"target" "arrow"
+"mangle" "0 12.5 0"
+"_tb_layer" "1"
+}
+// entity 32
+{
+"classname" "mesh_instance"
+"origin" "-184 128 72"
+"target" "arrow"
+"mangle" "0 25 0"
+"_tb_layer" "1"
+}
+// entity 33
+{
+"classname" "mesh_instance"
+"origin" "-184 128 104"
+"target" "arrow"
+"mangle" "0 37.5 0"
+"_tb_layer" "1"
 }

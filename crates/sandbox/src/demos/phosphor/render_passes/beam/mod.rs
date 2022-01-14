@@ -35,7 +35,7 @@ pub fn phosphor_prepare_beam_mesh(
             layout: Some(&pipeline_layout),
             vertex: VertexState {
                 module: &beam_mesh_shader,
-                entry_point: "vs_main",
+                entry_point: "vs_triangle",
                 buffers: &[VertexBufferLayout {
                     array_stride: buffer_size_of::<VertexData>(),
                     step_mode: VertexStepMode::Vertex,
@@ -122,7 +122,7 @@ pub fn phosphor_prepare_beam_line(
             layout: Some(&pipeline_layout),
             vertex: VertexState {
                 module: &beam_line_shader,
-                entry_point: "vs_main",
+                entry_point: "vs_line",
                 buffers: &[VertexBufferLayout {
                     array_stride: buffer_size_of::<LineVertexData>(),
                     step_mode: VertexStepMode::Vertex,

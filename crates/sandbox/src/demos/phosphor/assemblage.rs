@@ -325,7 +325,7 @@ impl OscilloscopeMeshBundle {
                 world,
                 buffer_entities,
                 [origin.0, origin.1, origin.2],
-                [0.0; 4],
+                [0.0, 0.0, 0.0, 1.0],
                 [1.0; 3],
                 line_mesh,
                 line_count,

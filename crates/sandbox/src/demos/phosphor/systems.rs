@@ -299,32 +299,37 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
         storage_bind_group,
     )?;
 
+    let mut query = world.query::<&ShaderModuleComponent>().with::<Beam>();
+
+    let (_, beam_shader) = query.into_iter().next()?;
+    println!("Fetched beam mesh pass entity");
+
     let mut query = world
-        .query::<(&ShaderModuleComponent, &mut RenderPipelineComponent)>()
+        .query::<&mut RenderPipelineComponent>()
         .with::<BeamMesh>();
 
-    let (_, (beam_mesh_shader, beam_mesh_pipeline)) = query.into_iter().next()?;
+    let (_, beam_mesh_pipeline) = query.into_iter().next()?;
     println!("Fetched beam mesh pass entity");
 
     phosphor_prepare_beam_mesh(
         device,
         uniform_bind_group_layout,
         storage_bind_group_layout,
-        beam_mesh_shader,
+        beam_shader,
         beam_mesh_pipeline,
     )?;
 
     let mut query = world
-        .query::<(&ShaderModuleComponent, &mut RenderPipelineComponent)>()
+        .query::<&mut RenderPipelineComponent>()
         .with::<BeamLine>();
-    let (_, (beam_line_shader, beam_line_pipeline)) = query.into_iter().next()?;
+    let (_, beam_line_pipeline) = query.into_iter().next()?;
     println!("Fetched beam line pass entity");
 
     phosphor_prepare_beam_line(
         device,
         uniform_bind_group_layout,
         storage_bind_group_layout,
-        beam_line_shader,
+        beam_shader,
         beam_line_pipeline,
     )?;
 

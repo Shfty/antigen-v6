@@ -722,12 +722,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .insert(beam_mesh_pass_entity, builder.build())
         .unwrap();
 
-    load_shader::<Filesystem, _>(
-        channel,
-        beam_mesh_pass_entity,
-        "crates/sandbox/src/demos/phosphor/shaders/beam_mesh.wgsl",
-    );
-
     // Beam mesh draw indirect
     let triangle_indexed_indirect_builder = |offset: u64| {
         let mut builder = EntityBuilder::new();
@@ -841,10 +835,11 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .insert(beam_line_pass_entity, builder.build())
         .unwrap();
 
+    let beam_entity = world.spawn((Beam,));
     load_shader::<Filesystem, _>(
         channel,
-        beam_line_pass_entity,
-        "crates/sandbox/src/demos/phosphor/shaders/beam_line.wgsl",
+        beam_entity,
+        "crates/sandbox/src/demos/phosphor/shaders/beam.wgsl",
     );
 
     // Phosphor pass
@@ -1131,7 +1126,7 @@ fn assemble_test_geometry(
         world,
         buffer_entities,
         [-50.0, 0.0, 0.0],
-        [0.0; 4],
+        [0.0, 0.0, 0.0, 1.0],
         [1.0; 3],
         line_mesh,
         line_count,
@@ -1163,7 +1158,7 @@ fn assemble_test_geometry(
         world,
         buffer_entities,
         [50.0, 0.0, 0.0],
-        [0.0; 4],
+        [0.0, 0.0, 0.0, 1.0],
         [1.0; 3],
         line_mesh,
         line_count,
@@ -1182,7 +1177,7 @@ fn assemble_test_geometry(
                 world,
                 buffer_entities,
                 [ofs_x * 0.5, ofs_y * 0.5, 0.0],
-                [0.0; 4],
+                [0.0, 0.0, 0.0, 1.0],
                 [1.0; 3],
                 *line_mesh,
                 *line_count,
@@ -1542,7 +1537,7 @@ impl MapData {
                     buffer_entities,
                     triangle_mesh,
                     [entity_center.x, entity_center.z, entity_center.y],
-                    [0.0; 4],
+                    [0.0, 0.0, 0.0, 1.0],
                     [1.0; 3],
                 ),
                 LineIndicesBundle::builder(world, buffer_entities, line_indices),
@@ -1558,7 +1553,7 @@ impl MapData {
                     world,
                     buffer_entities,
                     [entity_center.x, entity_center.z, entity_center.y],
-                    [0.0; 4],
+                    [0.0, 0.0, 0.0, 1.0],
                     [1.0; 3],
                     line_mesh,
                     line_count,
@@ -1818,14 +1813,14 @@ impl MapData {
                     buffer_entities,
                     triangle_mesh,
                     [x, y, z],
-                    [0.0; 4],
+                    [0.0, 0.0, 0.0, 1.0],
                     [1.0; 3],
                 ),
                 LineMeshInstanceBundle::builder(
                     world,
                     buffer_entities,
                     [x, y, z],
-                    [0.0; 4],
+                    [0.0, 0.0, 0.0, 1.0],
                     [1.0; 3],
                     line_mesh,
                     line_count,
@@ -1892,7 +1887,17 @@ impl MapData {
             let (x, y, z) = Self::property_f32_3("origin", properties).unwrap();
             let origin = (x, z, y);
 
-            let scale = if let Ok((x, y, z)) = Self::property_f32_3("scale", properties) {
+            let rotation = if let Ok((x, y, z)) = Self::property_f32_3("mangle", properties) {
+                let rotation = nalgebra::UnitQuaternion::from_euler_angles(-z.to_radians(), -y.to_radians(), -x.to_radians());
+                (rotation.coords.x, rotation.coords.y, rotation.coords.z, rotation.coords.w)
+            } else if let Ok(y) = Self::property_f32("angle", properties) {
+                let rotation = nalgebra::UnitQuaternion::from_euler_angles(0.0, -y.to_radians(), 0.0);
+                (rotation.coords.x, rotation.coords.y, rotation.coords.z, rotation.coords.w)
+            } else {
+                (0.0, 0.0, 0.0, 1.0)
+            };
+
+        let scale = if let Ok((x, y, z)) = Self::property_f32_3("scale", properties) {
                 (x, z, y)
             } else {
                 (1.0, 1.0, 1.0)
@@ -1907,14 +1912,14 @@ impl MapData {
                     buffer_entities,
                     triangle_mesh,
                     [origin.0, origin.1, origin.2],
-                    [0.0; 4],
+                    [rotation.0, rotation.1, rotation.2, rotation.3],
                     [scale.0, scale.1, scale.2],
                 ),
                 LineMeshInstanceBundle::builder(
                     world,
                     buffer_entities,
                     [origin.0, origin.1, origin.2],
-                    [0.0; 4],
+                    [rotation.0, rotation.1, rotation.2, rotation.3],
                     [scale.0, scale.1, scale.2],
                     line_mesh,
                     line_count,
@@ -1971,7 +1976,7 @@ impl MapData {
                         world,
                         buffer_entities,
                         [origin.0 + ofs_x * 0.5, origin.1 - ofs_y * 0.5, origin.2],
-                        [0.0; 4],
+                        [0.0, 0.0, 0.0, 1.0],
                         [1.0; 3],
                         *line_mesh,
                         *line_count,

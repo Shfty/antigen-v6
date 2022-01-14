@@ -66,8 +66,9 @@
 //             * Ostensibly yes, since the count components are fetched by calling code
 // 
 // TODO: [>] Rotation and scale support for triangle and line meshes
-//           * [ ] Use quaternions for rotation
+//           * [✓] Use quaternions for rotation
 //           * [✓] Vec3 for scale
+//           * [ ] Generalize rotation / scale to player start, text entities
 //
 // TODO: [ ] Respect angle and mangle when spawning point entities
 //           * Will need to convert from quake-forward to wgpu-forward
