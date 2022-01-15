@@ -557,58 +557,49 @@ impl BoxBotMeshBundle {
             .unwrap() as u32;
 
         // Body cube
-        builders.push(TriangleMeshBundle::builder(
-            world,
-            buffer_entities,
-            vec![
-                VertexData::new((1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                VertexData::new((-1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                VertexData::new((-1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
-                VertexData::new((1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
-                VertexData::new((1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                VertexData::new((-1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
-                VertexData::new((-1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
-                VertexData::new((1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
-            ]
-            .into_iter()
-            .map(|mut vd| {
-                vd.position[0] *= 25.0;
-                vd.position[1] *= 25.0;
-                vd.position[2] *= 25.0;
-                vd
-            })
-            .chain(
+        let mut builder = EntityBuilder::new();
+        builder.add_bundle(
+            TriangleMeshBundle::builder(
+                world,
+                buffer_entities,
                 vec![
-                    VertexData::new((1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
-                    VertexData::new((-1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
-                    VertexData::new((-1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
-                    VertexData::new((1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
-                    VertexData::new((1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
-                    VertexData::new((-1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
-                    VertexData::new((-1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
-                    VertexData::new((1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
+                    VertexData::new((1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                    VertexData::new((-1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                    VertexData::new((-1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
+                    VertexData::new((1.0, 1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
+                    VertexData::new((1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                    VertexData::new((-1.0, -1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
+                    VertexData::new((-1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
+                    VertexData::new((1.0, -1.0, -1.0), BLACK, BLACK, 0.0, -16.0),
                 ]
                 .into_iter()
                 .map(|mut vd| {
-                    vd.position[0] *= 10.0;
-                    vd.position[1] *= 2.5;
-                    vd.position[2] *= 2.5;
-                    vd.position[2] -= 25.0;
+                    vd.position[0] *= 25.0;
+                    vd.position[1] *= 25.0;
+                    vd.position[2] *= 25.0;
                     vd
-                }),
-            )
-            .collect(),
-            vec![
-                // Top
-                0, 1, 2, 0, 2, 3, // Bottom
-                4, 7, 5, 7, 6, 5, // Front
-                3, 2, 6, 3, 6, 7, // Back
-                0, 5, 1, 0, 4, 5, // Right
-                0, 3, 7, 0, 7, 4, // Left
-                1, 5, 6, 1, 6, 2,
-            ]
-            .into_iter()
-            .chain(
+                })
+                .chain(
+                    vec![
+                        VertexData::new((1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
+                        VertexData::new((-1.0, 1.0, 1.0), RED, RED, 2.0, -14.0),
+                        VertexData::new((-1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
+                        VertexData::new((1.0, 1.0, -1.0), RED, RED, 2.0, -14.0),
+                        VertexData::new((1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
+                        VertexData::new((-1.0, -1.0, 1.0), RED, RED, 2.0, -14.0),
+                        VertexData::new((-1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
+                        VertexData::new((1.0, -1.0, -1.0), RED, RED, 2.0, -14.0),
+                    ]
+                    .into_iter()
+                    .map(|mut vd| {
+                        vd.position[0] *= 10.0;
+                        vd.position[1] *= 2.5;
+                        vd.position[2] *= 2.5;
+                        vd.position[2] -= 25.0;
+                        vd
+                    }),
+                )
+                .collect(),
                 vec![
                     // Top
                     0, 1, 2, 0, 2, 3, // Bottom
@@ -619,20 +610,38 @@ impl BoxBotMeshBundle {
                     1, 5, 6, 1, 6, 2,
                 ]
                 .into_iter()
-                .map(|i| i + 8),
+                .chain(
+                    vec![
+                        // Top
+                        0, 1, 2, 0, 2, 3, // Bottom
+                        4, 7, 5, 7, 6, 5, // Front
+                        3, 2, 6, 3, 6, 7, // Back
+                        0, 5, 1, 0, 4, 5, // Right
+                        0, 3, 7, 0, 7, 4, // Left
+                        1, 5, 6, 1, 6, 2,
+                    ]
+                    .into_iter()
+                    .map(|i| i + 8),
+                )
+                .collect(),
             )
-            .collect(),
-        ));
+            .build(),
+        );
 
-        builders.push(TriangleMeshDataBundle::builder(
-            world,
-            buffer_entities,
-            36 * 2,
-            0,
-            base_triangle_index,
-            base_vertex,
-            triangle_indexed_indirect_builder,
-        ));
+        builder.add_bundle(
+            TriangleMeshDataBundle::builder(
+                world,
+                buffer_entities,
+                36 * 2,
+                0,
+                base_triangle_index,
+                base_vertex,
+                triangle_indexed_indirect_builder,
+            )
+            .build(),
+        );
+
+        builders.push(builder);
 
         // Cube lines
         builders.push(LineListMeshBundle::builder(

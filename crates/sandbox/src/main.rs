@@ -88,6 +88,13 @@
 // TODO: [ ] Implement bloom pass
 //
 // TODO: [ ] Implement portal rendering
+//           * Ideally all portal rendering should happen in existing draw calls for performance's sake
+//           * Just add more geometry
+//             * Effectively an extra layer of room -> mesh instances indirection
+//             * Re-instance rooms and their contents when viewed through a portal
+//           * Stencil buffer seems the best approach to early-out from invisible fragments
+//           * Each portal recursion adds 1 to the stencil value
+//           * Use less-than stencil comparator
 //
 // TODO: [ ] Investigate box portals for room-inside-room
 //
