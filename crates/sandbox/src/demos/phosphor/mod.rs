@@ -1188,12 +1188,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 triangle_indexed_indirect_builder,
             ))
             .unwrap();
-        /*
-        let mut point_entities =
-            map_data.build_point_entities(world, triangle_indexed_indirect_builder);
-        let bundles = point_entities.iter_mut().map(EntityBuilder::build);
-        world.extend(bundles);
-        */
     }
 }
 
@@ -1204,22 +1198,13 @@ fn assemble_test_geometry(world: &mut World) {
         .next()
         .unwrap();
 
-    let vertex_id = std::any::TypeId::of::<Vertices>();
-    let vertex_entity = tagged_entities[&vertex_id];
-
-    let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
-    let triangle_index_entity = tagged_entities[&triangle_index_id];
-
-    let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
-    let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
-
     let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
     let line_mesh_entity = tagged_entities[&line_mesh_id];
 
     // Oscilloscopes
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
-        nalgebra::vector![-80.0, 40.0, -80.0].into(),
+        "sin_cos_sin",
         RED,
         Oscilloscope::new(3.33, 30.0, |f| (f.sin(), f.cos(), f.sin())),
         2.0,
@@ -1230,7 +1215,7 @@ fn assemble_test_geometry(world: &mut World) {
 
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
-        nalgebra::vector![-80.0, 40.0, 0.0].into(),
+        "sin_sin_cos",
         GREEN,
         Oscilloscope::new(2.22, 30.0, |f| (f.sin(), (f * 1.2).sin(), (f * 1.4).cos())),
         2.0,
@@ -1241,72 +1226,52 @@ fn assemble_test_geometry(world: &mut World) {
 
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
-        nalgebra::vector![-80.0, 40.0, 80.0].into(),
+        "cos_cos_cos",
         BLUE,
         Oscilloscope::new(3.33, 30.0, |f| (f.cos(), (f * 1.2).cos(), (f * 1.4).cos())),
         2.0,
         -4.0,
     );
-    let bundle = builder.build();
-    world.spawn(bundle);
+    world.spawn(builder.build());
 
-    // Gradient 3 Triangle
+    // Equilateral triangle
     let line_mesh = world
         .query_one_mut::<&mut BufferLengthComponent>(line_mesh_entity)
         .unwrap()
         .load(Ordering::Relaxed) as u32;
     let line_count = 4;
-    let mut builder = LineStripMeshBundle::builder(
-        world,
-        vec![
-            VertexData::new((0.0, -20.0, 0.0), RED, RED, 5.0, -20.0),
-            VertexData::new((-40.0, -80.0, 0.0), GREEN, GREEN, 4.0, -20.0),
-            VertexData::new((40.0, -80.0, 0.0), BLUE, BLUE, 3.0, -20.0),
-            VertexData::new((0.0, -20.0, 0.0), RED, RED, 2.0, -20.0),
-        ],
-    );
-    let bundle = builder.build();
-    world.spawn(bundle);
 
-    let mut builder = LineMeshInstanceBundle::builder(
-        world,
-        nalgebra::vector![-50.0, 0.0, 0.0].into(),
-        nalgebra::Quaternion::identity().into(),
-        nalgebra::vector![1.0, 1.0, 1.0].into(),
-        line_mesh.into(),
-        line_count,
-    );
-    let bundle = builder.build();
-    world.spawn(bundle);
+    let base_vert = nalgebra::vector![0.0, 45.0, 0.0];
+    let vertices = (0..4).fold(vec![], |mut acc, next| {
+        let vert = nalgebra::UnitQuaternion::new(
+            nalgebra::vector![0.0, 0.0, 1.0] * (360.0f32 / 3.0).to_radians() * next as f32,
+        ) * base_vert;
 
-    // Gradients 0-2 Triangle
-    let line_mesh = world
-        .query_one_mut::<&mut BufferLengthComponent>(line_mesh_entity)
-        .unwrap()
-        .load(Ordering::Relaxed) as u32;
-    let line_count = 6;
-    let mut builder = LineStripMeshBundle::builder(
-        world,
-        vec![
-            VertexData::new((0.0, -80.0, 0.0), BLUE, BLUE, 7.0, -10.0),
-            VertexData::new((40.0, -20.0, 0.0), BLUE, BLUE, 6.0, -10.0),
-            VertexData::new((40.0, -20.0, 0.0), GREEN, GREEN, 5.0, -10.0),
-            VertexData::new((-40.0, -20.0, 0.0), GREEN, GREEN, 4.0, -10.0),
-            VertexData::new((-40.0, -20.0, 0.0), RED, RED, 3.0, -10.0),
-            VertexData::new((0.0, -80.0, 0.0), RED, RED, 2.0, -10.0),
-        ],
-    );
-    let bundle = builder.build();
-    world.spawn(bundle);
+        let color = match next % 3 {
+            0 => RED,
+            1 => GREEN,
+            2 => BLUE,
+            _ => unreachable!(),
+        };
 
-    let mut builder = LineMeshInstanceBundle::builder(
+        acc.push(VertexData::new(
+            (vert.x, vert.y, vert.z),
+            color,
+            color,
+            5.0,
+            -20.0,
+        ));
+        acc
+    });
+
+    register_mesh_ids(
         world,
-        nalgebra::vector![50.0, 0.0, 0.0].into(),
-        nalgebra::Quaternion::identity().into(),
-        nalgebra::vector![1.0, 1.0, 1.0].into(),
-        line_mesh.into(),
-        line_count,
+        "triangle_equilateral",
+        None,
+        Some((line_mesh, line_count)),
     );
+
+    let mut builder = LineStripMeshBundle::builder(world, vertices);
     let bundle = builder.build();
     world.spawn(bundle);
 }
@@ -1786,11 +1751,8 @@ impl MapData {
         let line_mesh_entity = tagged_entities[&line_mesh_id];
 
         for (entity, brushes) in entity_brushes {
-            let entity_mesh_name = self
-                .entity_property(entity, "targetname")
-                .unwrap()
-                .value
-                .clone();
+            let properties = self.geo_map.entity_properties.get(entity).unwrap();
+            let entity_mesh_name = Self::property_targetname(properties);
 
             let entity_faces = self.entity_faces(brushes);
             let entity_center = self.entity_centers[entity];
@@ -1911,6 +1873,45 @@ impl MapData {
             );
         }
 
+        // Load oscilloscope meshes
+        let oscilloscope_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
+            let properties = self.geo_map.entity_properties.get(point_entity)?;
+            if let Some(classname) = properties.0.iter().find(|p| p.key == "classname") {
+                if classname.value == "oscilloscope" {
+                    Some(properties)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+
+        for oscilloscope in oscilloscope_entities.into_iter() {
+            let color = Self::property_f32_3("color", oscilloscope).unwrap();
+            let intensity = Self::property_f32("intensity", oscilloscope).unwrap();
+            let delta_intensity = Self::property_f32("delta_intensity", oscilloscope).unwrap();
+            let speed = Self::property_f32("speed", oscilloscope).unwrap();
+            let magnitude = Self::property_f32("magnitude", oscilloscope).unwrap();
+            let targetname = Self::property_targetname(oscilloscope);
+
+            let x = Self::property_expression_f32("x", oscilloscope).unwrap();
+            let y = Self::property_expression_f32("y", oscilloscope).unwrap();
+            let z = Self::property_expression_f32("z", oscilloscope).unwrap();
+
+            builders.push(OscilloscopeMeshBundle::builder(
+                world,
+                targetname,
+                color,
+                Oscilloscope::new(speed, magnitude, move |f| {
+                    let vars = [("f", f)].into_iter().collect::<BTreeMap<_, _>>();
+                    (x.eval(&vars), y.eval(&vars), z.eval(&vars))
+                }),
+                intensity,
+                delta_intensity,
+            ));
+        }
+
         builders
     }
 
@@ -1940,6 +1941,10 @@ impl MapData {
         } else {
             nalgebra::vector![1.0, 1.0, 1.0]
         }
+    }
+
+    fn property_targetname(properties: &Properties) -> &str {
+        Self::property_string("targetname", properties).unwrap()
     }
 
     fn property_f32_3(
@@ -2031,7 +2036,6 @@ impl MapData {
             ));
         }
 
-        /*
         // Spawn oscilloscope entities
         let oscilloscope_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
             let properties = self.geo_map.entity_properties.get(point_entity)?;
@@ -2048,29 +2052,16 @@ impl MapData {
 
         for oscilloscope in oscilloscope_entities.into_iter() {
             let origin = Self::property_origin(oscilloscope);
-            let color = Self::property_f32_3("color", oscilloscope).unwrap();
-            let intensity = Self::property_f32("intensity", oscilloscope).unwrap();
-            let delta_intensity = Self::property_f32("delta_intensity", oscilloscope).unwrap();
-            let speed = Self::property_f32("speed", oscilloscope).unwrap();
-            let magnitude = Self::property_f32("magnitude", oscilloscope).unwrap();
+            let targetname = Self::property_targetname(oscilloscope);
 
-            let x = Self::property_expression_f32("x", oscilloscope).unwrap();
-            let y = Self::property_expression_f32("y", oscilloscope).unwrap();
-            let z = Self::property_expression_f32("z", oscilloscope).unwrap();
-
-            builders.push(OscilloscopeMeshBundle::builder(
+            builders.extend(mesh_instance_builders(
                 world,
+                &format!("oscilloscope_{}", targetname),
                 origin.into(),
-                color,
-                Oscilloscope::new(speed, magnitude, move |f| {
-                    let vars = [("f", f)].into_iter().collect::<BTreeMap<_, _>>();
-                    (x.eval(&vars), y.eval(&vars), z.eval(&vars))
-                }),
-                intensity,
-                delta_intensity,
+                nalgebra::Quaternion::identity().into(),
+                nalgebra::vector![1.0, 1.0, 1.0].into(),
             ));
         }
-        */
 
         // Spawn mesh instance entities
         let mesh_instance_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {

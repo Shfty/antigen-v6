@@ -6,6 +6,7 @@
 "classname" "worldspawn"
 "_tb_textures" ""
 "_tb_def" "external:/home/josh/.local/src/TrenchBroom/build/app/games/Quake/Quake.fgd"
+"_tb_layer_hidden" "1"
 }
 // entity 1
 {
@@ -618,6 +619,13 @@
 }
 // entity 12
 {
+"classname" "mesh_instance"
+"origin" "0 136 -96"
+"target" "triangle_equilateral"
+"scale" "0.5 0.5 0.5"
+}
+// entity 13
+{
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "Rotation Test"
@@ -625,7 +633,7 @@
 "_tb_layer_sort_index" "0"
 "_tb_layer_hidden" "1"
 }
-// entity 13
+// entity 14
 {
 "classname" "mesh_instance"
 "origin" "-184 128 8"
@@ -633,7 +641,7 @@
 "angle" "0"
 "_tb_layer" "1"
 }
-// entity 14
+// entity 15
 {
 "classname" "mesh_instance"
 "origin" "-152 128 -24"
@@ -641,7 +649,7 @@
 "angle" "90"
 "_tb_layer" "1"
 }
-// entity 15
+// entity 16
 {
 "classname" "mesh_instance"
 "origin" "-120 128 -24"
@@ -649,7 +657,7 @@
 "angle" "180"
 "_tb_layer" "1"
 }
-// entity 16
+// entity 17
 {
 "classname" "mesh_instance"
 "origin" "-88 128 -24"
@@ -657,7 +665,7 @@
 "angle" "270"
 "_tb_layer" "1"
 }
-// entity 17
+// entity 18
 {
 "classname" "mesh"
 "targetname" "arrow"
@@ -671,7 +679,7 @@
 ( -160 104 48 ) ( -144 96 48 ) ( -144 96 176 ) __TB_empty [ -0.8944271909999155 0.4472135954999589 -1.0953573965284077e-16 0.64520264 ] [ 0 -2.4492935982947064e-16 -1 0 ] 0 1 1
 }
 }
-// entity 18
+// entity 19
 {
 "classname" "mesh_instance"
 "origin" "-152 128 8"
@@ -679,7 +687,7 @@
 "mangle" "12.5 0 0"
 "_tb_layer" "1"
 }
-// entity 19
+// entity 20
 {
 "classname" "mesh_instance"
 "origin" "-120 128 8"
@@ -687,7 +695,7 @@
 "mangle" "25 0 0"
 "_tb_layer" "1"
 }
-// entity 20
+// entity 21
 {
 "classname" "mesh_instance"
 "origin" "-88 128 8"
@@ -695,7 +703,7 @@
 "mangle" "37.5 0 0"
 "_tb_layer" "1"
 }
-// entity 21
+// entity 22
 {
 "classname" "mesh_instance"
 "origin" "-184 96 8"
@@ -703,7 +711,7 @@
 "mangle" "0 0 12.5"
 "_tb_layer" "1"
 }
-// entity 22
+// entity 23
 {
 "classname" "mesh_instance"
 "origin" "-184 64 8"
@@ -711,7 +719,7 @@
 "mangle" "0 0 25"
 "_tb_layer" "1"
 }
-// entity 23
+// entity 24
 {
 "classname" "mesh_instance"
 "origin" "-184 32 8"
@@ -719,7 +727,7 @@
 "mangle" "0 0 37.5"
 "_tb_layer" "1"
 }
-// entity 24
+// entity 25
 {
 "classname" "mesh_instance"
 "origin" "-184 128 -24"
@@ -727,7 +735,7 @@
 "angle" "0"
 "_tb_layer" "1"
 }
-// entity 25
+// entity 26
 {
 "classname" "mesh_instance"
 "origin" "-184 128 40"
@@ -735,7 +743,7 @@
 "mangle" "0 12.5 0"
 "_tb_layer" "1"
 }
-// entity 26
+// entity 27
 {
 "classname" "mesh_instance"
 "origin" "-184 128 72"
@@ -743,7 +751,7 @@
 "mangle" "0 25 0"
 "_tb_layer" "1"
 }
-// entity 27
+// entity 28
 {
 "classname" "mesh_instance"
 "origin" "-184 128 104"
@@ -751,7 +759,7 @@
 "mangle" "0 37.5 0"
 "_tb_layer" "1"
 }
-// entity 28
+// entity 29
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
@@ -760,7 +768,7 @@
 "_tb_layer_sort_index" "1"
 "_tb_layer_hidden" "1"
 }
-// entity 29
+// entity 30
 {
 "classname" "room"
 "_tb_layer" "2"
@@ -1046,7 +1054,7 @@
 ( -11 -133 -103 ) ( -15 -136 -103 ) ( -9 -136 -97 ) __TB_empty [ -0.9544799780350298 -0.2982749931359468 0 -0.56827927 ] [ -0.08525623217701069 0.2728199429664342 -0.9582800496696001 0.35798264 ] 0 1 1
 }
 }
-// entity 30
+// entity 31
 {
 "classname" "portal"
 "_tb_layer" "2"
@@ -1060,7 +1068,7 @@
 ( -9 -152 -119 ) ( -9 -136 -111 ) ( -9 -136 -119 ) __TB_empty [ -2.220446049250313e-16 0 1 0 ] [ 0 -1 0 0 ] 0 1 1
 }
 }
-// entity 31
+// entity 32
 {
 "classname" "portal"
 "_tb_layer" "2"
@@ -1074,7 +1082,7 @@
 ( -9 -152 -81 ) ( -9 -136 -89 ) ( -9 -136 -97 ) __TB_empty [ -2.220446049250313e-16 0 -1 0 ] [ 0 -1 0 0 ] 180 1 1
 }
 }
-// entity 32
+// entity 33
 {
 "classname" "portal"
 "_tb_layer" "2"
@@ -1088,7 +1096,7 @@
 ( 7 -152 -80 ) ( 7 -136 -88 ) ( 7 -136 -96 ) __TB_empty [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
 }
 }
-// entity 33
+// entity 34
 {
 "classname" "portal"
 "_tb_layer" "2"
@@ -1102,7 +1110,7 @@
 ( 23 -136 -103 ) ( 31 -152 -103 ) ( 9 -152 -81 ) __TB_empty [ 0 1 0 0 ] [ -2.7755575615628914e-16 0 1 0 ] 0 1 1
 }
 }
-// entity 34
+// entity 35
 {
 "classname" "portal"
 "_tb_layer" "2"
@@ -1116,7 +1124,7 @@
 ( 9 -152 -127 ) ( 31 -152 -105 ) ( 23 -136 -105 ) __TB_empty [ 0 1 0 0 ] [ -2.7755575615628914e-16 0 -1 0 ] 325.30786 1 1
 }
 }
-// entity 35
+// entity 36
 {
 "classname" "portal"
 "_tb_layer" "2"
@@ -1130,7 +1138,7 @@
 ( 7 -152 -120 ) ( 7 -136 -112 ) ( 7 -136 -120 ) __TB_empty [ 0 1 0 0 ] [ 0 0 -1 0 ] 0 1 1
 }
 }
-// entity 36
+// entity 37
 {
 "classname" "portal"
 "_tb_layer" "2"
@@ -1152,7 +1160,7 @@
 ( 11 -133 -105 ) ( 11 -133 -103 ) ( 7 -130 -103 ) __TB_empty [ -0.9486832980505139 0.316227766016838 0 0.1123085 ] [ 0 0 -1 0 ] 0 1 1
 }
 }
-// entity 37
+// entity 38
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
@@ -1161,51 +1169,50 @@
 "_tb_layer_sort_index" "2"
 "_tb_layer_hidden" "1"
 }
-// entity 38
+// entity 39
 {
 "classname" "info_player_start"
 "origin" "176 0 -4"
 "angle" "180"
 "_tb_layer" "3"
 }
-// entity 39
+// entity 40
 {
 "classname" "info_player_start"
 "origin" "88 64 -4"
 "angle" "-135"
 "_tb_layer" "3"
 }
-// entity 40
+// entity 41
 {
 "classname" "info_player_start"
 "origin" "0 128 -4"
 "angle" "-90"
 "_tb_layer" "3"
 }
-// entity 41
+// entity 42
 {
 "classname" "info_player_start"
 "origin" "-88 64 -4"
 "angle" "-45"
 "_tb_layer" "3"
 }
-// entity 42
+// entity 43
 {
 "classname" "info_player_start"
 "origin" "-176 0 -4"
 "angle" "0"
 "_tb_layer" "3"
 }
-// entity 43
+// entity 44
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "Oscilloscopes"
 "_tb_id" "4"
 "_tb_layer_sort_index" "3"
-"_tb_layer_hidden" "1"
 }
-// entity 44
+// entity 45
 {
 "classname" "oscilloscope"
 "origin" "16 64 0"
@@ -1217,9 +1224,10 @@
 "color" "0.0 1.0 1.0"
 "intensity" "2"
 "delta_intensity" "-2"
+"targetname" "cosine"
 "_tb_layer" "4"
 }
-// entity 45
+// entity 46
 {
 "classname" "oscilloscope"
 "origin" "16 0 0"
@@ -1231,9 +1239,10 @@
 "color" "1.0 0.0 1.0"
 "intensity" "2"
 "delta_intensity" "-2"
+"targetname" "sine"
 "_tb_layer" "4"
 }
-// entity 46
+// entity 47
 {
 "classname" "oscilloscope"
 "origin" "16 -64 0"
@@ -1245,9 +1254,10 @@
 "color" "1.0 1.0 0.0"
 "intensity" "2"
 "delta_intensity" "-2"
+"targetname" "orbit"
 "_tb_layer" "4"
 }
-// entity 47
+// entity 48
 {
 "classname" "oscilloscope"
 "origin" "0 0 -32"
@@ -1259,17 +1269,40 @@
 "color" "1.0 1.0 1.0"
 "intensity" "2"
 "delta_intensity" "-2"
+"targetname" "dot"
 "_tb_layer" "4"
 }
-// entity 48
+// entity 49
+{
+"classname" "mesh_instance"
+"origin" "-16 64 64"
+"target" "oscilloscope_cos_cos_cos"
+"_tb_layer" "4"
+}
+// entity 50
+{
+"classname" "mesh_instance"
+"origin" "-16 0 64"
+"target" "oscilloscope_sin_sin_cos"
+"_tb_layer" "4"
+}
+// entity 51
+{
+"classname" "mesh_instance"
+"origin" "-16 -64 64"
+"target" "oscilloscope_sin_cos_sin"
+"_tb_layer" "4"
+}
+// entity 52
 {
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "Text"
 "_tb_id" "5"
 "_tb_layer_sort_index" "4"
+"_tb_layer_hidden" "1"
 }
-// entity 49
+// entity 53
 {
 "classname" "text"
 "origin" "0 0 144"
@@ -1278,7 +1311,7 @@
 "scale" "0.5 0.5 0.5"
 "_tb_layer" "5"
 }
-// entity 50
+// entity 54
 {
 "classname" "text"
 "origin" "0 0 32"
@@ -1287,7 +1320,7 @@
 "scale" "0.5 0.5 0.5"
 "_tb_layer" "5"
 }
-// entity 51
+// entity 55
 {
 "classname" "text"
 "origin" "0 2 32"

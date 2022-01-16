@@ -85,8 +85,8 @@
 //             * Render thread holds buffers, meshes, render passes
 //             * Game thread holds buffers, mesh instances
 //             * Create a RemoteComponent<T> abstraction for sharing components across threads
-//           [ ] Separate oscilloscope mesh creation from instancing
-//           [ ] Separate test geo triangle mesh creation from instancing
+//           [✓] Separate oscilloscope mesh creation from instancing
+//           [✓] Separate test geo triangle mesh creation from instancing
 //           [ ] Use Arc + RwLock around buffer LazyComponent to avoid having to force-create buffers before send
 //           [ ] Reduce boilerplate for cross-thread setup
 //           [ ] Move map processing to filesystem thread

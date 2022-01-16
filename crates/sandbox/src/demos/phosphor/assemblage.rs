@@ -317,7 +317,7 @@ pub enum OscilloscopeMeshBundle {}
 impl OscilloscopeMeshBundle {
     pub fn builder(
         world: &mut World,
-        position: PositionComponent,
+        name: &str,
         color: (f32, f32, f32),
         oscilloscope: Oscilloscope,
         intensity: f32,
@@ -360,21 +360,15 @@ impl OscilloscopeMeshBundle {
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
             .unwrap()
             .load(Ordering::Relaxed) as u32;
-        let line_count = 1;
+
+        register_mesh_ids(
+            world,
+            &format!("oscilloscope_{}", name),
+            None,
+            Some((line_mesh, 1)),
+        );
 
         builder.add_bundle(LineMeshBundle::builder(world, vertices, indices).build());
-
-        builder.add_bundle(
-            LineMeshInstanceBundle::builder(
-                world,
-                position.into(),
-                nalgebra::Quaternion::identity().into(),
-                nalgebra::vector![1.0, 1.0, 1.0].into(),
-                line_mesh.into(),
-                line_count,
-            )
-            .build(),
-        );
 
         builder
     }
@@ -625,17 +619,16 @@ impl BoxBotMeshBundle {
         let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
         let line_mesh_entity = tagged_entities[&line_mesh_id];
 
-        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
-        let line_mesh_id = tagged_entities[&line_mesh_id];
-
         // Fetch mesh ID and store into mesh ID map
         let triangle_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
-            .unwrap().load(Ordering::Relaxed);
+            .unwrap()
+            .load(Ordering::Relaxed);
 
         let line_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap().load(Ordering::Relaxed);
+            .unwrap()
+            .load(Ordering::Relaxed);
 
         register_mesh_ids(
             world,
@@ -799,6 +792,7 @@ pub fn mesh_instance_builders(
 
     let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
     let (_, mesh_ids) = query.into_iter().next().unwrap();
+    dbg!("Fetching mesh", mesh);
     let (triangle_mesh, line_mesh) = mesh_ids[mesh];
 
     if let Some(triangle_mesh) = triangle_mesh {
