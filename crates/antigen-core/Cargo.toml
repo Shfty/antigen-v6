@@ -8,3 +8,5 @@ rayon = "1.5.1"
 parking_lot = "0.11.2"
 crossbeam-channel = "0.5.1"
 hecs = "0.7.1"
+bytemuck = "1.7.3"
+usage = { path = "../../../usage", features = ["bytemuck"] }
