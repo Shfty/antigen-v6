@@ -12,6 +12,31 @@ impl<T> Default for LazyComponent<T> {
     }
 }
 
+impl<T> Copy for LazyComponent<T> where T: Copy {}
+
+impl<T> Clone for LazyComponent<T> where T: Clone {
+    fn clone(&self) -> Self {
+        match self {
+            LazyComponent::Pending => LazyComponent::Pending,
+            LazyComponent::Ready(data) => LazyComponent::Ready(data.clone()),
+            LazyComponent::Dropped => LazyComponent::Dropped,
+        }
+    }
+}
+
+impl<T> PartialEq for LazyComponent<T> where T: PartialEq {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LazyComponent::Pending, LazyComponent::Pending) => true,
+            (LazyComponent::Ready(lhs), LazyComponent::Ready(rhs)) => lhs.eq(rhs),
+            (LazyComponent::Dropped, LazyComponent::Dropped) => true,
+            _ => false
+        }
+    }
+}
+
+impl<T> Eq for LazyComponent<T> where T: Eq {}
+
 impl<T> LazyComponent<T> {
     pub fn is_pending(&self) -> bool {
         matches!(self, LazyComponent::Pending)
