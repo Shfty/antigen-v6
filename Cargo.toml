@@ -9,9 +9,9 @@ default-members = [
     "crates/sandbox",
 ]
 
-# default profile for devs, fast to compile, okay enough to run, no debug information
+# Fast-compile config for crates in this workspace
 [profile.dev]
-opt-level = 2
+opt-level = 0
 overflow-checks = true
 debug-assertions = true
 panic = "abort"
