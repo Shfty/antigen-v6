@@ -44,7 +44,7 @@
 //           * Calculate base index as instance_index * 2
 //           [✓] Clean up remaining references to compute
 //
-// TODO: [>] Mesh instancing for phosphor renderer
+// TODO: [✓] Mesh instancing for phosphor renderer
 //           * As per line_instancing notes in crate root
 //           * Objective is to be able to load each SVG font grapheme once,
 //             draw multiple copies without duplicating vertex data
@@ -71,32 +71,67 @@
 //
 // TODO: [✓] Respect angle and mangle when spawning point entities
 //           * Will need to convert from quake-forward to wgpu-forward
+// 
+// TODO: [✓] Stratify mesh loading
+//           * Need to be able to create mesh instances by name instead of manually caching IDs
+//           [✓] Store name-id map as component, write during mesh load, lookup during instancing
+//
+// TODO: [ ] Separate triangle / line mesh instance position, rotation, scale out into distinct components
+//           * Should be able to create a single BufferWrite per member with appropriate offsets
+//
+// TODO: [ ] Figure out why lower-case z is missing from text test
 //
 // TODO: [ ] Implement filesystem thread map loading / building
-//           * Need to figure out how to update buffer offsets from entities created off-thread
-//           * Send message to render thread, fetch or reserve entity ID
-//             * Render thread kicks of load on FS thread, provides ID
-//               * FS thread sends components + entity ID to render thread
-//                 * Render thread inserts entities with IDs in context
+//           * Need to be able to read and write buffers from different threads
+//           * Use Arc<Buffer> and clone between threads
+//             * Render thread holds buffers, meshes, render passes
+//             * Game thread holds buffers, mesh instances
+//             * Create a RemoteComponent<T> abstraction for sharing components across threads
 //
 // TODO: [ ] Integrate rapier physics
+//           * Create collision from brush hulls
+//
+// TODO: [ ] Separate box bot from player start
+//           * Player start should represent the camera for now
+//           * Implement as a box_bot point entity
+//
+// TODO: [ ] Implement camera abstraction
+//           [ ] Spawn at first player start
+//           [ ] Mouse capture
+//           [ ] First-person controls
 //
 // TODO: [ ] Implement compute-based frustum culling
 //
 // TODO: [ ] Implement generalized render pass setup
 //
-// TODO: [ ] Implement bloom pass
-//
 // TODO: [ ] Implement portal rendering
 //           * Ideally all portal rendering should happen in existing draw calls for performance's sake
-//           * Just add more geometry
-//             * Effectively an extra layer of room -> mesh instances indirection
-//             * Re-instance rooms and their contents when viewed through a portal
-//           * Stencil buffer seems the best approach to early-out from invisible fragments
-//           * Each portal recursion adds 1 to the stencil value
-//           * Use less-than stencil comparator
+//               * Just add more geometry
+//                 * Effectively an extra layer of room -> mesh instances indirection
+//                 * Re-instance rooms and their contents when viewed through a portal
+//               * Stencil buffer seems the best approach to early-out from invisible fragments
+//               * Each portal recursion adds 1 to the stencil value
+//               * Use less-than stencil comparator
+//          * Will need a way to track the current room in order to begin portal traversal
+//            * Point-in-box checks against room hulls
+//            * If camera is not inside a room, find the closest one
+//              * Ideally should use distance-to-nearest-surface
+//              * If impractical, distance-to-center should suffice
 //
 // TODO: [ ] Investigate box portals for room-inside-room
+//
+// TODO: [ ] Generalize map -> entities + components conversion
+//           * Need a way to map classname to a set of entities, properties to components
+//           * Multiple cases to consider:
+//             * Simple single-value components
+//               * Parse single property via FromStr
+//             * Complex multi-value components
+//               * Parse multiple properties via FromStr
+//               * Use component.member naming for TrenchBroom properties
+//           * Traits + cons lists to model classname -> components relation?
+//
+// TODO: [ ] Implement bloom pass
+//
 //
 
 mod demos;

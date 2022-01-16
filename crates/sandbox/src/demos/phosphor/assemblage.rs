@@ -6,7 +6,8 @@ use antigen_wgpu::{
 use hecs::{EntityBuilder, World};
 
 use super::{
-    BufferEntities, LineInstanceData, LineMeshData, LineMeshInstanceData, Oscilloscope,
+    BufferEntities, LineInstanceData, LineMeshData, LineMeshIdComponent, LineMeshInstanceData,
+    MeshIds, MeshIdsComponent, Oscilloscope, PositionComponent, RotationComponent, ScaleComponent,
     TriangleMeshData, TriangleMeshInstanceData, VertexData, BLACK, BLUE, GREEN,
     MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
 };
@@ -176,10 +177,10 @@ impl LineMeshInstanceBundle {
             line_instance_entity,
             ..
         }: BufferEntities,
-        position: [f32; 3],
-        rotation: [f32; 4],
-        scale: [f32; 3],
-        line_mesh: u32,
+        position: PositionComponent,
+        rotation: RotationComponent,
+        scale: ScaleComponent,
+        line_mesh: LineMeshIdComponent,
         line_count: u32,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
@@ -187,16 +188,29 @@ impl LineMeshInstanceBundle {
         let line_mesh_instance_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
             .unwrap();
+        let base_offset = buffer_size_of::<LineMeshInstanceData>() * **line_mesh_instance_head;
 
         builder.add_bundle(BufferDataBundle::new(
-            vec![LineMeshInstanceData {
-                position,
-                mesh: line_mesh,
-                rotation,
-                scale,
-                ..Default::default()
-            }],
-            buffer_size_of::<LineMeshInstanceData>() * **line_mesh_instance_head,
+            position,
+            base_offset,
+            line_mesh_instance_entity,
+        ));
+
+        builder.add_bundle(BufferDataBundle::new(
+            line_mesh,
+            base_offset + buffer_size_of::<[f32; 3]>(),
+            line_mesh_instance_entity,
+        ));
+
+        builder.add_bundle(BufferDataBundle::new(
+            rotation,
+            base_offset + buffer_size_of::<[f32; 4]>(),
+            line_mesh_instance_entity,
+        ));
+
+        builder.add_bundle(BufferDataBundle::new(
+            scale,
+            base_offset + buffer_size_of::<[f32; 8]>(),
             line_mesh_instance_entity,
         ));
 
@@ -282,7 +296,7 @@ impl OscilloscopeMeshBundle {
         buffer_entities @ BufferEntities {
             line_mesh_entity, ..
         }: BufferEntities,
-        origin: [f32; 3],
+        position: PositionComponent,
         color: (f32, f32, f32),
         oscilloscope: Oscilloscope,
         intensity: f32,
@@ -324,10 +338,10 @@ impl OscilloscopeMeshBundle {
             LineMeshInstanceBundle::builder(
                 world,
                 buffer_entities,
-                origin.into(),
-                [0.0, 0.0, 0.0, 1.0],
-                [1.0; 3],
-                line_mesh,
+                position.into(),
+                nalgebra::Quaternion::identity().into(),
+                nalgebra::vector![1.0, 1.0, 1.0].into(),
+                line_mesh.into(),
                 line_count,
             )
             .build(),
@@ -451,9 +465,9 @@ impl TriangleMeshInstanceDataBundle {
             ..
         }: BufferEntities,
         mesh: u32,
-        position: [f32; 3],
-        rotation: [f32; 4],
-        scale: [f32; 3],
+        position: PositionComponent,
+        rotation: RotationComponent,
+        scale: ScaleComponent,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
@@ -466,16 +480,25 @@ impl TriangleMeshInstanceDataBundle {
         let triangle_mesh_instance_head =
             triangle_mesh_instance_heads.get_mut(mesh as usize).unwrap();
 
+        let base_offset = buffer_size_of::<TriangleMeshInstanceData>()
+            * (*triangle_mesh_instance_head as BufferAddress
+                + (mesh * MAX_TRIANGLE_MESH_INSTANCES as u32) as BufferAddress);
+
         builder.add_bundle(BufferDataBundle::new(
-            vec![TriangleMeshInstanceData {
-                position,
-                rotation,
-                scale,
-                ..Default::default()
-            }],
-            buffer_size_of::<TriangleMeshInstanceData>()
-                * (*triangle_mesh_instance_head as BufferAddress
-                    + (mesh * MAX_TRIANGLE_MESH_INSTANCES as u32) as BufferAddress),
+            position,
+            base_offset,
+            triangle_mesh_instance_entity,
+        ));
+
+        builder.add_bundle(BufferDataBundle::new(
+            rotation,
+            base_offset + buffer_size_of::<[f32; 4]>(),
+            triangle_mesh_instance_entity,
+        ));
+
+        builder.add_bundle(BufferDataBundle::new(
+            scale,
+            base_offset + buffer_size_of::<[f32; 8]>(),
             triangle_mesh_instance_entity,
         ));
 
@@ -542,10 +565,29 @@ impl BoxBotMeshBundle {
         BufferEntities {
             vertex_entity,
             triangle_index_entity,
+            triangle_mesh_entity,
+            line_mesh_entity,
             ..
         }: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
+        // Fetch mesh ID and store into mesh ID map
+        let triangle_mesh_head = **world
+            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
+            .unwrap();
+
+        let line_mesh_head = **world
+            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
+            .unwrap();
+
+        register_mesh_ids(
+            world,
+            "box_bot",
+            Some(triangle_mesh_head as u32),
+            Some((line_mesh_head as u32, 12)),
+        );
+
+        // Build mesh components
         let mut builders = vec![];
 
         let base_vertex = **world
@@ -677,6 +719,57 @@ impl BoxBotMeshBundle {
 
         builders
     }
+}
+
+pub fn register_mesh_ids(
+    world: &mut World,
+    key: &str,
+    triangle_mesh: Option<u32>,
+    line_mesh: Option<(u32, u32)>,
+) {
+    let query = world.query_mut::<&mut MeshIdsComponent>().with::<MeshIds>();
+    let (_, mesh_ids) = query.into_iter().next().unwrap();
+    mesh_ids.insert(key.into(), (triangle_mesh, line_mesh));
+}
+
+pub fn mesh_instance_builders(
+    world: &mut World,
+    buffer_entities: BufferEntities,
+    mesh: &str,
+    position: PositionComponent,
+    rotation: RotationComponent,
+    scale: ScaleComponent,
+) -> Vec<EntityBuilder> {
+    let mut builders = vec![];
+
+    let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
+    let (_, mesh_ids) = query.into_iter().next().unwrap();
+    let (triangle_mesh, line_mesh) = mesh_ids[mesh];
+
+    if let Some(triangle_mesh) = triangle_mesh {
+        builders.push(TriangleMeshInstanceDataBundle::builder(
+            world,
+            buffer_entities,
+            triangle_mesh,
+            position,
+            rotation,
+            scale,
+        ));
+    }
+
+    if let Some((line_mesh, line_count)) = line_mesh {
+        builders.push(LineMeshInstanceBundle::builder(
+            world,
+            buffer_entities,
+            position.into(),
+            rotation.into(),
+            scale.into(),
+            line_mesh.into(),
+            line_count,
+        ));
+    }
+
+    builders
 }
 
 /*

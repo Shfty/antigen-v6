@@ -49,7 +49,7 @@
 //           [ ] Account for portal entities when calculating internal faces
 //               * Will need some predicate that can be passed to the InternalFaces constructor
 //           [ ] Investigate calculating subsectors from internal faces
-//           [ ] Paralellize shambler
+//           [✓] Paralellize shambler
 //
 //       [✓] Figure out how to flush command buffers at runtime
 //           * Needed to add, remove components or entities
@@ -147,8 +147,6 @@ use hecs::{Entity, EntityBuilder, World};
 
 use crate::{Filesystem, Render};
 
-pub type FontMeshes = BTreeMap<String, BTreeMap<String, (u32, u32)>>;
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct BufferEntities {
     pub vertex_entity: Entity,
@@ -168,7 +166,7 @@ const MAX_TRIANGLE_MESHES: usize = 100;
 const MAX_TRIANGLE_MESH_INSTANCES: usize = 256;
 const MAX_LINE_INDICES: usize = 20000;
 const MAX_LINE_MESHES: usize = 100;
-const MAX_LINE_MESH_INSTANCES: usize = 200;
+const MAX_LINE_MESH_INSTANCES: usize = 400;
 const MAX_LINE_INSTANCES: usize = MAX_LINE_INDICES / 2;
 const CLEAR_COLOR: antigen_wgpu::wgpu::Color = antigen_wgpu::wgpu::Color {
     r: 0.0,
@@ -345,6 +343,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(antigen_wgpu::BufferLengthComponent::default())
         .build();
     let vertex_entity = world.spawn(bundle);
+
+    // Mesh IDs
+    let mut builder = EntityBuilder::new();
+    builder.add(MeshIds);
+    builder.add(MeshIdsComponent::default());
+    world.spawn(builder.build());
 
     // Triangle Indices
     let mut builder = EntityBuilder::new();
@@ -977,12 +981,11 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     };
 
     // Load SVG meshes
-    let mut font_meshes = FontMeshes::default();
     {
         let svg = SvgLayers::parse("crates/sandbox/src/demos/phosphor/fonts/basic.svg")
             .expect("Failed to parse SVG");
         let meshes = svg.meshes();
-        for (layer, graphemes) in meshes.iter() {
+        for (_, graphemes) in meshes.iter() {
             for (grapheme, (vertices, indices)) in graphemes.iter() {
                 let vertices = vertices
                     .into_iter()
@@ -1006,10 +1009,8 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                     .unwrap() as u32;
                 let line_count = indices.len() as u32 / 2;
 
-                font_meshes
-                    .entry(layer.clone())
-                    .or_default()
-                    .insert(grapheme.clone(), (line_mesh, line_count));
+                let key = format!("char_{}", grapheme);
+                register_mesh_ids(world, &key, None, Some((line_mesh, line_count)));
 
                 let mut builder =
                     LineMeshBundle::builder(world, buffer_entities, vertices, indices);
@@ -1021,7 +1022,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     }
 
     // Assemble test geometry
-    assemble_test_geometry(world, buffer_entities, &font_meshes);
+    assemble_test_geometry(world, buffer_entities);
 
     /*
     load_map::<MapFile, Filesystem, _>(
@@ -1045,7 +1046,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let bundles = room_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
-        let (mut mesh_brushes, mesh_brush_ids) =
+        let mut mesh_brushes =
             map_data.build_meshes(world, buffer_entities, triangle_indexed_indirect_builder);
         let bundles = mesh_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
@@ -1053,8 +1054,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let mut point_entities = map_data.build_point_entities(
             world,
             buffer_entities,
-            &font_meshes,
-            &mesh_brush_ids,
             triangle_indexed_indirect_builder,
         );
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
@@ -1062,16 +1061,12 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     }
 }
 
-fn assemble_test_geometry(
-    world: &mut World,
-    buffer_entities: BufferEntities,
-    font_meshes: &FontMeshes,
-) {
+fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
     // Oscilloscopes
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
         buffer_entities,
-        [-80.0, 40.0, -80.0],
+        nalgebra::vector![-80.0, 40.0, -80.0].into(),
         RED,
         Oscilloscope::new(3.33, 30.0, |f| (f.sin(), f.cos(), f.sin())),
         2.0,
@@ -1083,7 +1078,7 @@ fn assemble_test_geometry(
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
         buffer_entities,
-        [-80.0, 40.0, 0.0],
+        nalgebra::vector![-80.0, 40.0, 0.0].into(),
         GREEN,
         Oscilloscope::new(2.22, 30.0, |f| (f.sin(), (f * 1.2).sin(), (f * 1.4).cos())),
         2.0,
@@ -1095,7 +1090,7 @@ fn assemble_test_geometry(
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
         buffer_entities,
-        [-80.0, 40.0, 80.0],
+        nalgebra::vector![-80.0, 40.0, 80.0].into(),
         BLUE,
         Oscilloscope::new(3.33, 30.0, |f| (f.cos(), (f * 1.2).cos(), (f * 1.4).cos())),
         2.0,
@@ -1125,10 +1120,10 @@ fn assemble_test_geometry(
     let mut builder = LineMeshInstanceBundle::builder(
         world,
         buffer_entities,
-        [-50.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-        [1.0; 3],
-        line_mesh,
+        nalgebra::vector![-50.0, 0.0, 0.0].into(),
+        nalgebra::Quaternion::identity().into(),
+        nalgebra::vector![1.0, 1.0, 1.0].into(),
+        line_mesh.into(),
         line_count,
     );
     let bundle = builder.build();
@@ -1157,36 +1152,14 @@ fn assemble_test_geometry(
     let mut builder = LineMeshInstanceBundle::builder(
         world,
         buffer_entities,
-        [50.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-        [1.0; 3],
-        line_mesh,
+        nalgebra::vector![50.0, 0.0, 0.0].into(),
+        nalgebra::Quaternion::identity().into(),
+        nalgebra::vector![1.0, 1.0, 1.0].into(),
+        line_mesh.into(),
         line_count,
     );
     let bundle = builder.build();
     world.spawn(bundle);
-
-    // Spawn text mesh instances
-    for (iy, (_, graphemes)) in font_meshes.iter().enumerate() {
-        for (ix, (_, (line_mesh, line_count))) in graphemes.iter().enumerate() {
-            let step = 20.0;
-            let ofs_x = (-step * 13.0) + ix as f32 * 20.0;
-            let ofs_y = iy as f32 * 30.0;
-
-            let mut builder = LineMeshInstanceBundle::builder(
-                world,
-                buffer_entities,
-                [ofs_x * 0.5, ofs_y * 0.5, 0.0],
-                [0.0, 0.0, 0.0, 1.0],
-                [0.5; 3],
-                *line_mesh,
-                *line_count,
-            );
-            let bundle = builder.build();
-
-            world.spawn(bundle);
-        }
-    }
 }
 
 struct MapData {
@@ -1214,10 +1187,10 @@ impl From<GeoMap> for MapData {
         // Reverse lookup tables for brush -> entity, face -> brush
         println!("Generating brush entities");
         let brush_entities =
-            antigen_shambler::shambler::brush::BrushEntities::new(&geo_map.entity_brushes);
+            antigen_shambler::shambler::brush::brush_entities(&geo_map.entity_brushes);
 
         println!("Generating face brushes");
-        let face_brushes = antigen_shambler::shambler::face::FaceBrushes::new(&geo_map.brush_faces);
+        let face_brushes = antigen_shambler::shambler::face::face_brushes(&geo_map.brush_faces);
 
         // Create geo planes from brush planes
         println!("Generating face planes");
@@ -1226,7 +1199,7 @@ impl From<GeoMap> for MapData {
         // Create per-brush hulls from brush planes
         println!("Generating brush hulls");
         let brush_hulls =
-            antigen_shambler::shambler::brush::BrushHulls::new(&geo_map.brush_faces, &face_planes);
+            antigen_shambler::shambler::brush::brush_hulls(&geo_map.brush_faces, &face_planes);
 
         // Generate face vertices
         println!("Generating face vertices");
@@ -1238,7 +1211,7 @@ impl From<GeoMap> for MapData {
 
         // Find duplicate faces
         println!("Generating face duplicates");
-        let face_duplicates = antigen_shambler::shambler::face::FaceDuplicates::new(
+        let face_duplicates = antigen_shambler::shambler::face::face_duplicates(
             &geo_map.faces,
             &face_planes,
             &face_vertices,
@@ -1246,16 +1219,14 @@ impl From<GeoMap> for MapData {
 
         // Generate centers
         println!("Generating face centers");
-        let face_centers = antigen_shambler::shambler::face::FaceCenters::new(&face_vertices);
+        let face_centers = antigen_shambler::shambler::face::face_centers(&face_vertices);
 
         println!("Generating brush centers");
-        let brush_centers = antigen_shambler::shambler::brush::BrushCenters::new(
-            &geo_map.brush_faces,
-            &face_centers,
-        );
+        let brush_centers =
+            antigen_shambler::shambler::brush::brush_centers(&geo_map.brush_faces, &face_centers);
 
         println!("Generating entity centers");
-        let entity_centers = antigen_shambler::shambler::entity::EntityCenters::new(
+        let entity_centers = antigen_shambler::shambler::entity::entity_centers(
             &geo_map.entity_brushes,
             &brush_centers,
         );
@@ -1272,12 +1243,10 @@ impl From<GeoMap> for MapData {
 
         println!("Generating face triangle indices");
         let face_triangle_indices =
-            antigen_shambler::shambler::face::FaceTriangleIndices::new(&face_indices);
+            antigen_shambler::shambler::face::face_triangle_indices(&face_indices);
 
         println!("Generating lines");
         let (lines, face_lines) = antigen_shambler::shambler::line::lines(&face_indices);
-
-        let line_faces = antigen_shambler::shambler::line::line_faces(&face_lines);
 
         println!("Generating line duplicates");
         let line_duplicates = antigen_shambler::shambler::line::line_duplicates(
@@ -1290,7 +1259,7 @@ impl From<GeoMap> for MapData {
         );
 
         println!("Generating interior faces");
-        let interior_faces = antigen_shambler::shambler::face::InteriorFaces::new(
+        let interior_faces = antigen_shambler::shambler::face::interior_faces(
             &geo_map.brushes,
             &geo_map.brush_faces,
             &face_duplicates,
@@ -1300,7 +1269,7 @@ impl From<GeoMap> for MapData {
 
         // Generate tangents
         println!("Generating face bases");
-        let face_bases = antigen_shambler::shambler::face::FaceBases::new(
+        let face_bases = antigen_shambler::shambler::face::face_bases(
             &geo_map.faces,
             &face_planes,
             &geo_map.face_offsets,
@@ -1310,7 +1279,7 @@ impl From<GeoMap> for MapData {
 
         // Calculate face-face containment
         println!("Generating face-face containment");
-        let face_face_containment = antigen_shambler::shambler::face::FaceFaceContainment::new(
+        let face_face_containment = antigen_shambler::shambler::face::face_face_containment(
             &geo_map.faces,
             &lines,
             &face_planes,
@@ -1321,7 +1290,7 @@ impl From<GeoMap> for MapData {
 
         // Calculate brush-face containment
         println!("Generating brush-face containment");
-        let brush_face_containment = antigen_shambler::shambler::brush::BrushFaceContainment::new(
+        let brush_face_containment = antigen_shambler::shambler::brush::brush_face_containment(
             &geo_map.brushes,
             &geo_map.faces,
             &geo_map.brush_faces,
@@ -1477,6 +1446,7 @@ impl MapData {
         for (entity, brushes) in entity_brushes {
             let entity_faces = self.entity_faces(brushes);
             let entity_center = self.entity_centers[entity];
+            let entity_center = entity_center.xzy();
 
             // Generate mesh
             let mut mesh_vertices: Vec<VertexData> = Default::default();
@@ -1510,15 +1480,23 @@ impl MapData {
             let mut local_index_head = 0u32;
 
             for face_id in entity_faces {
-                if self.face_duplicates.contains(&face_id) {
+                if self.face_duplicates.iter().any(|(a, _)| a == face_id) {
                     continue;
                 }
 
-                if self.face_face_containment.is_contained(&face_id) {
+                if self
+                    .face_face_containment
+                    .iter()
+                    .any(|(_, b)| b.contains(face_id))
+                {
                     continue;
                 }
 
-                if self.brush_face_containment.is_contained(&face_id) {
+                if self
+                    .brush_face_containment
+                    .iter()
+                    .any(|(_, b)| b.contains(face_id))
+                {
                     continue;
                 }
 
@@ -1536,8 +1514,8 @@ impl MapData {
                     .map(|vertex| VertexData {
                         position: [
                             vertex.position[0] - entity_center[0],
-                            vertex.position[1] - entity_center[2],
-                            vertex.position[2] - entity_center[1],
+                            vertex.position[1] - entity_center[1],
+                            vertex.position[2] - entity_center[2],
                         ],
                         ..vertex
                     })
@@ -1602,31 +1580,22 @@ impl MapData {
 
             builders.push(builder);
 
-            // Singleton mesh instance
-            let mut builder = EntityBuilder::new();
-            builder.add_bundle(
-                TriangleMeshInstanceDataBundle::builder(
-                    world,
-                    buffer_entities,
-                    triangle_mesh,
-                    [entity_center.x, entity_center.z, entity_center.y],
-                    [0.0, 0.0, 0.0, 1.0],
-                    [1.0; 3],
-                )
-                .build(),
+            let key = format!("entity_{}", entity);
+            register_mesh_ids(
+                world,
+                &key,
+                Some(triangle_mesh),
+                Some((line_mesh, line_count)),
             );
 
-            builder.add_bundle(LineMeshInstanceBundle::builder(
+            builders.extend(mesh_instance_builders(
                 world,
                 buffer_entities,
-                [entity_center.x, entity_center.z, entity_center.y],
-                [0.0, 0.0, 0.0, 1.0],
-                [1.0; 3],
-                line_mesh,
-                line_count,
-            ).build());
-
-            builders.push(builder);
+                &key,
+                entity_center.into(),
+                nalgebra::Quaternion::identity().into(),
+                nalgebra::vector![1.0, 1.0, 1.0].into(),
+            ));
         }
 
         builders
@@ -1646,9 +1615,8 @@ impl MapData {
             ..
         }: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
-    ) -> (Vec<EntityBuilder>, BTreeMap<String, (u32, u32, u32)>) {
+    ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
-        let mut meshes = BTreeMap::default();
 
         let entity_brushes = self.classname_brushes("mesh");
 
@@ -1694,15 +1662,23 @@ impl MapData {
             let mut local_index_head = 0u32;
 
             for face_id in entity_faces {
-                if self.face_duplicates.contains(&face_id) {
+                if self.face_duplicates.iter().any(|(_, b)| b == face_id) {
                     continue;
                 }
 
-                if self.face_face_containment.is_contained(&face_id) {
+                if self
+                    .face_face_containment
+                    .iter()
+                    .any(|(_, b)| b.contains(face_id))
+                {
                     continue;
                 }
 
-                if self.brush_face_containment.is_contained(&face_id) {
+                if self
+                    .brush_face_containment
+                    .iter()
+                    .any(|(_, b)| b.contains(face_id))
+                {
                     continue;
                 }
 
@@ -1736,11 +1712,6 @@ impl MapData {
             let triangle_index_count = triangle_indices.len() as u32;
             let line_index_count = line_indices.len() as u32;
 
-            meshes.insert(
-                entity_mesh_name,
-                (triangle_mesh, line_mesh as u32, line_index_count / 2),
-            );
-
             // Singleton mesh instance
             builders.extend([
                 TriangleMeshBundle::builder(
@@ -1768,9 +1739,16 @@ impl MapData {
                     line_index_count,
                 ),
             ]);
+
+            register_mesh_ids(
+                world,
+                &entity_mesh_name,
+                Some(triangle_mesh),
+                Some((line_mesh as u32, line_index_count / 2)),
+            );
         }
 
-        (builders, meshes)
+        builders
     }
 
     fn property_origin(properties: &Properties) -> nalgebra::Vector3<f32> {
@@ -1858,15 +1836,7 @@ impl MapData {
     pub fn build_point_entities(
         &self,
         world: &mut World,
-        buffer_entities
-        @
-        BufferEntities {
-            triangle_mesh_entity,
-            line_mesh_entity,
-            ..
-        }: BufferEntities,
-        font_meshes: &FontMeshes,
-        mesh_brush_ids: &BTreeMap<String, (u32, u32, u32)>,
+        buffer_entities: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
@@ -1885,16 +1855,6 @@ impl MapData {
             }
         });
 
-        let triangle_mesh = **world
-            .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
-            .unwrap() as u32;
-
-        let line_mesh = **world
-            .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap() as u32;
-
-        let line_count = 12;
-
         builders.extend(BoxBotMeshBundle::builders(
             world,
             buffer_entities,
@@ -1906,34 +1866,14 @@ impl MapData {
             let rotation = Self::property_rotation(player_start, true);
             let scale = Self::property_scale(player_start);
 
-            let mut builder = EntityBuilder::new();
-
-            builder.add_bundle(
-                TriangleMeshInstanceDataBundle::builder(
-                    world,
-                    buffer_entities,
-                    triangle_mesh,
-                    origin.into(),
-                    rotation.coords.into(),
-                    scale.into(),
-                )
-                .build(),
-            );
-
-            builder.add_bundle(
-                LineMeshInstanceBundle::builder(
-                    world,
-                    buffer_entities,
-                    origin.into(),
-                    rotation.coords.into(),
-                    scale.into(),
-                    line_mesh,
-                    line_count,
-                )
-                .build(),
-            );
-
-            builders.push(builder);
+            builders.extend(mesh_instance_builders(
+                world,
+                buffer_entities,
+                "box_bot",
+                origin.into(),
+                rotation.into_inner().into(),
+                scale.into(),
+            ));
         }
 
         // Spawn oscilloscope entities
@@ -1996,33 +1936,15 @@ impl MapData {
             let scale = Self::property_scale(properties);
 
             let target = Self::property_string("target", properties).unwrap();
-            let (triangle_mesh, line_mesh, line_count) = mesh_brush_ids[target];
 
-            let mut builder = EntityBuilder::new();
-            builder.add_bundle(
-                TriangleMeshInstanceDataBundle::builder(
-                    world,
-                    buffer_entities,
-                    triangle_mesh,
-                    origin.into(),
-                    rotation.coords.into(),
-                    scale.into(),
-                )
-                .build(),
-            );
-            builder.add_bundle(
-                LineMeshInstanceBundle::builder(
-                    world,
-                    buffer_entities,
-                    origin.into(),
-                    rotation.coords.into(),
-                    scale.into(),
-                    line_mesh,
-                    line_count,
-                )
-                .build(),
-            );
-            builders.push(builder);
+            builders.extend(mesh_instance_builders(
+                world,
+                buffer_entities,
+                target,
+                origin.into(),
+                rotation.into_inner().into(),
+                scale.into(),
+            ));
         }
 
         // Spawn text entities
@@ -2046,12 +1968,6 @@ impl MapData {
 
             let text = Self::property_string("text", properties).unwrap();
 
-            let graphemes = font_meshes
-                .values()
-                .flatten()
-                .map(|(c, mesh)| (c.as_str(), mesh))
-                .collect::<BTreeMap<_, _>>();
-
             let lines = text
                 .split("\\n")
                 .map(|line| line.chars().collect::<Vec<_>>())
@@ -2072,18 +1988,14 @@ impl MapData {
                     let ofs = ofs.component_mul(&scale);
                     let ofs = rotation * ofs;
 
-                    let (line_mesh, line_count) = graphemes
-                        .get(c.to_string().as_str())
-                        .unwrap_or_else(|| panic!("No grapheme for {}", c));
-
-                    builders.push(LineMeshInstanceBundle::builder(
+                    let key = format!("char_{}", c.to_string().as_str());
+                    builders.extend(mesh_instance_builders(
                         world,
                         buffer_entities,
+                        &key,
                         (origin + ofs).into(),
-                        rotation.coords.into(),
+                        rotation.into_inner().into(),
                         scale.into(),
-                        *line_mesh,
-                        *line_count,
                     ));
                 }
             }
@@ -2109,15 +2021,19 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::buffer_write_system::<DeltaTimeComponent>(world);
             antigen_wgpu::buffer_write_system::<PerspectiveMatrixComponent>(world);
             antigen_wgpu::buffer_write_system::<OrthographicMatrixComponent>(world);
-            antigen_wgpu::buffer_write_system::<VertexDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<TriangleIndexDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<TriangleMeshDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<TriangleMeshInstanceDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<LineVertexDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<LineIndexDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<LineMeshDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<LineMeshInstanceDataComponent>(world);
-            antigen_wgpu::buffer_write_system::<LineInstanceDataComponent>(world);
+            antigen_wgpu::buffer_write_slice_system::<VertexDataComponent, _>(world);
+            antigen_wgpu::buffer_write_slice_system::<TriangleIndexDataComponent, _>(world);
+            antigen_wgpu::buffer_write_slice_system::<TriangleMeshDataComponent, _>(world);
+            antigen_wgpu::buffer_write_system::<PositionComponent>(world);
+            antigen_wgpu::buffer_write_system::<RotationComponent>(world);
+            antigen_wgpu::buffer_write_system::<ScaleComponent>(world);
+            antigen_wgpu::buffer_write_system::<LineMeshIdComponent>(world);
+            antigen_wgpu::buffer_write_slice_system::<TriangleMeshInstanceDataComponent, _>(world);
+            antigen_wgpu::buffer_write_slice_system::<LineVertexDataComponent, _>(world);
+            antigen_wgpu::buffer_write_slice_system::<LineIndexDataComponent, _>(world);
+            antigen_wgpu::buffer_write_slice_system::<LineMeshDataComponent, _>(world);
+            antigen_wgpu::buffer_write_slice_system::<LineMeshInstanceDataComponent, _>(world);
+            antigen_wgpu::buffer_write_slice_system::<LineInstanceDataComponent, _>(world);
         }
         phosphor_update_beam_mesh_draw_count_system(world);
         phosphor_update_beam_line_draw_count_system(world);

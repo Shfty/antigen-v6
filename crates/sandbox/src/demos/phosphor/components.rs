@@ -1,8 +1,7 @@
 use bytemuck::{Pod, Zeroable};
-use std::time::Instant;
+use std::{collections::BTreeMap, time::Instant};
 
 use antigen_core::{Changed, Usage};
-use antigen_wgpu::ToBytes;
 
 // Phosphor renderer tag
 pub struct PhosphorRenderer;
@@ -30,7 +29,10 @@ pub struct LineInstances;
 pub struct Perspective;
 pub struct Orthographic;
 
-pub enum Origin {}
+pub enum Position {}
+pub enum Rotation {}
+pub enum Scale {}
+pub enum LineMeshId {}
 
 pub struct Uniform;
 pub struct StorageBuffers;
@@ -52,6 +54,22 @@ pub type DeltaTimeComponent = Usage<DeltaTime, f32>;
 pub type PerspectiveMatrixComponent = Usage<Perspective, [[f32; 4]; 4]>;
 pub type OrthographicMatrixComponent = Usage<Orthographic, [[f32; 4]; 4]>;
 
+/// Mesh ID map
+pub struct MeshIds;
+pub type MeshIdsComponent = BTreeMap<String, (Option<u32>, Option<(u32, u32)>)>;
+
+// Position
+pub type PositionComponent = Usage<Position, nalgebra::Vector3<f32>>;
+
+// Rotation
+pub type RotationComponent = Usage<Rotation, nalgebra::Quaternion<f32>>;
+
+// Scale
+pub type ScaleComponent = Usage<Scale, nalgebra::Vector3<f32>>;
+
+// Line Mesh ID
+pub type LineMeshIdComponent = Usage<LineMeshId, u32>;
+
 /// Singleton shader data
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone, Pod, Zeroable)]
@@ -62,8 +80,6 @@ pub struct UniformData {
     delta_time: f32,
     _pad_0: [f32; 2],
 }
-
-pub type OriginComponent = Usage<Origin, (f32, f32, f32)>;
 
 /// Vertex data for 2D line meshes
 #[repr(C)]
@@ -167,12 +183,6 @@ pub type LineMeshInstanceDataComponent = Vec<LineMeshInstanceData>;
 pub struct LineInstanceData {
     pub mesh_instance: u32,
     pub line_index: u32,
-}
-
-impl ToBytes for LineInstanceData {
-    fn to_bytes(&self) -> &[u8] {
-        bytemuck::bytes_of(self)
-    }
 }
 
 pub type LineInstanceDataComponent = Vec<LineInstanceData>;
