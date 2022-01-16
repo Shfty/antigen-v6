@@ -4,7 +4,6 @@ mod components;
 mod compute_pass;
 mod render_pass;
 mod systems;
-mod to_bytes;
 
 use std::path::PathBuf;
 
@@ -24,7 +23,6 @@ pub use compute_pass::*;
 pub use render_pass::*;
 use hecs::World;
 pub use systems::*;
-pub use to_bytes::*;
 pub use wgpu;
 
 use wgpu::{BufferAddress, ShaderModuleDescriptor, ShaderSource};

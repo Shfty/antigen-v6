@@ -1,15 +1,15 @@
+use std::ops::Deref;
+
 use super::{
-    BufferInitDescriptorComponent, BufferWriteComponent, CommandBuffersComponent,
-    SurfaceComponent, SurfaceTextureComponent,
-    TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
-    TextureWriteComponent, ToBytes,
+    BufferInitDescriptorComponent, BufferWriteComponent, CommandBuffersComponent, SurfaceComponent,
+    SurfaceTextureComponent, TextureDescriptorComponent, TextureViewComponent,
+    TextureViewDescriptorComponent, TextureWriteComponent,
 };
 use crate::{
     AdapterComponent, BufferComponent, BufferDescriptorComponent, CommandEncoderComponent,
-    DeviceComponent, InstanceComponent, QueueComponent,
-    SamplerComponent, SamplerDescriptorComponent, ShaderModuleComponent,
-    ShaderModuleDescriptorComponent, ShaderModuleDescriptorSpirVComponent,
-    SurfaceConfigurationComponent, TextureComponent,
+    DeviceComponent, InstanceComponent, QueueComponent, SamplerComponent,
+    SamplerDescriptorComponent, ShaderModuleComponent, ShaderModuleDescriptorComponent,
+    ShaderModuleDescriptorSpirVComponent, SurfaceConfigurationComponent, TextureComponent,
 };
 
 use antigen_core::{Changed, ChangedTrait, Indirect, LazyComponent, Usage};
@@ -182,10 +182,7 @@ pub fn surface_texture_present_system(world: &mut World) {
 
 // Drop texture views whose surface textures have been invalidated, unsetting their dirty flag
 pub fn surface_texture_view_drop_system(world: &mut World) {
-    let mut query = world.query::<(
-        &mut SurfaceTextureComponent,
-        &mut TextureViewComponent,
-    )>();
+    let mut query = world.query::<(&mut SurfaceTextureComponent, &mut TextureViewComponent)>();
     for (_, (surface_texture, texture_view)) in query.into_iter() {
         if !surface_texture.get_changed() {
             continue;
@@ -369,7 +366,7 @@ pub fn create_samplers_system(world: &mut World) {
 }
 
 // Write data to buffer
-pub fn buffer_write_system<T: ToBytes + Send + Sync + 'static>(world: &mut World) {
+pub fn buffer_write_system<T: bytemuck::Pod + Send + Sync + 'static>(world: &mut World) {
     let mut query = world.query::<&QueueComponent>();
     let (_, queue) = if let Some(components) = query.into_iter().next() {
         components
@@ -400,7 +397,59 @@ pub fn buffer_write_system<T: ToBytes + Send + Sync + 'static>(world: &mut World
                 continue;
             };
 
-            let bytes = data_component.to_bytes();
+            let bytes = bytemuck::bytes_of(data_component.deref());
+
+            println!(
+                "Writing {} ({} bytes) to entity {:?} buffer at offset {}",
+                std::any::type_name::<T>(),
+                bytes.len(),
+                buffer_entity,
+                buffer_write.offset(),
+            );
+            queue.write_buffer(buffer, buffer_write.offset(), bytes);
+
+            data_component.set_changed(false);
+        }
+    }
+}
+
+pub fn buffer_write_slice_system<
+    T: Deref<Target = [V]> + Send + Sync + 'static,
+    V: bytemuck::Pod + 'static,
+>(
+    world: &mut World,
+) {
+    let mut query = world.query::<&QueueComponent>();
+    let (_, queue) = if let Some(components) = query.into_iter().next() {
+        components
+    } else {
+        return;
+    };
+
+    let mut query = world.query::<(
+        &BufferWriteComponent<T>,
+        &Changed<T>,
+        &Usage<BufferWriteComponent<T>, Indirect<&BufferComponent>>,
+    )>();
+
+    for (_, (buffer_write, data_component, buffer)) in query.into_iter() {
+        let buffer_entity = buffer.entity();
+        let mut query = buffer.get(world);
+        let buffer = query.get().unwrap_or_else(|| {
+            panic!(
+                "No buffer component for data {}",
+                std::any::type_name::<T>()
+            )
+        });
+
+        if data_component.get_changed() {
+            let buffer = if let LazyComponent::Ready(buffer) = &*buffer {
+                buffer
+            } else {
+                continue;
+            };
+
+            let bytes = bytemuck::cast_slice(data_component.deref());
 
             println!(
                 "Writing {} ({} bytes) to entity {:?} buffer at offset {}",
@@ -419,7 +468,7 @@ pub fn buffer_write_system<T: ToBytes + Send + Sync + 'static>(world: &mut World
 // Write data to texture
 pub fn texture_write_system<T>(world: &mut World)
 where
-    T: ToBytes + Send + Sync + 'static,
+    T: bytemuck::Pod + Send + Sync + 'static,
 {
     let mut query = world.query::<&QueueComponent>();
     let (_, queue) = if let Some(queue) = query.into_iter().next() {
@@ -453,7 +502,71 @@ where
                 continue;
             };
 
-            let bytes = texels_component.to_bytes();
+            let bytes = bytemuck::bytes_of(texels_component.deref());
+            let image_copy_texture = texture_write.image_copy_texture();
+            let image_data_layout = texture_write.image_data_layout();
+
+            println!(
+                "Writing {} bytes to texture at offset {}",
+                bytes.len(),
+                image_data_layout.offset,
+            );
+
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &*texture,
+                    mip_level: image_copy_texture.mip_level,
+                    origin: image_copy_texture.origin,
+                    aspect: image_copy_texture.aspect,
+                },
+                bytes,
+                *image_data_layout,
+                texture_desc.size,
+            );
+
+            texels_component.set_changed(false);
+        }
+    }
+}
+
+pub fn texture_write_slice_system<T, V>(world: &mut World)
+where
+    T: Deref<Target = [V]> + Send + Sync + 'static,
+    V: bytemuck::Pod,
+{
+    let mut query = world.query::<&QueueComponent>();
+    let (_, queue) = if let Some(queue) = query.into_iter().next() {
+        queue
+    } else {
+        return;
+    };
+
+    let mut query = world.query::<(
+        &TextureWriteComponent<T>,
+        &Changed<T>,
+        &Usage<
+            TextureWriteComponent<T>,
+            Indirect<(&TextureDescriptorComponent, &TextureComponent)>,
+        >,
+    )>();
+
+    for (_, (texture_write, texels_component, texture)) in query.into_iter() {
+        let mut query = texture.get(world);
+        let (texture_desc, texture) = query.get().unwrap_or_else(|| {
+            panic!(
+                "No buffer component for data {}",
+                std::any::type_name::<T>()
+            )
+        });
+
+        if texels_component.get_changed() {
+            let texture = if let LazyComponent::Ready(texture) = texture {
+                texture
+            } else {
+                continue;
+            };
+
+            let bytes = bytemuck::cast_slice(texels_component.deref());
             let image_copy_texture = texture_write.image_copy_texture();
             let image_data_layout = texture_write.image_data_layout();
 
@@ -540,7 +653,10 @@ pub fn create_command_encoders_system(world: &mut World) {
 
         command_encoder_desc.set_changed(false);
 
-        println!("Created command encoder {:#?} for entity {:?}", **command_encoder_desc, entity);
+        println!(
+            "Created command encoder {:#?} for entity {:?}",
+            **command_encoder_desc, entity
+        );
     }
 }
 
@@ -561,4 +677,3 @@ pub fn flush_command_encoders_system(world: &mut World) {
         }
     }
 }
-
