@@ -1,8 +1,3 @@
-use std::{
-    borrow::{Borrow, BorrowMut},
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
 pub use usage::{AsUsage, Usage};
 
 /// Construct implementation
