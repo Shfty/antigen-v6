@@ -16,21 +16,31 @@ pub struct BeamBuffer;
 pub struct BeamMultisample;
 pub struct BeamDepthBuffer;
 
+#[derive(Debug, Copy, Clone)]
 pub struct Vertices;
+
+#[derive(Debug, Copy, Clone)]
 pub struct TriangleIndices;
+
+#[derive(Debug, Copy, Clone)]
 pub struct TriangleMeshes;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct TriangleMeshInstances;
 
+#[derive(Debug, Copy, Clone)]
 pub struct LineVertices;
+
+#[derive(Debug, Copy, Clone)]
 pub struct LineIndices;
+
+#[derive(Debug, Copy, Clone)]
 pub struct LineMeshes;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct LineMeshInstances;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct LineInstances;
 
 pub struct Perspective;
@@ -62,7 +72,9 @@ pub type PerspectiveMatrixComponent = Usage<Perspective, [[f32; 4]; 4]>;
 pub type OrthographicMatrixComponent = Usage<Orthographic, [[f32; 4]; 4]>;
 
 /// Mesh ID map
+#[derive(Copy, Clone)]
 pub struct MeshIds;
+
 pub type MeshIdsComponent = BTreeMap<String, (Option<u32>, Option<(u32, u32)>)>;
 
 // Position

@@ -9,7 +9,12 @@ use wgpu::{
     TextureDescriptor, TextureView, TextureViewDescriptor,
 };
 
-use std::{marker::PhantomData, sync::Arc};
+use std::{
+    marker::PhantomData,
+    sync::{atomic::AtomicU64, Arc},
+};
+
+use parking_lot::RwLock;
 
 // Backend primitives
 pub type InstanceComponent = Arc<Instance>;
@@ -162,5 +167,5 @@ pub type PassOrderComponent = Usage<PassOrder, usize>;
 
 // Buffer length component
 pub enum BufferLength {}
-pub type BufferLengthComponent = Usage<BufferLength, BufferAddress>;
-pub type BufferLengthsComponent = Usage<BufferLength, Vec<BufferAddress>>;
+pub type BufferLengthComponent = Usage<BufferLength, Arc<AtomicU64>>;
+pub type BufferLengthsComponent = Usage<BufferLength, Arc<RwLock<Vec<BufferAddress>>>>;

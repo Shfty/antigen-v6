@@ -64,14 +64,14 @@
 //           * Too many state variables to pass around
 //           * Is it feasible to read entities from the world when creating a builder?
 //             * Ostensibly yes, since the count components are fetched by calling code
-// 
+//
 // TODO: [✓] Rotation and scale support for triangle and line meshes
 //           * [✓] Use quaternions for rotation
 //           * [✓] Vec3 for scale
 //
 // TODO: [✓] Respect angle and mangle when spawning point entities
 //           * Will need to convert from quake-forward to wgpu-forward
-// 
+//
 // TODO: [✓] Stratify mesh loading
 //           * Need to be able to create mesh instances by name instead of manually caching IDs
 //           [✓] Store name-id map as component, write during mesh load, lookup during instancing
@@ -79,17 +79,22 @@
 // TODO: [✓] Separate triangle / line mesh instance position, rotation, scale out into distinct components
 //           * Should be able to create a single BufferWrite per member with appropriate offsets
 //
-// TODO: [ ] Implement filesystem thread map loading / building
+// TODO: [>] Implement filesystem thread map loading / building
 //           * Need to be able to read and write buffers from different threads
 //           * Use Arc<Buffer> and clone between threads
 //             * Render thread holds buffers, meshes, render passes
 //             * Game thread holds buffers, mesh instances
 //             * Create a RemoteComponent<T> abstraction for sharing components across threads
-//
-// TODO: [ ] Figure out why lower-case z is missing from text test
+//           [ ] Separate oscilloscope mesh creation from instancing
+//           [ ] Separate test geo triangle mesh creation from instancing
+//           [ ] Use Arc + RwLock around buffer LazyComponent to avoid having to force-create buffers before send
+//           [ ] Reduce boilerplate for cross-thread setup
+//           [ ] Move map processing to filesystem thread
 //
 // TODO: [ ] Integrate rapier physics
 //           * Create collision from brush hulls
+//
+// TODO: [ ] Figure out why lower-case z is missing from text test
 //
 // TODO: [ ] Separate box bot from player start
 //           * Player start should represent the camera for now
@@ -176,6 +181,10 @@ fn main() {
     game_world.spawn((123, true, "abc"));
     game_world.spawn((42, false));
 
+    // Spawn filesystem and game threads
+    spawn_world::<Filesystem, _, _>(fs_thread(fs_world, fs_channel));
+    spawn_world::<Game, _, _>(game_thread(game_world, game_channel));
+
     // Setup render world
     let mut render_world = World::new();
     render_world.spawn(antigen_winit::BackendBundle::default());
@@ -190,10 +199,6 @@ fn main() {
     ));
 
     demos::phosphor::assemble(&mut render_world, &render_channel);
-
-    // Spawn filesystem and game threads
-    spawn_world::<Filesystem, _, _>(fs_thread(fs_world, fs_channel));
-    spawn_world::<Game, _, _>(game_thread(game_world, game_channel));
 
     // Enter winit event loop
     winit::event_loop::EventLoop::new().run(antigen_winit::wrap_event_loop(
@@ -252,6 +257,22 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
                     println!("\tNumber {}", *number);
                 }
             }
+
+            antigen_wgpu::buffer_write_slice_system::<
+                demos::phosphor::TriangleMeshInstanceDataComponent,
+                _,
+            >(&mut world);
+            antigen_wgpu::buffer_write_slice_system::<
+                demos::phosphor::LineMeshInstanceDataComponent,
+                _,
+            >(&mut world);
+            antigen_wgpu::buffer_write_slice_system::<demos::phosphor::LineInstanceDataComponent, _>(
+                &mut world,
+            );
+            antigen_wgpu::buffer_write_system::<demos::phosphor::PositionComponent>(&mut world);
+            antigen_wgpu::buffer_write_system::<demos::phosphor::RotationComponent>(&mut world);
+            antigen_wgpu::buffer_write_system::<demos::phosphor::ScaleComponent>(&mut world);
+            antigen_wgpu::buffer_write_system::<demos::phosphor::LineMeshIdComponent>(&mut world);
         })
     }
 }

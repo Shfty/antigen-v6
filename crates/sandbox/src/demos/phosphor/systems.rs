@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{sync::atomic::Ordering, time::Instant};
 
 use super::*;
 use antigen_core::{Changed, ChangedTrait, Indirect};
@@ -634,7 +634,8 @@ pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
         .with::<BeamMesh>();
 
     for (i, (_, triangle_mesh_data)) in query.into_iter().enumerate() {
-        triangle_mesh_data[0].instance_count = mesh_instance_counts[i] as u32;
+        triangle_mesh_data[0].instance_count =
+            mesh_instance_counts.read()[i] as u32;
         triangle_mesh_data.set_changed(true);
     }
 }
@@ -650,5 +651,5 @@ pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {
         .with::<BeamLine>();
     let (_, render_pass_draw) = query.into_iter().next().unwrap();
 
-    render_pass_draw.1 = 0..(**line_instance_count as u32);
+    render_pass_draw.1 = 0..(line_instance_count.load(Ordering::Relaxed) as u32);
 }

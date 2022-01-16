@@ -8,6 +8,7 @@ wgpu = "0.12.0"
 bytemuck = "1.7.3"
 pollster = "0.2.4"
 hecs = {version = "0.7.1", features = ["macros"]}
+parking_lot = "0.11.2"
 
 antigen-core = { path = "../antigen-core" }
 antigen-winit = { path = "../antigen-winit" }

@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use antigen_core::TaggedEntitiesComponent;
 use antigen_wgpu::{
     buffer_size_of,
@@ -45,12 +47,12 @@ impl VerticesBundle {
 
         let vertex_data = BufferDataBundle::new(
             vertices,
-            buffer_size_of::<VertexData>() * **vertex_head as BufferAddress,
+            buffer_size_of::<VertexData>() * vertex_head.load(Ordering::Relaxed),
             vertex_entity,
         );
         builder.add_bundle(vertex_data);
 
-        **vertex_head += vertex_count as BufferAddress;
+        vertex_head.fetch_add(vertex_count as BufferAddress, Ordering::Relaxed);
 
         builder
     }
@@ -80,13 +82,13 @@ impl LineIndicesBundle {
 
         let index_data = BufferDataBundle::new(
             indices,
-            buffer_size_of::<u32>() * **line_index_head as BufferAddress,
+            buffer_size_of::<u32>() * line_index_head.load(Ordering::Relaxed),
             line_index_entity,
         );
 
         builder.add_bundle(index_data);
 
-        **line_index_head += index_count as BufferAddress;
+        line_index_head.fetch_add(index_count as BufferAddress, Ordering::Relaxed);
 
         builder
     }
@@ -115,13 +117,15 @@ impl LineMeshBundle {
         let line_index_id = std::any::TypeId::of::<LineIndices>();
         let line_index_entity = tagged_entities[&line_index_id];
 
-        let vertex_offset = **world
+        let vertex_offset = world
             .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(vertex_entity)
-            .unwrap();
+            .unwrap()
+            .load(Ordering::Relaxed);
 
-        let index_offset = **world
+        let index_offset = world
             .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(line_index_entity)
-            .unwrap();
+            .unwrap()
+            .load(Ordering::Relaxed);
 
         let vertex_count = vertices.len();
         let index_count = indices.len();
@@ -177,11 +181,11 @@ impl LineMeshDataBundle {
                 index_offset: index_offset,
                 index_count: index_count,
             }],
-            buffer_size_of::<LineMeshData>() * **line_mesh_head,
+            buffer_size_of::<LineMeshData>() * line_mesh_head.load(Ordering::Relaxed),
             line_mesh_entity,
         ));
 
-        **line_mesh_head = **line_mesh_head + 1;
+        line_mesh_head.fetch_add(1, Ordering::Relaxed);
 
         builder
     }
@@ -215,7 +219,8 @@ impl LineMeshInstanceBundle {
         let line_mesh_instance_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
             .unwrap();
-        let base_offset = buffer_size_of::<LineMeshInstanceData>() * **line_mesh_instance_head;
+        let base_offset = buffer_size_of::<LineMeshInstanceData>()
+            * line_mesh_instance_head.load(Ordering::Relaxed);
 
         builder.add_bundle(BufferDataBundle::new(
             position,
@@ -241,8 +246,8 @@ impl LineMeshInstanceBundle {
             line_mesh_instance_entity,
         ));
 
-        let mesh_instance = **line_mesh_instance_head as u32;
-        **line_mesh_instance_head = **line_mesh_instance_head + 1;
+        let mesh_instance = line_mesh_instance_head.load(Ordering::Relaxed) as u32;
+        line_mesh_instance_head.fetch_add(1, Ordering::Relaxed);
 
         let line_instance_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
@@ -256,11 +261,11 @@ impl LineMeshInstanceBundle {
                     line_index: i,
                 })
                 .collect::<Vec<_>>(),
-            buffer_size_of::<LineInstanceData>() * **line_instance_head,
+            buffer_size_of::<LineInstanceData>() * line_instance_head.load(Ordering::Relaxed),
             line_instance_entity,
         ));
 
-        **line_instance_head = **line_instance_head + line_count as BufferAddress;
+        line_instance_head.fetch_add(line_count as BufferAddress, Ordering::Relaxed);
 
         builder
     }
@@ -351,9 +356,10 @@ impl OscilloscopeMeshBundle {
         ];
 
         let indices = vec![0u32, 1u32];
-        let line_mesh = **world
+        let line_mesh = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap() as u32;
+            .unwrap()
+            .load(Ordering::Relaxed) as u32;
         let line_count = 1;
 
         builder.add_bundle(LineMeshBundle::builder(world, vertices, indices).build());
@@ -402,7 +408,7 @@ impl TriangleMeshBundle {
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
             .unwrap();
 
-        let vertex_offset = buffer_size_of::<VertexData>() * **vertex_head;
+        let vertex_offset = buffer_size_of::<VertexData>() * vertex_head.load(Ordering::Relaxed);
         let vertex_count = vertices.len();
 
         builder.add_bundle(BufferDataBundle::new(
@@ -411,7 +417,7 @@ impl TriangleMeshBundle {
             vertex_entity,
         ));
 
-        **vertex_head += vertex_count as u64;
+        vertex_head.fetch_add(vertex_count as u64, Ordering::Relaxed);
 
         // Indices
         pad_align_triangle_list(&mut indices);
@@ -420,7 +426,7 @@ impl TriangleMeshBundle {
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_index_entity)
             .unwrap();
 
-        let index_offset = buffer_size_of::<u16>() * **triangle_index_head;
+        let index_offset = buffer_size_of::<u16>() * triangle_index_head.load(Ordering::Relaxed);
         let index_count = indices.len();
 
         builder.add_bundle(BufferDataBundle::new(
@@ -429,7 +435,7 @@ impl TriangleMeshBundle {
             triangle_index_entity,
         ));
 
-        **triangle_index_head += index_count as u64;
+        triangle_index_head.fetch_add(index_count as u64, Ordering::Relaxed);
 
         builder
     }
@@ -472,13 +478,15 @@ impl TriangleMeshDataBundle {
                 vertex_offset,
                 ..Default::default()
             }],
-            buffer_size_of::<TriangleMeshData>() * **triangle_mesh_head as BufferAddress,
+            buffer_size_of::<TriangleMeshData>() * triangle_mesh_head.load(Ordering::Relaxed),
             triangle_mesh_entity,
         ));
 
-        builder.add_bundle(indexed_indirect_constructor(**triangle_mesh_head).build());
+        builder.add_bundle(
+            indexed_indirect_constructor(triangle_mesh_head.load(Ordering::Relaxed)).build(),
+        );
 
-        **triangle_mesh_head = **triangle_mesh_head + 1;
+        triangle_mesh_head.fetch_add(1, Ordering::Relaxed);
 
         let triangle_mesh_instance_heads = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthsComponent>(
@@ -486,7 +494,7 @@ impl TriangleMeshDataBundle {
             )
             .unwrap();
 
-        triangle_mesh_instance_heads.push(0);
+        triangle_mesh_instance_heads.write().push(0);
 
         builder
     }
@@ -519,11 +527,12 @@ impl TriangleMeshInstanceDataBundle {
             )
             .unwrap();
 
+        let mut triangle_mesh_instance_head = triangle_mesh_instance_heads.write();
         let triangle_mesh_instance_head =
-            triangle_mesh_instance_heads.get_mut(mesh as usize).unwrap();
+            triangle_mesh_instance_head.get_mut(mesh as usize).unwrap();
 
         let base_offset = buffer_size_of::<TriangleMeshInstanceData>()
-            * (*triangle_mesh_instance_head as BufferAddress
+            * (*triangle_mesh_instance_head
                 + (mesh * MAX_TRIANGLE_MESH_INSTANCES as u32) as BufferAddress);
 
         builder.add_bundle(BufferDataBundle::new(
@@ -544,7 +553,7 @@ impl TriangleMeshInstanceDataBundle {
             triangle_mesh_instance_entity,
         ));
 
-        *triangle_mesh_instance_head = *triangle_mesh_instance_head + 1;
+        *triangle_mesh_instance_head += 1;
 
         builder
     }
@@ -620,13 +629,13 @@ impl BoxBotMeshBundle {
         let line_mesh_id = tagged_entities[&line_mesh_id];
 
         // Fetch mesh ID and store into mesh ID map
-        let triangle_mesh_head = **world
+        let triangle_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
-            .unwrap();
+            .unwrap().load(Ordering::Relaxed);
 
-        let line_mesh_head = **world
+        let line_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
-            .unwrap();
+            .unwrap().load(Ordering::Relaxed);
 
         register_mesh_ids(
             world,
@@ -638,13 +647,15 @@ impl BoxBotMeshBundle {
         // Build mesh components
         let mut builders = vec![];
 
-        let base_vertex = **world
+        let base_vertex = world
             .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(vertex_entity)
-            .unwrap() as u32;
+            .unwrap()
+            .load(Ordering::Relaxed) as u32;
 
-        let base_triangle_index = **world
+        let base_triangle_index = world
             .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(triangle_index_entity)
-            .unwrap() as u32;
+            .unwrap()
+            .load(Ordering::Relaxed) as u32;
 
         // Body cube
         let mut builder = EntityBuilder::new();
