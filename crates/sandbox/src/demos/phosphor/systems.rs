@@ -237,7 +237,7 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     let (_, (uniform_buffer, uniform_bind_group_layout, uniform_bind_group)) =
         query.into_iter().next()?;
 
-    let mut query = world.query::<(&BufferComponent,)>().with::<MeshVertex>();
+    let mut query = world.query::<(&BufferComponent,)>().with::<Vertices>();
     let (_, (vertex_buffer,)) = query.into_iter().next()?;
 
     let mut query = world
@@ -245,7 +245,7 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
         .with::<TriangleMeshInstances>();
     let (_, (triangle_mesh_instance_buffer,)) = query.into_iter().next()?;
 
-    let mut query = world.query::<(&BufferComponent,)>().with::<LineIndex>();
+    let mut query = world.query::<(&BufferComponent,)>().with::<LineIndices>();
     let (_, (line_index_buffer,)) = query.into_iter().next()?;
 
     let mut query = world.query::<(&BufferComponent,)>().with::<LineMeshes>();

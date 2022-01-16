@@ -16,14 +16,21 @@ pub struct BeamBuffer;
 pub struct BeamMultisample;
 pub struct BeamDepthBuffer;
 
-pub struct MeshVertex;
-pub struct TriangleIndex;
+pub struct Vertices;
+pub struct TriangleIndices;
 pub struct TriangleMeshes;
+
+#[derive(Copy, Clone)]
 pub struct TriangleMeshInstances;
-pub struct LineVertex;
-pub struct LineIndex;
+
+pub struct LineVertices;
+pub struct LineIndices;
 pub struct LineMeshes;
+
+#[derive(Copy, Clone)]
 pub struct LineMeshInstances;
+
+#[derive(Copy, Clone)]
 pub struct LineInstances;
 
 pub struct Perspective;

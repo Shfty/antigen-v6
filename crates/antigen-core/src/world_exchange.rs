@@ -1,6 +1,6 @@
 use crate::TwoWayChannel;
 use crossbeam_channel::{Receiver, RecvError, SendError, Sender, TryRecvError, TrySendError};
-use hecs::{Component, DynamicBundle, Entity, World};
+use hecs::{Component, DynamicBundle, Entity, Query, World};
 use std::any::TypeId;
 
 /// Struct for coordinating cross-thread communication between worlds
@@ -196,8 +196,8 @@ impl<'a, 'b> Lift for MessageContext<'a, 'b> {
 }
 
 /// Returns a function that will spawn `component` into a provided world
-fn spawn_component<C: DynamicBundle>(
-    component: C,
+fn spawn_bundle<C: DynamicBundle>(
+    bundle: C,
 ) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
     move |mut ctx| {
         let (world, _) = &mut ctx;
@@ -206,7 +206,7 @@ fn spawn_component<C: DynamicBundle>(
             std::thread::current().name().unwrap(),
             std::any::type_name::<C>(),
         );
-        world.spawn(component);
+        world.spawn(bundle);
         Ok(ctx)
     }
 }
@@ -228,38 +228,64 @@ fn insert_component<C: DynamicBundle>(
     }
 }
 
-/// Clone singleton component C and send it to world U
-pub fn send_clone_component<C, U>(
+pub trait ClonedBundle {
+    type Bundle: DynamicBundle + Send + Sync + 'static;
+
+    fn cloned_bundle(&self) -> Self::Bundle;
+}
+
+impl<T1> ClonedBundle for (&T1,)
+where
+    T1: Clone + Component,
+{
+    type Bundle = (T1,);
+
+    fn cloned_bundle(&self) -> Self::Bundle {
+        (self.0.clone(),)
+    }
+}
+
+impl<T1, T2> ClonedBundle for (&T1, &T2)
+where
+    T1: Clone + Component,
+    T2: Clone + Component,
+{
+    type Bundle = (T1, T2);
+
+    fn cloned_bundle(&self) -> Self::Bundle {
+        (self.0.clone(), self.1.clone())
+    }
+}
+
+/// Clone component C and send it to world U
+pub fn send_clone_query<Q, U>(
+    entity: Entity,
 ) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b>
 where
-    C: Component + Clone,
+    Q: Query,
+    for<'q> <<Q as Query>::Fetch as hecs::Fetch<'q>>::Item: ClonedBundle,
     U: Send + 'static,
 {
     move |mut ctx| {
         let (world, channel) = &mut ctx;
 
-        let component_name = std::any::type_name::<C>();
+        let query_name = std::any::type_name::<Q>();
         let thread_name = std::any::type_name::<U>();
 
         println!(
             "Thread {} sending cloned {} to thread {}",
             std::thread::current().name().unwrap(),
-            component_name,
+            query_name,
             thread_name,
         );
-        let mut query = world.query::<&C>();
-        let component = if let Some((_, component)) = query.iter().next() {
-            component
-        } else {
-            Err(format!("Error: No such {} component", component_name))?
-        };
 
-        let component = component.clone();
+        let components = world.query_one_mut::<Q>(entity).unwrap();
+        let bundle = components.cloned_bundle();
+        drop(components);
+
         channel
-            .send(WorldMessage::to::<U, _>(spawn_component((component,))))
+            .send(WorldMessage::to::<U, _>(spawn_bundle(bundle)))
             .unwrap();
-
-        drop(query);
 
         Ok(ctx)
     }
@@ -267,6 +293,7 @@ where
 
 /// Clone singleton component C and send it to world U
 pub fn send_copy_component<C, U>(
+    entity: Entity,
 ) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b>
 where
     C: Component + Copy,
@@ -283,15 +310,16 @@ where
             component_name,
             thread_name,
         );
-        let mut query = world.query::<&C>();
-        let component = if let Some((_, component)) = query.iter().next() {
-            *component
+
+        let mut query = world.query_one::<&C>(entity).unwrap();
+        let component = *if let Some(component) = query.get() {
+            component
         } else {
             Err(format!("Error: No such {} component", component_name))?
         };
 
         channel
-            .send(WorldMessage::to::<U, _>(spawn_component((component,))))
+            .send(WorldMessage::to::<U, _>(spawn_bundle((component,))))
             .unwrap();
 
         drop(query);
@@ -324,6 +352,8 @@ where
             .collect::<Vec<_>>();
 
         for id in ids {
+            let value = world.remove::<(C,)>(id).unwrap();
+
             println!(
                 "Thread {} sending {} to thread {}",
                 std::thread::current().name().unwrap(),
@@ -331,7 +361,6 @@ where
                 thread_name,
             );
 
-            let value = world.remove::<(C,)>(id).unwrap();
             channel
                 .send(WorldMessage::to::<U, _>(insert_component(entity, value)))
                 .unwrap();

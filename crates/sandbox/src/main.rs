@@ -76,10 +76,8 @@
 //           * Need to be able to create mesh instances by name instead of manually caching IDs
 //           [✓] Store name-id map as component, write during mesh load, lookup during instancing
 //
-// TODO: [ ] Separate triangle / line mesh instance position, rotation, scale out into distinct components
+// TODO: [✓] Separate triangle / line mesh instance position, rotation, scale out into distinct components
 //           * Should be able to create a single BufferWrite per member with appropriate offsets
-//
-// TODO: [ ] Figure out why lower-case z is missing from text test
 //
 // TODO: [ ] Implement filesystem thread map loading / building
 //           * Need to be able to read and write buffers from different threads
@@ -87,6 +85,8 @@
 //             * Render thread holds buffers, meshes, render passes
 //             * Game thread holds buffers, mesh instances
 //             * Create a RemoteComponent<T> abstraction for sharing components across threads
+//
+// TODO: [ ] Figure out why lower-case z is missing from text test
 //
 // TODO: [ ] Integrate rapier physics
 //           * Create collision from brush hulls

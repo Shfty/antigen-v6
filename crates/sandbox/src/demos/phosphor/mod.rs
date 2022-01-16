@@ -120,7 +120,8 @@ use antigen_winit::{
 };
 
 use antigen_core::{
-    send_component, Construct, Indirect, Lift, MessageContext, MessageResult, SendTo, WorldChannel,
+    send_clone_query, send_component, Construct, Indirect, Lift, MessageContext, MessageResult,
+    SendTo, TaggedEntitiesComponent, WorldChannel,
 };
 
 use antigen_wgpu::{
@@ -131,8 +132,9 @@ use antigen_wgpu::{
         SamplerDescriptor, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
         TextureUsages, TextureViewDescriptor,
     },
-    BindGroupComponent, BindGroupLayoutComponent, RenderPipelineComponent, ShaderModuleComponent,
-    ShaderModuleDescriptorComponent, SurfaceConfigurationComponent, TextureViewComponent,
+    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, RenderPipelineComponent,
+    ShaderModuleComponent, ShaderModuleDescriptorComponent, SurfaceConfigurationComponent,
+    TextureViewComponent,
 };
 
 use antigen_shambler::shambler::{
@@ -145,19 +147,7 @@ use antigen_shambler::shambler::{
 
 use hecs::{Entity, EntityBuilder, World};
 
-use crate::{Filesystem, Render};
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct BufferEntities {
-    pub vertex_entity: Entity,
-    pub triangle_index_entity: Entity,
-    pub triangle_mesh_entity: Entity,
-    pub triangle_mesh_instance_entity: Entity,
-    pub line_index_entity: Entity,
-    pub line_mesh_entity: Entity,
-    pub line_mesh_instance_entity: Entity,
-    pub line_instance_entity: Entity,
-}
+use crate::{Filesystem, Game, Render};
 
 const HDR_TEXTURE_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 const MAX_MESH_VERTICES: usize = 10000;
@@ -311,6 +301,37 @@ fn load_map<
         .unwrap();
 }
 
+fn insert_tagged_entity<Q: hecs::Query + Send + Sync + 'static, T: 'static>(
+) -> impl Fn(MessageContext) -> Result<(), Box<dyn Error>> {
+    move |ctx: MessageContext| {
+        let (world, _) = ctx;
+
+        let (entity, _) = world.query_mut::<Q>().into_iter().next().unwrap();
+
+        let (_, named_entities) = if let Some(component) = world
+            .query_mut::<&mut TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+        {
+            component
+        } else {
+            let entity = world.spawn((TaggedEntitiesComponent::default(),));
+            (
+                entity,
+                world
+                    .query_one_mut::<&mut TaggedEntitiesComponent>(entity)
+                    .unwrap(),
+            )
+        };
+
+        let tag_id = std::any::TypeId::of::<T>();
+        named_entities.insert(tag_id, entity);
+        println!("Inserted name {:?} for entity {:?}", tag_id, entity);
+
+        Ok(())
+    }
+}
+
 pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let window_entity = world.reserve_entity();
     let renderer_entity = world.reserve_entity();
@@ -333,7 +354,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     // Vertices
     let mut builder = EntityBuilder::new();
     let bundle = builder
-        .add(MeshVertex)
+        .add(Vertices)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Vertex Buffer"),
             size: buffer_size_of::<VertexData>() * MAX_MESH_VERTICES as BufferAddress,
@@ -343,6 +364,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(antigen_wgpu::BufferLengthComponent::default())
         .build();
     let vertex_entity = world.spawn(bundle);
+    insert_tagged_entity::<(&Vertices, &BufferComponent), Vertices>()((world, channel)).unwrap();
 
     // Mesh IDs
     let mut builder = EntityBuilder::new();
@@ -353,7 +375,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     // Triangle Indices
     let mut builder = EntityBuilder::new();
     let bundle = builder
-        .add(TriangleIndex)
+        .add(TriangleIndices)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Triangle Index Buffer"),
             size: buffer_size_of::<TriangleIndexData>() * MAX_TRIANGLE_INDICES as BufferAddress,
@@ -363,6 +385,10 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(antigen_wgpu::BufferLengthComponent::default())
         .build();
     let triangle_index_entity = world.spawn(bundle);
+    insert_tagged_entity::<(&TriangleIndices, &BufferComponent), TriangleIndices>()((
+        world, channel,
+    ))
+    .unwrap();
 
     // Triangle Meshes
     let mut builder = EntityBuilder::new();
@@ -377,6 +403,8 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(antigen_wgpu::BufferLengthComponent::default())
         .build();
     let triangle_mesh_entity = world.spawn(bundle);
+    insert_tagged_entity::<(&TriangleMeshes, &BufferComponent), TriangleMeshes>()((world, channel))
+        .unwrap();
 
     // Triangle Mesh Instances
     let mut builder = EntityBuilder::new();
@@ -391,14 +419,29 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         }))
         .add(antigen_wgpu::BufferLengthsComponent::default())
         .build();
+
     let triangle_mesh_instance_entity = world.spawn(bundle);
+
+    insert_tagged_entity::<(&TriangleMeshInstances, &BufferComponent), TriangleMeshInstances>()((
+        world, channel,
+    ))
+    .unwrap();
+
+    send_clone_query::<(&TriangleMeshInstances, &BufferComponent), Game>(
+        triangle_mesh_instance_entity,
+    )((world, channel))
+    .and_then(insert_tagged_entity::<
+        (&TriangleMeshInstances, &BufferComponent),
+        TriangleMeshInstances,
+    >())
+    .unwrap();
 
     // Line Vertices
     let vertices = circle_strip(2);
     let mut builder = EntityBuilder::new();
     let line_vertex_entity = world.reserve_entity();
     let bundle = builder
-        .add(LineVertex)
+        .add(LineVertices)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Line Vertex Buffer"),
             size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
@@ -416,7 +459,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     // Line Indices
     let mut builder = EntityBuilder::new();
     let bundle = builder
-        .add(LineIndex)
+        .add(LineIndices)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Line Index Buffer"),
             size: buffer_size_of::<LineIndexData>() * MAX_LINE_INDICES as BufferAddress,
@@ -426,6 +469,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(antigen_wgpu::BufferLengthComponent::default())
         .build();
     let line_index_entity = world.spawn(bundle);
+    insert_tagged_entity::<(&LineIndices, &BufferComponent), LineIndices>()((world, channel)).unwrap();
 
     // Line Meshes
     let mut builder = EntityBuilder::new();
@@ -440,6 +484,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(antigen_wgpu::BufferLengthComponent::default())
         .build();
     let line_mesh_entity = world.spawn(bundle);
+    insert_tagged_entity::<(&LineMeshes, &BufferComponent), LineMeshes>()((world, channel)).unwrap();
 
     // Line Mesh Instances
     let mut builder = EntityBuilder::new();
@@ -456,6 +501,20 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .build();
     let line_mesh_instance_entity = world.spawn(bundle);
 
+    insert_tagged_entity::<(&LineMeshInstances, &BufferComponent), LineMeshInstances>()((
+        world, channel,
+    ))
+    .unwrap();
+
+    send_clone_query::<(&LineMeshInstances, &BufferComponent), Game>(line_mesh_instance_entity)((
+        world, channel,
+    ))
+    .and_then(insert_tagged_entity::<
+        (&LineMeshInstances, &BufferComponent),
+        LineMeshInstances,
+    >())
+    .unwrap();
+
     // Line Instances
     let mut builder = EntityBuilder::new();
     let bundle = builder
@@ -469,6 +528,18 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         .add(antigen_wgpu::BufferLengthComponent::default())
         .build();
     let line_instance_entity = world.spawn(bundle);
+
+    insert_tagged_entity::<(&LineInstances, &BufferComponent), LineInstances>()((world, channel))
+        .unwrap();
+
+    send_clone_query::<(&LineInstances, &BufferComponent), Game>(line_instance_entity)((
+        world, channel,
+    ))
+    .and_then(insert_tagged_entity::<
+        (&LineInstances, &BufferComponent),
+        LineInstances,
+    >())
+    .unwrap();
 
     // Total time entity
     let mut builder = EntityBuilder::new();
@@ -969,17 +1040,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let bundle = builder.build();
     world.insert(renderer_entity, bundle).unwrap();
 
-    let buffer_entities = BufferEntities {
-        vertex_entity,
-        triangle_index_entity,
-        triangle_mesh_entity,
-        triangle_mesh_instance_entity,
-        line_index_entity,
-        line_mesh_entity,
-        line_mesh_instance_entity,
-        line_instance_entity,
-    };
-
     // Load SVG meshes
     {
         let svg = SvgLayers::parse("crates/sandbox/src/demos/phosphor/fonts/basic.svg")
@@ -1012,8 +1072,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 let key = format!("char_{}", grapheme);
                 register_mesh_ids(world, &key, None, Some((line_mesh, line_count)));
 
-                let mut builder =
-                    LineMeshBundle::builder(world, buffer_entities, vertices, indices);
+                let mut builder = LineMeshBundle::builder(world, vertices, indices);
                 let bundle = builder.build();
 
                 world.spawn(bundle);
@@ -1022,7 +1081,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     }
 
     // Assemble test geometry
-    assemble_test_geometry(world, buffer_entities);
+    assemble_test_geometry(world);
 
     /*
     load_map::<MapFile, Filesystem, _>(
@@ -1041,31 +1100,43 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let geo_map = GeoMap::from(map);
         let map_data = MapData::from(geo_map);
 
-        let mut room_brushes =
-            map_data.build_rooms(world, buffer_entities, triangle_indexed_indirect_builder);
+        let mut room_brushes = map_data.build_rooms(world, triangle_indexed_indirect_builder);
         let bundles = room_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
-        let mut mesh_brushes =
-            map_data.build_meshes(world, buffer_entities, triangle_indexed_indirect_builder);
+        let mut mesh_brushes = map_data.build_meshes(world, triangle_indexed_indirect_builder);
         let bundles = mesh_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
-        let mut point_entities = map_data.build_point_entities(
-            world,
-            buffer_entities,
-            triangle_indexed_indirect_builder,
-        );
+        let mut point_entities =
+            map_data.build_point_entities(world, triangle_indexed_indirect_builder);
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
     }
 }
 
-fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
+fn assemble_test_geometry(world: &mut World) {
+    let (_, tagged_entities) = world
+        .query_mut::<&TaggedEntitiesComponent>()
+        .into_iter()
+        .next()
+        .unwrap();
+
+    let vertex_id = std::any::TypeId::of::<Vertices>();
+    let vertex_entity = tagged_entities[&vertex_id];
+
+    let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
+    let triangle_index_entity = tagged_entities[&triangle_index_id];
+
+    let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
+    let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
+
+    let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
+    let line_mesh_entity = tagged_entities[&line_mesh_id];
+
     // Oscilloscopes
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
-        buffer_entities,
         nalgebra::vector![-80.0, 40.0, -80.0].into(),
         RED,
         Oscilloscope::new(3.33, 30.0, |f| (f.sin(), f.cos(), f.sin())),
@@ -1077,7 +1148,6 @@ fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
 
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
-        buffer_entities,
         nalgebra::vector![-80.0, 40.0, 0.0].into(),
         GREEN,
         Oscilloscope::new(2.22, 30.0, |f| (f.sin(), (f * 1.2).sin(), (f * 1.4).cos())),
@@ -1089,7 +1159,6 @@ fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
 
     let mut builder = OscilloscopeMeshBundle::builder(
         world,
-        buffer_entities,
         nalgebra::vector![-80.0, 40.0, 80.0].into(),
         BLUE,
         Oscilloscope::new(3.33, 30.0, |f| (f.cos(), (f * 1.2).cos(), (f * 1.4).cos())),
@@ -1101,12 +1170,11 @@ fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
 
     // Gradient 3 Triangle
     let line_mesh = **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(buffer_entities.line_mesh_entity)
+        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
         .unwrap() as u32;
     let line_count = 4;
     let mut builder = LineStripMeshBundle::builder(
         world,
-        buffer_entities,
         vec![
             VertexData::new((0.0, -20.0, 0.0), RED, RED, 5.0, -20.0),
             VertexData::new((-40.0, -80.0, 0.0), GREEN, GREEN, 4.0, -20.0),
@@ -1119,7 +1187,6 @@ fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
 
     let mut builder = LineMeshInstanceBundle::builder(
         world,
-        buffer_entities,
         nalgebra::vector![-50.0, 0.0, 0.0].into(),
         nalgebra::Quaternion::identity().into(),
         nalgebra::vector![1.0, 1.0, 1.0].into(),
@@ -1131,12 +1198,11 @@ fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
 
     // Gradients 0-2 Triangle
     let line_mesh = **world
-        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(buffer_entities.line_mesh_entity)
+        .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
         .unwrap() as u32;
     let line_count = 6;
     let mut builder = LineStripMeshBundle::builder(
         world,
-        buffer_entities,
         vec![
             VertexData::new((0.0, -80.0, 0.0), BLUE, BLUE, 7.0, -10.0),
             VertexData::new((40.0, -20.0, 0.0), BLUE, BLUE, 6.0, -10.0),
@@ -1151,7 +1217,6 @@ fn assemble_test_geometry(world: &mut World, buffer_entities: BufferEntities) {
 
     let mut builder = LineMeshInstanceBundle::builder(
         world,
-        buffer_entities,
         nalgebra::vector![50.0, 0.0, 0.0].into(),
         nalgebra::Quaternion::identity().into(),
         nalgebra::vector![1.0, 1.0, 1.0].into(),
@@ -1425,16 +1490,6 @@ impl MapData {
     pub fn build_rooms(
         &self,
         world: &mut World,
-        buffer_entities
-        @
-        BufferEntities {
-            vertex_entity,
-            triangle_index_entity,
-            triangle_mesh_entity,
-            line_index_entity,
-            line_mesh_entity,
-            ..
-        }: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
@@ -1442,6 +1497,27 @@ impl MapData {
         let entity_brushes = self
             .classname_brushes("room")
             .chain(self.classname_brushes("portal"));
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let vertex_id = std::any::TypeId::of::<Vertices>();
+        let vertex_entity = tagged_entities[&vertex_id];
+
+        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
+        let triangle_index_entity = tagged_entities[&triangle_index_id];
+
+        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
+        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
+
+        let line_index_id = std::any::TypeId::of::<LineIndices>();
+        let line_index_entity = tagged_entities[&line_index_id];
+
+        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
+        let line_mesh_entity = tagged_entities[&line_mesh_id];
 
         for (entity, brushes) in entity_brushes {
             let entity_faces = self.entity_faces(brushes);
@@ -1540,19 +1616,12 @@ impl MapData {
             let mut builder = EntityBuilder::new();
 
             builder.add_bundle(
-                TriangleMeshBundle::builder(
-                    world,
-                    buffer_entities,
-                    mesh_vertices,
-                    triangle_indices,
-                )
-                .build(),
+                TriangleMeshBundle::builder(world, mesh_vertices, triangle_indices).build(),
             );
 
             builder.add_bundle(
                 TriangleMeshDataBundle::builder(
                     world,
-                    buffer_entities,
                     triangle_index_count,
                     0,
                     base_triangle_index,
@@ -1562,14 +1631,11 @@ impl MapData {
                 .build(),
             );
 
-            builder.add_bundle(
-                LineIndicesBundle::builder(world, buffer_entities, line_indices).build(),
-            );
+            builder.add_bundle(LineIndicesBundle::builder(world, line_indices).build());
 
             builder.add_bundle(
                 LineMeshDataBundle::builder(
                     world,
-                    buffer_entities,
                     base_vertex,
                     vertex_count,
                     base_line_index,
@@ -1590,7 +1656,6 @@ impl MapData {
 
             builders.extend(mesh_instance_builders(
                 world,
-                buffer_entities,
                 &key,
                 entity_center.into(),
                 nalgebra::Quaternion::identity().into(),
@@ -1604,21 +1669,32 @@ impl MapData {
     pub fn build_meshes(
         &self,
         world: &mut World,
-        buffer_entities
-        @
-        BufferEntities {
-            vertex_entity,
-            triangle_index_entity,
-            triangle_mesh_entity,
-            line_index_entity,
-            line_mesh_entity,
-            ..
-        }: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
 
         let entity_brushes = self.classname_brushes("mesh");
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let vertex_id = std::any::TypeId::of::<Vertices>();
+        let vertex_entity = tagged_entities[&vertex_id];
+
+        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
+        let triangle_index_entity = tagged_entities[&triangle_index_id];
+
+        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
+        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
+
+        let line_index_id = std::any::TypeId::of::<LineIndices>();
+        let line_index_entity = tagged_entities[&line_index_id];
+
+        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
+        let line_mesh_entity = tagged_entities[&line_mesh_id];
 
         for (entity, brushes) in entity_brushes {
             let entity_mesh_name = self
@@ -1714,25 +1790,18 @@ impl MapData {
 
             // Singleton mesh instance
             builders.extend([
-                TriangleMeshBundle::builder(
-                    world,
-                    buffer_entities,
-                    mesh_vertices,
-                    triangle_indices,
-                ),
+                TriangleMeshBundle::builder(world, mesh_vertices, triangle_indices),
                 TriangleMeshDataBundle::builder(
                     world,
-                    buffer_entities,
                     triangle_index_count,
                     0,
                     base_triangle_index,
                     base_vertex,
                     triangle_indexed_indirect_builder,
                 ),
-                LineIndicesBundle::builder(world, buffer_entities, line_indices),
+                LineIndicesBundle::builder(world, line_indices),
                 LineMeshDataBundle::builder(
                     world,
-                    buffer_entities,
                     base_vertex,
                     vertex_count,
                     base_line_index,
@@ -1836,7 +1905,6 @@ impl MapData {
     pub fn build_point_entities(
         &self,
         world: &mut World,
-        buffer_entities: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
         let mut builders = vec![];
@@ -1857,7 +1925,6 @@ impl MapData {
 
         builders.extend(BoxBotMeshBundle::builders(
             world,
-            buffer_entities,
             triangle_indexed_indirect_builder,
         ));
 
@@ -1868,7 +1935,6 @@ impl MapData {
 
             builders.extend(mesh_instance_builders(
                 world,
-                buffer_entities,
                 "box_bot",
                 origin.into(),
                 rotation.into_inner().into(),
@@ -1904,7 +1970,6 @@ impl MapData {
 
             builders.push(OscilloscopeMeshBundle::builder(
                 world,
-                buffer_entities,
                 origin.into(),
                 color,
                 Oscilloscope::new(speed, magnitude, move |f| {
@@ -1939,7 +2004,6 @@ impl MapData {
 
             builders.extend(mesh_instance_builders(
                 world,
-                buffer_entities,
                 target,
                 origin.into(),
                 rotation.into_inner().into(),
@@ -1991,7 +2055,6 @@ impl MapData {
                     let key = format!("char_{}", c.to_string().as_str());
                     builders.extend(mesh_instance_builders(
                         world,
-                        buffer_entities,
                         &key,
                         (origin + ofs).into(),
                         rotation.into_inner().into(),

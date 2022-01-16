@@ -1,3 +1,4 @@
+use antigen_core::TaggedEntitiesComponent;
 use antigen_wgpu::{
     buffer_size_of,
     wgpu::{BufferAddress, COPY_BUFFER_ALIGNMENT},
@@ -6,10 +7,11 @@ use antigen_wgpu::{
 use hecs::{EntityBuilder, World};
 
 use super::{
-    BufferEntities, LineInstanceData, LineMeshData, LineMeshIdComponent, LineMeshInstanceData,
-    MeshIds, MeshIdsComponent, Oscilloscope, PositionComponent, RotationComponent, ScaleComponent,
-    TriangleMeshData, TriangleMeshInstanceData, VertexData, BLACK, BLUE, GREEN,
-    MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
+    LineIndices, LineInstanceData, LineInstances, LineMeshData, LineMeshIdComponent,
+    LineMeshInstanceData, LineMeshInstances, LineMeshes, MeshIds, MeshIdsComponent, Oscilloscope,
+    PositionComponent, RotationComponent, ScaleComponent, TriangleIndices, TriangleMeshData,
+    TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes, VertexData, Vertices, BLACK,
+    BLUE, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -23,12 +25,17 @@ pub fn pad_align_triangle_list(indices: &mut Vec<u16>) {
 pub enum VerticesBundle {}
 
 impl VerticesBundle {
-    pub fn builder(
-        world: &mut World,
-        BufferEntities { vertex_entity, .. }: BufferEntities,
-        vertices: Vec<VertexData>,
-    ) -> EntityBuilder {
+    pub fn builder(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let vertex_id = std::any::TypeId::of::<Vertices>();
+        let vertex_entity = tagged_entities[&vertex_id];
 
         let vertex_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
@@ -53,14 +60,17 @@ impl VerticesBundle {
 pub enum LineIndicesBundle {}
 
 impl LineIndicesBundle {
-    pub fn builder(
-        world: &mut World,
-        BufferEntities {
-            line_index_entity, ..
-        }: BufferEntities,
-        indices: Vec<u32>,
-    ) -> EntityBuilder {
+    pub fn builder(world: &mut World, indices: Vec<u32>) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let line_index_id = std::any::TypeId::of::<LineIndices>();
+        let line_index_entity = tagged_entities[&line_index_id];
 
         let line_index_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
@@ -88,17 +98,22 @@ pub enum LineMeshBundle {}
 impl LineMeshBundle {
     pub fn builder(
         world: &mut World,
-        buffer_entities
-        @
-        BufferEntities {
-            vertex_entity,
-            line_index_entity,
-            ..
-        }: BufferEntities,
         vertices: Vec<VertexData>,
         indices: Vec<u32>,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let vertex_id = std::any::TypeId::of::<Vertices>();
+        let vertex_entity = tagged_entities[&vertex_id];
+
+        let line_index_id = std::any::TypeId::of::<LineIndices>();
+        let line_index_entity = tagged_entities[&line_index_id];
 
         let vertex_offset = **world
             .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(vertex_entity)
@@ -111,14 +126,13 @@ impl LineMeshBundle {
         let vertex_count = vertices.len();
         let index_count = indices.len();
 
-        builder.add_bundle(VerticesBundle::builder(world, buffer_entities, vertices).build());
+        builder.add_bundle(VerticesBundle::builder(world, vertices).build());
 
-        builder.add_bundle(LineIndicesBundle::builder(world, buffer_entities, indices).build());
+        builder.add_bundle(LineIndicesBundle::builder(world, indices).build());
 
         builder.add_bundle(
             LineMeshDataBundle::builder(
                 world,
-                buffer_entities,
                 vertex_offset as u32,
                 vertex_count as u32,
                 index_offset as u32,
@@ -136,15 +150,21 @@ pub enum LineMeshDataBundle {}
 impl LineMeshDataBundle {
     pub fn builder(
         world: &mut World,
-        BufferEntities {
-            line_mesh_entity, ..
-        }: BufferEntities,
         vertex_offset: u32,
         vertex_count: u32,
         index_offset: u32,
         index_count: u32,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
+        let line_mesh_entity = tagged_entities[&line_mesh_id];
 
         let line_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
@@ -172,11 +192,6 @@ pub enum LineMeshInstanceBundle {}
 impl LineMeshInstanceBundle {
     pub fn builder(
         world: &mut World,
-        BufferEntities {
-            line_mesh_instance_entity,
-            line_instance_entity,
-            ..
-        }: BufferEntities,
         position: PositionComponent,
         rotation: RotationComponent,
         scale: ScaleComponent,
@@ -184,6 +199,18 @@ impl LineMeshInstanceBundle {
         line_count: u32,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let line_mesh_instances_id = std::any::TypeId::of::<LineMeshInstances>();
+        let line_mesh_instance_entity = tagged_entities[&line_mesh_instances_id];
+
+        let line_instances_id = std::any::TypeId::of::<LineInstances>();
+        let line_instance_entity = tagged_entities[&line_instances_id];
 
         let line_mesh_instance_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
@@ -243,11 +270,7 @@ impl LineMeshInstanceBundle {
 pub enum LineListMeshBundle {}
 
 impl LineListMeshBundle {
-    pub fn builder(
-        world: &mut World,
-        buffer_entities: BufferEntities,
-        vertices: Vec<VertexData>,
-    ) -> EntityBuilder {
+    pub fn builder(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
         let mut vs = 0u32;
         let indices = vertices
             .chunks(2)
@@ -258,7 +281,7 @@ impl LineListMeshBundle {
             })
             .collect::<Vec<_>>();
 
-        LineMeshBundle::builder(world, buffer_entities, vertices, indices)
+        LineMeshBundle::builder(world, vertices, indices)
     }
 }
 
@@ -266,11 +289,7 @@ impl LineListMeshBundle {
 pub enum LineStripMeshBundle {}
 
 impl LineStripMeshBundle {
-    pub fn builder(
-        world: &mut World,
-        buffer_entities: BufferEntities,
-        vertices: Vec<VertexData>,
-    ) -> EntityBuilder {
+    pub fn builder(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
         let mut indices = (0..vertices.len() as BufferAddress).collect::<Vec<_>>();
 
         let first = indices.remove(0) as u32;
@@ -283,7 +302,7 @@ impl LineStripMeshBundle {
 
         println!("Line strip indices: {:#?}", indices);
 
-        LineMeshBundle::builder(world, buffer_entities, vertices, indices)
+        LineMeshBundle::builder(world, vertices, indices)
     }
 }
 
@@ -293,9 +312,6 @@ pub enum OscilloscopeMeshBundle {}
 impl OscilloscopeMeshBundle {
     pub fn builder(
         world: &mut World,
-        buffer_entities @ BufferEntities {
-            line_mesh_entity, ..
-        }: BufferEntities,
         position: PositionComponent,
         color: (f32, f32, f32),
         oscilloscope: Oscilloscope,
@@ -303,6 +319,15 @@ impl OscilloscopeMeshBundle {
         delta_intensity: f32,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
+        let line_mesh_entity = tagged_entities[&line_mesh_id];
 
         builder.add(oscilloscope);
 
@@ -331,13 +356,11 @@ impl OscilloscopeMeshBundle {
             .unwrap() as u32;
         let line_count = 1;
 
-        builder
-            .add_bundle(LineMeshBundle::builder(world, buffer_entities, vertices, indices).build());
+        builder.add_bundle(LineMeshBundle::builder(world, vertices, indices).build());
 
         builder.add_bundle(
             LineMeshInstanceBundle::builder(
                 world,
-                buffer_entities,
                 position.into(),
                 nalgebra::Quaternion::identity().into(),
                 nalgebra::vector![1.0, 1.0, 1.0].into(),
@@ -357,15 +380,22 @@ pub enum TriangleMeshBundle {}
 impl TriangleMeshBundle {
     pub fn builder(
         world: &mut World,
-        BufferEntities {
-            vertex_entity,
-            triangle_index_entity,
-            ..
-        }: BufferEntities,
         vertices: Vec<VertexData>,
         mut indices: Vec<u16>,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let vertex_id = std::any::TypeId::of::<Vertices>();
+        let vertex_entity = tagged_entities[&vertex_id];
+
+        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
+        let triangle_index_entity = tagged_entities[&triangle_index_id];
 
         // Vertices
         let vertex_head = world
@@ -410,11 +440,6 @@ pub enum TriangleMeshDataBundle {}
 impl TriangleMeshDataBundle {
     pub fn builder(
         world: &mut World,
-        BufferEntities {
-            triangle_mesh_entity,
-            triangle_mesh_instance_entity,
-            ..
-        }: BufferEntities,
         vertex_count: u32,
         instance_count: u32,
         index_offset: u32,
@@ -422,6 +447,18 @@ impl TriangleMeshDataBundle {
         indexed_indirect_constructor: impl Fn(u64) -> EntityBuilder,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
+        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
+
+        let triangle_mesh_instances_id = std::any::TypeId::of::<TriangleMeshInstances>();
+        let triangle_mesh_instance_entity = tagged_entities[&triangle_mesh_instances_id];
 
         let triangle_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
@@ -460,16 +497,21 @@ pub enum TriangleMeshInstanceDataBundle {}
 impl TriangleMeshInstanceDataBundle {
     pub fn builder(
         world: &mut World,
-        BufferEntities {
-            triangle_mesh_instance_entity,
-            ..
-        }: BufferEntities,
         mesh: u32,
         position: PositionComponent,
         rotation: RotationComponent,
         scale: ScaleComponent,
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
+
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let triangle_mesh_instances_id = std::any::TypeId::of::<TriangleMeshInstances>();
+        let triangle_mesh_instance_entity = tagged_entities[&triangle_mesh_instances_id];
 
         let triangle_mesh_instance_heads = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthsComponent>(
@@ -514,7 +556,6 @@ pub enum TriangleListMeshBundle {}
 impl TriangleListMeshBundle {
     pub fn builder(
         world: &mut World,
-        buffer_entities: BufferEntities,
         mut base_index: u16,
         vertices: Vec<VertexData>,
     ) -> EntityBuilder {
@@ -527,7 +568,7 @@ impl TriangleListMeshBundle {
             })
             .collect::<Vec<_>>();
 
-        TriangleMeshBundle::builder(world, buffer_entities, vertices, indices)
+        TriangleMeshBundle::builder(world, vertices, indices)
     }
 }
 
@@ -535,12 +576,7 @@ impl TriangleListMeshBundle {
 pub enum TriangleFanMeshBundle {}
 
 impl TriangleFanMeshBundle {
-    pub fn builder(
-        world: &mut World,
-        buffer_entities: BufferEntities,
-        base_index: u16,
-        vertices: Vec<VertexData>,
-    ) -> EntityBuilder {
+    pub fn builder(world: &mut World, base_index: u16, vertices: Vec<VertexData>) -> EntityBuilder {
         let mut current_index = base_index;
         let indices = (0..vertices.len() - 2)
             .flat_map(|_| {
@@ -550,7 +586,7 @@ impl TriangleFanMeshBundle {
             })
             .collect::<Vec<_>>();
 
-        TriangleMeshBundle::builder(world, buffer_entities, vertices, indices)
+        TriangleMeshBundle::builder(world, vertices, indices)
     }
 }
 
@@ -560,17 +596,29 @@ pub enum BoxBotMeshBundle {}
 impl BoxBotMeshBundle {
     pub fn builders(
         world: &mut World,
-        buffer_entities
-        @
-        BufferEntities {
-            vertex_entity,
-            triangle_index_entity,
-            triangle_mesh_entity,
-            line_mesh_entity,
-            ..
-        }: BufferEntities,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
+        let (_, tagged_entities) = world
+            .query_mut::<&TaggedEntitiesComponent>()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        let vertex_id = std::any::TypeId::of::<Vertices>();
+        let vertex_entity = tagged_entities[&vertex_id];
+
+        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
+        let triangle_index_entity = tagged_entities[&triangle_index_id];
+
+        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
+        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
+
+        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
+        let line_mesh_entity = tagged_entities[&line_mesh_id];
+
+        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
+        let line_mesh_id = tagged_entities[&line_mesh_id];
+
         // Fetch mesh ID and store into mesh ID map
         let triangle_mesh_head = **world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
@@ -603,7 +651,6 @@ impl BoxBotMeshBundle {
         builder.add_bundle(
             TriangleMeshBundle::builder(
                 world,
-                buffer_entities,
                 vec![
                     VertexData::new((1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
                     VertexData::new((-1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
@@ -673,7 +720,6 @@ impl BoxBotMeshBundle {
         builder.add_bundle(
             TriangleMeshDataBundle::builder(
                 world,
-                buffer_entities,
                 36 * 2,
                 0,
                 base_triangle_index,
@@ -688,7 +734,6 @@ impl BoxBotMeshBundle {
         // Cube lines
         builders.push(LineListMeshBundle::builder(
             world,
-            buffer_entities,
             vec![
                 VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
                 VertexData::new((25.0, -25.0, -25.0), GREEN, GREEN, 2.0, -30.0),
@@ -734,7 +779,6 @@ pub fn register_mesh_ids(
 
 pub fn mesh_instance_builders(
     world: &mut World,
-    buffer_entities: BufferEntities,
     mesh: &str,
     position: PositionComponent,
     rotation: RotationComponent,
@@ -749,7 +793,6 @@ pub fn mesh_instance_builders(
     if let Some(triangle_mesh) = triangle_mesh {
         builders.push(TriangleMeshInstanceDataBundle::builder(
             world,
-            buffer_entities,
             triangle_mesh,
             position,
             rotation,
@@ -760,7 +803,6 @@ pub fn mesh_instance_builders(
     if let Some((line_mesh, line_count)) = line_mesh {
         builders.push(LineMeshInstanceBundle::builder(
             world,
-            buffer_entities,
             position.into(),
             rotation.into(),
             scale.into(),
