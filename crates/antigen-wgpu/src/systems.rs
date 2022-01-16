@@ -258,7 +258,7 @@ pub fn create_buffers_system(world: &mut World) {
             continue;
         }
 
-        buffer.set_ready(device.create_buffer(&buffer_descriptor));
+        buffer.set_ready(device.create_buffer(&buffer_descriptor).into());
 
         buffer_descriptor.set_changed(false);
 
@@ -280,7 +280,7 @@ pub fn create_buffers_init_system(world: &mut World) {
 
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
-        buffer.set_ready(device.create_buffer_init(&buffer_init_descriptor));
+        buffer.set_ready(device.create_buffer_init(&buffer_init_descriptor).into());
 
         buffer_init_descriptor.set_changed(false);
 
@@ -311,7 +311,7 @@ pub fn create_textures_system(world: &mut World) {
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
 
-        texture.set_ready(device.create_texture(&*texture_descriptor));
+        texture.set_ready(device.create_texture(&*texture_descriptor).into());
 
         texture_descriptor_component.set_changed(false);
 

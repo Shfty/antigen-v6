@@ -27,7 +27,7 @@ pub type SurfaceComponent = LazyComponent<Surface>;
 pub type TextureDescriptorComponent<'a> = Changed<TextureDescriptor<'a>>;
 
 // WGPU texture
-pub type TextureComponent = LazyComponent<Texture>;
+pub type TextureComponent = LazyComponent<Arc<Texture>>;
 
 // MSAA frambuffer usage flag for TextureComponent
 pub enum MsaaFramebuffer {}
@@ -83,7 +83,7 @@ pub type BufferDescriptorComponent<'a> = Changed<BufferDescriptor<'a>>;
 pub type BufferInitDescriptorComponent<'a> = Changed<BufferInitDescriptor<'a>>;
 
 // WGPU buffer
-pub type BufferComponent = LazyComponent<Buffer>;
+pub type BufferComponent = LazyComponent<Arc<Buffer>>;
 
 // Buffer write operation
 pub struct BufferWriteComponent<T> {
