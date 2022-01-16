@@ -499,12 +499,17 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             .map(|(vertex_buffer, range)| (vertex_buffer.get(world), range))
             .collect::<Vec<_>>();
 
-        let vertex_buffers = vertex_buffer_queries
+        let vertex_buffer_locks = vertex_buffer_queries
             .iter_mut()
             .map(|(query, range)| {
-                let bind_group = query.get().unwrap();
-                (bind_group.get().unwrap(), range)
+                let bind_group = query.get().unwrap().read();
+                (bind_group, range)
             })
+            .collect::<Vec<_>>();
+
+        let vertex_buffers = vertex_buffer_locks
+            .iter()
+            .map(|(buf, range)| (buf.get().unwrap(), range))
             .collect::<Vec<_>>();
 
         // Collect index buffer query
@@ -512,10 +517,14 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             .as_ref()
             .map(|(index_buffer, range, format)| (index_buffer.get(world), range, format));
 
-        let index_buffer = index_buffer_query.as_mut().map(|(query, range, format)| {
-            let bind_group = query.get().unwrap();
-            (bind_group.get().unwrap(), range, format)
+        let index_buffer_lock = index_buffer_query.as_mut().map(|(query, range, format)| {
+            let bind_group = query.get().unwrap().read();
+            (bind_group, range, *format)
         });
+
+        let index_buffer = index_buffer_lock
+            .as_ref()
+            .map(|(lock, range, format)| (lock.get().unwrap(), range, format));
 
         // Collect bind group queries
         let mut bind_group_queries = bind_groups
@@ -554,11 +563,16 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             (indirect_query.get(world), *indirect_offset)
         });
 
-        let draw_indirect = indirect_query
-            .as_mut()
-            .map(|(indirect_query, indirect_offset)| {
-                (indirect_query.get().unwrap(), *indirect_offset)
-            });
+        let draw_indirect_lock =
+            indirect_query
+                .as_mut()
+                .map(|(indirect_query, indirect_offset)| {
+                    (indirect_query.get().unwrap().read(), *indirect_offset)
+                });
+
+        let draw_indirect = draw_indirect_lock
+            .as_ref()
+            .map(|(lock, indirect_offset)| (lock.get().unwrap(), *indirect_offset));
 
         // Collect draw indexed indirect query
         let mut indexed_indirect_query = draw_indexed_indirect.map(|draw_indexed_indirect| {
@@ -566,9 +580,16 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
             (indirect_query.get(world), *indirect_offset)
         });
 
-        let draw_indexed_indirect =
+        let draw_indexed_indirect_lock =
             indexed_indirect_query
                 .as_mut()
+                .map(|(indirect_query, indirect_offset)| {
+                    (indirect_query.get().unwrap().read(), *indirect_offset)
+                });
+
+        let draw_indexed_indirect =
+            draw_indexed_indirect_lock
+                .as_ref()
                 .map(|(indirect_query, indirect_offset)| {
                     (indirect_query.get().unwrap(), *indirect_offset)
                 });
@@ -644,13 +665,11 @@ pub fn draw_render_passes_system(world: &mut World) -> Option<()> {
 
         // Draw indirect
         if let Some((indirect_buffer, indirect_offset)) = draw_indirect {
-            let indirect_buffer = indirect_buffer.get().unwrap();
             rpass.draw_indirect(indirect_buffer, indirect_offset);
         }
 
         // Draw indexed indirect
         if let Some((indirect_buffer, indirect_offset)) = draw_indexed_indirect {
-            let indirect_buffer = indirect_buffer.get().unwrap();
             rpass.draw_indexed_indirect(indirect_buffer, indirect_offset);
         }
     }

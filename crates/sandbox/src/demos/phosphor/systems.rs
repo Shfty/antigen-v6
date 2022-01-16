@@ -35,6 +35,7 @@ pub fn phosphor_prepare_uniform_bind_group(
     uniform_bind_group_layout: &mut BindGroupLayoutComponent,
     uniform_bind_group: &mut BindGroupComponent,
 ) -> Option<()> {
+    let uniform_buffer = uniform_buffer.read();
     let uniform_buffer = uniform_buffer.get()?;
 
     // Uniform bind group
@@ -87,11 +88,22 @@ pub fn phosphor_prepare_storage_bind_group(
     bind_group_layout: &mut BindGroupLayoutComponent,
     bind_group: &mut BindGroupComponent,
 ) -> Option<()> {
+    let vertex_buffer = vertex_buffer.read();
     let vertex_buffer = vertex_buffer.get()?;
+
+    let triangle_mesh_instance_buffer = triangle_mesh_instance_buffer.read();
     let triangle_mesh_instance_buffer = triangle_mesh_instance_buffer.get()?;
+
+    let line_index_buffer = line_index_buffer.read();
     let line_index_buffer = line_index_buffer.get()?;
+
+    let line_mesh_buffer = line_mesh_buffer.read();
     let line_mesh_buffer = line_mesh_buffer.get()?;
+
+    let line_mesh_instance_buffer = line_mesh_instance_buffer.read();
     let line_mesh_instance_buffer = line_mesh_instance_buffer.get()?;
+
+    let line_instance_buffer = line_instance_buffer.read();
     let line_instance_buffer = line_instance_buffer.get()?;
 
     let bind_group_layout = match bind_group_layout.get() {
@@ -634,8 +646,7 @@ pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
         .with::<BeamMesh>();
 
     for (i, (_, triangle_mesh_data)) in query.into_iter().enumerate() {
-        triangle_mesh_data[0].instance_count =
-            mesh_instance_counts.read()[i] as u32;
+        triangle_mesh_data[0].instance_count = mesh_instance_counts.read()[i] as u32;
         triangle_mesh_data.set_changed(true);
     }
 }

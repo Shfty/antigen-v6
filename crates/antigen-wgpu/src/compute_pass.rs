@@ -2,7 +2,10 @@ use antigen_core::{AsUsage, Construct, Indirect, Usage};
 use hecs::{Entity, EntityBuilder, World};
 use wgpu::{BufferAddress, ComputePassDescriptor, DynamicOffset};
 
-use crate::{BindGroupComponent, BufferComponent, CommandEncoderComponent, ComputePipelineComponent, PassOrderComponent, PushConstantQuery};
+use crate::{
+    BindGroupComponent, BufferComponent, CommandEncoderComponent, ComputePipelineComponent,
+    PassOrderComponent, PushConstantQuery,
+};
 
 pub enum ComputePassTag {}
 
@@ -190,6 +193,9 @@ pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
         let dispatch_ind_buffer = dispatch_ind_query
             .as_mut()
             .map(|(query, offset)| (query.get().unwrap(), *offset));
+        let dispatch_ind_lock = dispatch_ind_buffer
+            .as_ref()
+            .map(|(buffer, offset)| (buffer.read(), *offset));
 
         let dispatch = dispatch.left();
 
@@ -225,13 +231,13 @@ pub fn dispatch_compute_passes_system(world: &mut World) -> Option<()> {
             cpass.dispatch(dispatch.0, dispatch.1, dispatch.2);
         }
 
-        if let Some((buffer, offset)) = dispatch_ind_buffer {
+        if let Some((buffer, offset)) = &dispatch_ind_lock {
             println!(
                 "Dispatching indirect compute work group for entity {:?}",
                 entity
             );
             let buffer = buffer.get().unwrap();
-            cpass.dispatch_indirect(buffer, offset);
+            cpass.dispatch_indirect(buffer, *offset);
         }
     }
 

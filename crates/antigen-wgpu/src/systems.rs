@@ -254,11 +254,11 @@ pub fn create_buffers_system(world: &mut World) {
 
     let mut query = world.query::<(&BufferDescriptorComponent, &mut BufferComponent)>();
     for (entity, (buffer_descriptor, buffer)) in query.into_iter() {
-        if !buffer.is_pending() && !buffer_descriptor.get_changed() {
+        if !buffer.read().is_pending() && !buffer_descriptor.get_changed() {
             continue;
         }
 
-        buffer.set_ready(device.create_buffer(&buffer_descriptor).into());
+        buffer.write().set_ready(device.create_buffer(&buffer_descriptor).into());
 
         buffer_descriptor.set_changed(false);
 
@@ -274,13 +274,13 @@ pub fn create_buffers_init_system(world: &mut World) {
     let mut query = world.query::<(&BufferInitDescriptorComponent, &mut BufferComponent)>();
 
     for (_, (buffer_init_descriptor, buffer)) in query.into_iter() {
-        if !buffer.is_pending() && !buffer_init_descriptor.get_changed() {
+        if !buffer.read().is_pending() && !buffer_init_descriptor.get_changed() {
             continue;
         }
 
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
-        buffer.set_ready(device.create_buffer_init(&buffer_init_descriptor).into());
+        buffer.write().set_ready(device.create_buffer_init(&buffer_init_descriptor).into());
 
         buffer_init_descriptor.set_changed(false);
 
@@ -391,6 +391,7 @@ pub fn buffer_write_system<T: bytemuck::Pod + Send + Sync + 'static>(world: &mut
         });
 
         if data_component.get_changed() {
+            let buffer = buffer.read();
             let buffer = if let LazyComponent::Ready(buffer) = &*buffer {
                 buffer
             } else {
@@ -443,6 +444,7 @@ pub fn buffer_write_slice_system<
         });
 
         if data_component.get_changed() {
+            let buffer = buffer.read();
             let buffer = if let LazyComponent::Ready(buffer) = &*buffer {
                 buffer
             } else {

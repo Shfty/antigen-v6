@@ -546,6 +546,18 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     insert_tagged_entity::<(&LineInstances, &BufferComponent), LineInstances>()((world, channel))
         .unwrap();
 
+    // Clone buffers to game thread
+    send_clone_query::<
+        (
+            &TriangleMeshInstances,
+            &BufferComponent,
+            &BufferLengthsComponent,
+        ),
+        Game,
+    >(triangle_mesh_instance_entity)((world, channel))
+    .unwrap();
+
+
     // Total time entity
     let mut builder = EntityBuilder::new();
     let bundle = builder
@@ -1100,20 +1112,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     */
 
     assemble_test_geometry(world);
-
-    // Forcibly create buffers before cloning to game thread
-    antigen_wgpu::create_buffers_system(world);
-
-    // Clone buffers to game thread
-    send_clone_query::<
-        (
-            &TriangleMeshInstances,
-            &BufferComponent,
-            &BufferLengthsComponent,
-        ),
-        Game,
-    >(triangle_mesh_instance_entity)((world, channel))
-    .unwrap();
 
     channel
         .send_to::<Game>(insert_tagged_entity::<

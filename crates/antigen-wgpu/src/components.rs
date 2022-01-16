@@ -88,7 +88,7 @@ pub type BufferDescriptorComponent<'a> = Changed<BufferDescriptor<'a>>;
 pub type BufferInitDescriptorComponent<'a> = Changed<BufferInitDescriptor<'a>>;
 
 // WGPU buffer
-pub type BufferComponent = LazyComponent<Arc<Buffer>>;
+pub type BufferComponent = Arc<RwLock<LazyComponent<Buffer>>>;
 
 // Buffer write operation
 pub struct BufferWriteComponent<T> {
