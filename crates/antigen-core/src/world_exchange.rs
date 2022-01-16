@@ -257,6 +257,38 @@ where
     }
 }
 
+impl<T1, T2, T3> ClonedBundle for (&T1, &T2, &T3)
+where
+    T1: Clone + Component,
+    T2: Clone + Component,
+    T3: Clone + Component,
+{
+    type Bundle = (T1, T2, T3);
+
+    fn cloned_bundle(&self) -> Self::Bundle {
+        (self.0.clone(), self.1.clone(), self.2.clone())
+    }
+}
+
+impl<T1, T2, T3, T4> ClonedBundle for (&T1, &T2, &T3, &T4)
+where
+    T1: Clone + Component,
+    T2: Clone + Component,
+    T3: Clone + Component,
+    T4: Clone + Component,
+{
+    type Bundle = (T1, T2, T3, T4);
+
+    fn cloned_bundle(&self) -> Self::Bundle {
+        (
+            self.0.clone(),
+            self.1.clone(),
+            self.2.clone(),
+            self.3.clone(),
+        )
+    }
+}
+
 /// Clone component C and send it to world U
 pub fn send_clone_query<Q, U>(
     entity: Entity,
