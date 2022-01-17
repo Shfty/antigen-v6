@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use antigen_core::TaggedEntitiesComponent;
+use antigen_core::get_tagged_entity;
 use antigen_wgpu::{
     buffer_size_of,
     wgpu::{BufferAddress, COPY_BUFFER_ALIGNMENT},
@@ -30,14 +30,7 @@ impl VerticesBundle {
     pub fn builder(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let vertex_id = std::any::TypeId::of::<Vertices>();
-        let vertex_entity = tagged_entities[&vertex_id];
+        let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
 
         let vertex_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
@@ -65,15 +58,7 @@ impl LineIndicesBundle {
     pub fn builder(world: &mut World, indices: Vec<u32>) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let line_index_id = std::any::TypeId::of::<LineIndices>();
-        let line_index_entity = tagged_entities[&line_index_id];
-
+        let line_index_entity = get_tagged_entity::<LineIndices>(world).unwrap();
         let line_index_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_index_entity)
             .unwrap();
@@ -105,17 +90,8 @@ impl LineMeshBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let vertex_id = std::any::TypeId::of::<Vertices>();
-        let vertex_entity = tagged_entities[&vertex_id];
-
-        let line_index_id = std::any::TypeId::of::<LineIndices>();
-        let line_index_entity = tagged_entities[&line_index_id];
+        let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
+        let line_index_entity = get_tagged_entity::<LineIndices>(world).unwrap();
 
         let vertex_offset = world
             .query_one_mut::<&antigen_wgpu::BufferLengthComponent>(vertex_entity)
@@ -161,15 +137,7 @@ impl LineMeshDataBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
-        let line_mesh_entity = tagged_entities[&line_mesh_id];
-
+        let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
         let line_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
             .unwrap();
@@ -204,17 +172,8 @@ impl LineMeshInstanceBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let line_mesh_instances_id = std::any::TypeId::of::<LineMeshInstances>();
-        let line_mesh_instance_entity = tagged_entities[&line_mesh_instances_id];
-
-        let line_instances_id = std::any::TypeId::of::<LineInstances>();
-        let line_instance_entity = tagged_entities[&line_instances_id];
+        let line_mesh_instance_entity = get_tagged_entity::<LineMeshInstances>(world).unwrap();
+        let line_instance_entity = get_tagged_entity::<LineInstances>(world).unwrap();
 
         let line_mesh_instance_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
@@ -325,14 +284,7 @@ impl OscilloscopeMeshBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
-        let line_mesh_entity = tagged_entities[&line_mesh_id];
+        let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
         builder.add(oscilloscope);
 
@@ -385,17 +337,8 @@ impl TriangleMeshBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let vertex_id = std::any::TypeId::of::<Vertices>();
-        let vertex_entity = tagged_entities[&vertex_id];
-
-        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
-        let triangle_index_entity = tagged_entities[&triangle_index_id];
+        let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
+        let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
 
         // Vertices
         let vertex_head = world
@@ -448,17 +391,9 @@ impl TriangleMeshDataBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
-        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
-
-        let triangle_mesh_instances_id = std::any::TypeId::of::<TriangleMeshInstances>();
-        let triangle_mesh_instance_entity = tagged_entities[&triangle_mesh_instances_id];
+        let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
+        let triangle_mesh_instance_entity =
+            get_tagged_entity::<TriangleMeshInstances>(world).unwrap();
 
         let triangle_mesh_head = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
@@ -506,14 +441,8 @@ impl TriangleMeshInstanceDataBundle {
     ) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let triangle_mesh_instances_id = std::any::TypeId::of::<TriangleMeshInstances>();
-        let triangle_mesh_instance_entity = tagged_entities[&triangle_mesh_instances_id];
+        let triangle_mesh_instance_entity =
+            get_tagged_entity::<TriangleMeshInstances>(world).unwrap();
 
         let triangle_mesh_instance_heads = world
             .query_one_mut::<&mut antigen_wgpu::BufferLengthsComponent>(
@@ -601,23 +530,10 @@ impl BoxBotMeshBundle {
         world: &mut World,
         triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
     ) -> Vec<EntityBuilder> {
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let vertex_id = std::any::TypeId::of::<Vertices>();
-        let vertex_entity = tagged_entities[&vertex_id];
-
-        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
-        let triangle_index_entity = tagged_entities[&triangle_index_id];
-
-        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
-        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
-
-        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
-        let line_mesh_entity = tagged_entities[&line_mesh_id];
+        let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
+        let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
+        let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
+        let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
         // Fetch mesh ID and store into mesh ID map
         let triangle_mesh_head = world

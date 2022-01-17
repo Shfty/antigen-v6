@@ -122,8 +122,8 @@ use antigen_winit::{
 };
 
 use antigen_core::{
-    send_clone_query, send_component, Construct, Indirect, Lift, MessageContext, MessageResult,
-    SendTo, TaggedEntitiesComponent, WorldChannel,
+    get_tagged_entity, insert_tagged_entity, insert_tagged_entity_by_query, send_clone_query,
+    send_component, Construct, Indirect, Lift, MessageContext, MessageResult, SendTo, WorldChannel,
 };
 
 use antigen_wgpu::{
@@ -304,71 +304,19 @@ fn load_map<
         .unwrap();
 }
 
-fn insert_tagged_entity<Q: hecs::Query + Send + Sync + 'static, T: 'static>(
+fn insert_tagged_entity_by_query_message<Q: hecs::Query + Send + Sync + 'static, T: 'static>(
 ) -> impl for<'a, 'b> Fn(MessageContext<'a, 'b>) -> Result<MessageContext<'a, 'b>, Box<dyn Error>> {
     move |mut ctx: MessageContext| {
         let (world, _) = &mut ctx;
-
-        let (entity, _) = world.query_mut::<Q>().into_iter().next().unwrap();
-
-        let (_, named_entities) = if let Some(component) = world
-            .query_mut::<&mut TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-        {
-            component
-        } else {
-            let entity = world.spawn((TaggedEntitiesComponent::default(),));
-            (
-                entity,
-                world
-                    .query_one_mut::<&mut TaggedEntitiesComponent>(entity)
-                    .unwrap(),
-            )
-        };
-
-        let tag_id = std::any::TypeId::of::<T>();
-        named_entities.insert(tag_id, entity);
-        println!(
-            "Thread {:?} Inserted name {:?} for entity {:?}",
-            std::thread::current().name().unwrap(),
-            tag_id,
-            entity
-        );
-
+        insert_tagged_entity_by_query::<Q, T>(world);
         Ok(ctx)
     }
 }
 
-pub fn assemble(world: &mut World, channel: &WorldChannel) {
-    let window_entity = world.reserve_entity();
-    let renderer_entity = world.reserve_entity();
-
-    let (wgpu_entity, _) = world
-        .query_mut::<(
-            &InstanceComponent,
-            &AdapterComponent,
-            &DeviceComponent,
-            &QueueComponent,
-        )>()
-        .into_iter()
-        .next()
-        .unwrap();
-
-    send_clone_query::<
-        (
-            &InstanceComponent,
-            &AdapterComponent,
-            &DeviceComponent,
-            &QueueComponent,
-        ),
-        Game,
-    >(wgpu_entity)((world, channel))
-    .unwrap();
-
-    // Uniforms
+// Bundles
+fn uniform_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(Uniform)
         .add(BindGroupLayoutComponent::default())
         .add(BindGroupComponent::default())
@@ -377,13 +325,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             size: buffer_size_of::<UniformData>(),
             usage: BufferUsages::UNIFORM | BufferUsages::INDIRECT | BufferUsages::COPY_DST,
             mapped_at_creation: false,
-        }))
-        .build();
-    let uniform_entity = world.spawn(bundle);
+        }));
+    builder
+}
 
-    // Vertices
+fn vertex_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(Vertices)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Vertex Buffer"),
@@ -391,20 +339,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthComponent::default())
-        .build();
-    let vertex_entity = world.spawn(bundle);
-    insert_tagged_entity::<(&Vertices, &BufferComponent), Vertices>()((world, channel)).unwrap();
+        .add(BufferLengthComponent::default());
+    builder
+}
 
-    // Mesh IDs
+fn triangle_index_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    builder.add(MeshIds);
-    builder.add(MeshIdsComponent::default());
-    let mesh_ids_entity = world.spawn(builder.build());
-
-    // Triangle Indices
-    let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(TriangleIndices)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Triangle Index Buffer"),
@@ -412,17 +353,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthComponent::default())
-        .build();
-    let triangle_index_entity = world.spawn(bundle);
-    insert_tagged_entity::<(&TriangleIndices, &BufferComponent), TriangleIndices>()((
-        world, channel,
-    ))
-    .unwrap();
+        .add(BufferLengthComponent::default());
+    builder
+}
 
-    // Triangle Meshes
+fn triangle_mesh_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(TriangleMeshes)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Triangle Mesh Buffer"),
@@ -430,15 +367,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::INDIRECT | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthComponent::default())
-        .build();
-    let triangle_mesh_entity = world.spawn(bundle);
-    insert_tagged_entity::<(&TriangleMeshes, &BufferComponent), TriangleMeshes>()((world, channel))
-        .unwrap();
+        .add(BufferLengthComponent::default());
+    builder
+}
 
-    // Triangle Mesh Instances
+fn triangle_mesh_instances_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(TriangleMeshInstances)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Triangle Mesh Instance Buffer"),
@@ -447,39 +382,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthsComponent::default())
-        .build();
+        .add(BufferLengthsComponent::default());
+    builder
+}
 
-    let triangle_mesh_instance_entity = world.spawn(bundle);
-
-    insert_tagged_entity::<(&TriangleMeshInstances, &BufferComponent), TriangleMeshInstances>()((
-        world, channel,
-    ))
-    .unwrap();
-
-    // Line Vertices
-    let vertices = circle_strip(2);
+fn line_index_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let line_vertex_entity = world.reserve_entity();
-    let bundle = builder
-        .add(LineVertices)
-        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
-            label: Some("Line Vertex Buffer"),
-            size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        }))
-        .add_bundle(antigen_wgpu::BufferDataBundle::new(
-            vertices,
-            0,
-            line_vertex_entity,
-        ))
-        .build();
-    world.insert(line_vertex_entity, bundle).unwrap();
-
-    // Line Indices
-    let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(LineIndices)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Line Index Buffer"),
@@ -487,15 +396,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthComponent::default())
-        .build();
-    let line_index_entity = world.spawn(bundle);
-    insert_tagged_entity::<(&LineIndices, &BufferComponent), LineIndices>()((world, channel))
-        .unwrap();
+        .add(BufferLengthComponent::default());
+    builder
+}
 
-    // Line Meshes
+fn mesh_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(LineMeshes)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Mesh Buffer"),
@@ -503,15 +410,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthComponent::default())
-        .build();
-    let line_mesh_entity = world.spawn(bundle);
-    insert_tagged_entity::<(&LineMeshes, &BufferComponent), LineMeshes>()((world, channel))
-        .unwrap();
+        .add(BufferLengthComponent::default());
+    builder
+}
 
-    // Line Mesh Instances
+fn line_mesh_instance_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(LineMeshInstances)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Line Mesh Instance Buffer"),
@@ -520,18 +425,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthComponent::default())
-        .build();
-    let line_mesh_instance_entity = world.spawn(bundle);
+        .add(BufferLengthComponent::default());
+    builder
+}
 
-    insert_tagged_entity::<(&LineMeshInstances, &BufferComponent), LineMeshInstances>()((
-        world, channel,
-    ))
-    .unwrap();
-
-    // Line Instances
+fn line_instance_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(LineInstances)
         .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
             label: Some("Line Instance Buffer"),
@@ -539,52 +439,51 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             usage: BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         }))
-        .add(BufferLengthComponent::default())
-        .build();
-    let line_instance_entity = world.spawn(bundle);
+        .add(BufferLengthComponent::default());
+    builder
+}
 
-    insert_tagged_entity::<(&LineInstances, &BufferComponent), LineInstances>()((world, channel))
-        .unwrap();
-
-    // Clone buffers to game thread
-    send_clone_query::<
-        (
-            &TriangleMeshInstances,
-            &BufferComponent,
-            &BufferLengthsComponent,
-        ),
-        Game,
-    >(triangle_mesh_instance_entity)((world, channel))
-    .unwrap();
-
-
-    // Total time entity
+fn line_vertex_buffer_bundle(entity: Entity, vertices: Vec<LineVertexData>) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
+        .add(LineVertices)
+        .add_bundle(antigen_wgpu::BufferBundle::new(BufferDescriptor {
+            label: Some("Line Vertex Buffer"),
+            size: buffer_size_of::<LineVertexData>() * vertices.len() as BufferAddress,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        }))
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(vertices, 0, entity));
+    builder
+}
+
+fn total_time_builder(uniform_entity: Entity) -> EntityBuilder {
+    let mut builder = EntityBuilder::new();
+    builder
         .add(StartTimeComponent::construct(Instant::now()))
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             TotalTimeComponent::construct(0.0),
             buffer_size_of::<[[f32; 4]; 4]>() * 2,
             uniform_entity,
-        ))
-        .build();
-    let _total_time_entity = world.spawn(bundle);
+        ));
+    builder
+}
 
-    // Delta time entity
+fn delta_time_bundle(uniform_entity: Entity) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(TimestampComponent::construct(Instant::now()))
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             DeltaTimeComponent::construct(1.0 / 60.0),
             (buffer_size_of::<[[f32; 4]; 4]>() * 2) + buffer_size_of::<f32>(),
             uniform_entity,
-        ))
-        .build();
-    let _delta_time_entity = world.spawn(bundle);
+        ));
+    builder
+}
 
-    // Perspective matrix entity
+fn perspective_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(Perspective)
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             PerspectiveMatrixComponent::construct(perspective_matrix(
@@ -595,13 +494,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             )),
             0,
             uniform_entity,
-        ))
-        .build();
-    let _perspective_entity = world.spawn(bundle);
+        ));
+    builder
+}
 
-    // Orthographic matrix entity
+fn orthographic_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(Orthographic)
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             OrthographicMatrixComponent::construct(orthographic_matrix(
@@ -612,13 +511,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             )),
             buffer_size_of::<[[f32; 4]; 4]>(),
             uniform_entity,
-        ))
-        .build();
-    let _orthographic_entity = world.spawn(bundle);
+        ));
+    builder
+}
 
-    // Beam buffer texture
+fn beam_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(BeamBuffer)
         .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
             label: Some("Beam Buffer"),
@@ -644,13 +543,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 base_array_layer: 0,
                 array_layer_count: None,
             },
-        ))
-        .build();
-    let beam_buffer_entity = world.spawn(bundle);
+        ));
+    builder
+}
 
-    // Beam depth buffer
+fn beam_depth_buffer_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(BeamDepthBuffer)
         .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
             label: Some("Beam Depth Buffer"),
@@ -676,13 +575,13 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 base_array_layer: 0,
                 array_layer_count: None,
             },
-        ))
-        .build();
-    let beam_depth_buffer_entity = world.spawn(bundle);
+        ));
+    builder
+}
 
-    // Beam multisample resolve target
+fn beam_multisample_bundle() -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    let bundle = builder
+    builder
         .add(BeamMultisample)
         .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
             label: Some("Beam Multisample"),
@@ -708,95 +607,195 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 base_array_layer: 0,
                 array_layer_count: None,
             },
-        ))
-        .build();
-    let beam_multisample_entity = world.spawn(bundle);
+        ));
+    builder
+}
+
+fn phosphor_buffer_bundle(front: bool) -> EntityBuilder {
+    let mut builder = EntityBuilder::new();
+
+    if front {
+        builder.add(PhosphorFrontBuffer);
+    } else {
+        builder.add(PhosphorBackBuffer);
+    }
+
+    builder
+        .add(BindGroupComponent::default())
+        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
+            label: Some(if front {
+                "Phosphor Front Buffer"
+            } else {
+                "Phosphor Back Buffer"
+            }),
+            size: Extent3d {
+                width: 640,
+                height: 480,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: HDR_TEXTURE_FORMAT,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+        }))
+        .add_bundle(antigen_wgpu::TextureViewBundle::new(
+            TextureViewDescriptor {
+                label: Some(if front {
+                    "Phosphor Front Buffer View"
+                } else {
+                    "Phosphor Back Buffer View"
+                }),
+                format: None,
+                dimension: None,
+                aspect: TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            },
+        ));
+    builder
+}
+
+fn window_bundle() -> EntityBuilder {
+    let mut builder = EntityBuilder::new();
+    builder
+        .add_bundle(antigen_winit::WindowBundle::default())
+        .add_bundle(antigen_winit::WindowTitleBundle::new("Phosphor"))
+        .add_bundle(antigen_wgpu::WindowSurfaceBundle::new())
+        .add(RedrawUnconditionally);
+    builder
+}
+
+// Main assemblage function
+pub fn assemble(world: &mut World, channel: &WorldChannel) {
+    let window_entity = world.reserve_entity();
+    let renderer_entity = world.reserve_entity();
+
+    // Mesh IDs
+    let mut builder = EntityBuilder::new();
+    builder.add(MeshIds);
+    builder.add(MeshIdsComponent::default());
+    let mesh_ids_entity = world.spawn(builder.build());
+
+    // Buffer entities
+    let uniform_entity = world.spawn(uniform_buffer_bundle().build());
+    let vertex_entity = world.spawn(vertex_buffer_bundle().build());
+    let triangle_index_entity = world.spawn(triangle_index_buffer_bundle().build());
+    let triangle_mesh_entity = world.spawn(triangle_mesh_buffer_bundle().build());
+    let triangle_mesh_instance_entity =
+        world.spawn(triangle_mesh_instances_buffer_bundle().build());
+
+    let line_vertex_entity = world.reserve_entity();
+    world
+        .insert(
+            line_vertex_entity,
+            line_vertex_buffer_bundle(line_vertex_entity, circle_strip(2)).build(),
+        )
+        .unwrap();
+
+    let line_index_entity = world.spawn(line_index_buffer_bundle().build());
+    let line_mesh_entity = world.spawn(mesh_buffer_bundle().build());
+    let line_mesh_instance_entity = world.spawn(line_mesh_instance_buffer_bundle().build());
+    let line_instance_entity = world.spawn(line_instance_buffer_bundle().build());
+
+    // Clone buffers to game thread
+    send_clone_query::<
+        (
+            &TriangleMeshInstances,
+            &BufferComponent,
+            &BufferLengthsComponent,
+        ),
+        Game,
+    >(triangle_mesh_instance_entity)((world, channel))
+    .unwrap();
+
+    send_clone_query::<(&LineMeshInstances, &BufferComponent, &BufferLengthComponent), Game>(
+        line_mesh_instance_entity,
+    )((world, channel))
+    .unwrap();
+
+    send_clone_query::<(&LineInstances, &BufferComponent, &BufferLengthComponent), Game>(
+        line_instance_entity,
+    )((world, channel))
+    .unwrap();
+
+    // Insert tagged entities
+    insert_tagged_entity::<Vertices>(world, vertex_entity);
+    insert_tagged_entity::<TriangleIndices>(world, triangle_index_entity);
+    insert_tagged_entity::<TriangleMeshes>(world, triangle_mesh_entity);
+    insert_tagged_entity::<TriangleMeshInstances>(world, triangle_mesh_instance_entity);
+    insert_tagged_entity::<LineIndices>(world, line_index_entity);
+    insert_tagged_entity::<LineMeshes>(world, line_mesh_entity);
+    insert_tagged_entity::<LineMeshInstances>(world, line_mesh_instance_entity);
+    insert_tagged_entity::<LineInstances>(world, line_instance_entity);
+
+    // Insert tagged entities on game thread
+    channel
+        .send_to::<Game>(insert_tagged_entity_by_query_message::<
+            (&TriangleMeshInstances, &BufferComponent),
+            TriangleMeshInstances,
+        >())
+        .unwrap();
+
+    channel
+        .send_to::<Game>(insert_tagged_entity_by_query_message::<
+            (&LineMeshInstances, &BufferComponent),
+            LineMeshInstances,
+        >())
+        .unwrap();
+
+    channel
+        .send_to::<Game>(insert_tagged_entity_by_query_message::<
+            (&LineInstances, &BufferComponent),
+            LineInstances,
+        >())
+        .unwrap();
+
+    // Time entities
+    world.spawn(total_time_builder(uniform_entity).build());
+    world.spawn(delta_time_bundle(uniform_entity).build());
+
+    // Projection matrix entities
+    world.spawn(perspective_matrix_bundle(uniform_entity).build());
+    world.spawn(orthographic_matrix_bundle(uniform_entity).build());
+
+    // Texture entities
+    let beam_buffer_entity = world.spawn(beam_buffer_bundle().build());
+    let beam_depth_buffer_entity = world.spawn(beam_depth_buffer_bundle().build());
+
+    // Beam multisample resolve target
+    let beam_multisample_entity = world.spawn(beam_multisample_bundle().build());
 
     // Phosphor buffers
     let phosphor_front_entity = world.reserve_entity();
     let phosphor_back_entity = world.reserve_entity();
 
-    // Phosphor front buffer
-    let mut builder = EntityBuilder::new();
-    let bundle = builder
-        .add(PhosphorFrontBuffer)
-        .add(BindGroupComponent::default())
-        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
-            label: Some("Phosphor Front Buffer"),
-            size: Extent3d {
-                width: 640,
-                height: 480,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: HDR_TEXTURE_FORMAT,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-        }))
-        .add_bundle(antigen_wgpu::TextureViewBundle::new(
-            TextureViewDescriptor {
-                label: Some("Phosphor Front Buffer View"),
-                format: None,
-                dimension: None,
-                aspect: TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            },
-        ))
-        .add_bundle(
-            antigen_core::swap_with_builder::<TextureViewComponent>(phosphor_back_entity).build(),
+    world
+        .insert(
+            phosphor_front_entity,
+            phosphor_buffer_bundle(true)
+                .add_bundle(
+                    antigen_core::swap_with_builder::<TextureViewComponent>(phosphor_back_entity)
+                        .build(),
+                )
+                .add_bundle(
+                    antigen_core::swap_with_builder::<BindGroupComponent>(phosphor_back_entity)
+                        .build(),
+                )
+                .build(),
         )
-        .add_bundle(
-            antigen_core::swap_with_builder::<BindGroupComponent>(phosphor_back_entity).build(),
-        )
-        .build();
-    world.insert(phosphor_front_entity, bundle).unwrap();
+        .unwrap();
 
-    // Phosphor back buffer
-    let mut builder = EntityBuilder::new();
-    let bundle = builder
-        .add(PhosphorBackBuffer)
-        .add(BindGroupComponent::default())
-        .add_bundle(antigen_wgpu::TextureBundle::new(TextureDescriptor {
-            label: Some("Phosphor Back Buffer"),
-            size: Extent3d {
-                width: 640,
-                height: 480,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: HDR_TEXTURE_FORMAT,
-            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
-        }))
-        .add_bundle(antigen_wgpu::TextureViewBundle::new(
-            TextureViewDescriptor {
-                label: Some("Phosphor Back Buffer View"),
-                format: None,
-                dimension: None,
-                aspect: TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            },
-        ))
-        .build();
-    world.insert(phosphor_back_entity, bundle).unwrap();
+    world
+        .insert(phosphor_back_entity, phosphor_buffer_bundle(false).build())
+        .unwrap();
 
     // Assemble window
-    let mut builder = EntityBuilder::new();
-    let bundle = builder
-        .add_bundle(antigen_winit::WindowBundle::default())
-        .add_bundle(antigen_winit::WindowTitleBundle::new("Phosphor"))
-        .add_bundle(antigen_wgpu::WindowSurfaceBundle::new())
-        .add(RedrawUnconditionally)
-        .build();
-    world.insert(window_entity, bundle).unwrap();
+    world
+        .insert(window_entity, window_bundle().build())
+        .unwrap();
 
     // Storage bind group
     let storage_bind_group_entity = world.spawn((
@@ -806,13 +805,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     ));
 
     // Beam mesh pass
-    let beam_mesh_pass_entity = world.reserve_entity();
-    let mut builder = EntityBuilder::new();
-    builder.add(BeamMesh);
-    builder.add(RenderPipelineComponent::default());
-    world
-        .insert(beam_mesh_pass_entity, builder.build())
-        .unwrap();
+    let beam_mesh_pass_entity = world.spawn((BeamMesh, RenderPipelineComponent::default()));
 
     // Beam mesh draw indirect
     let triangle_indexed_indirect_builder = move |offset: u64| {
@@ -1113,37 +1106,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     assemble_test_geometry(world);
 
-    channel
-        .send_to::<Game>(insert_tagged_entity::<
-            (&TriangleMeshInstances, &BufferComponent),
-            TriangleMeshInstances,
-        >())
-        .unwrap();
-
-    send_clone_query::<(&LineMeshInstances, &BufferComponent, &BufferLengthComponent), Game>(
-        line_mesh_instance_entity,
-    )((world, channel))
-    .unwrap();
-
-    channel
-        .send_to::<Game>(insert_tagged_entity::<
-            (&LineMeshInstances, &BufferComponent),
-            LineMeshInstances,
-        >())
-        .unwrap();
-
-    send_clone_query::<(&LineInstances, &BufferComponent, &BufferLengthComponent), Game>(
-        line_instance_entity,
-    )((world, channel))
-    .unwrap();
-
-    channel
-        .send_to::<Game>(insert_tagged_entity::<
-            (&LineInstances, &BufferComponent),
-            LineInstances,
-        >())
-        .unwrap();
-
     // Load map file
     {
         let map_file = include_str!("maps/line_index_test.map");
@@ -1190,14 +1152,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 }
 
 fn assemble_test_geometry(world: &mut World) {
-    let (_, tagged_entities) = world
-        .query_mut::<&TaggedEntitiesComponent>()
-        .into_iter()
-        .next()
-        .unwrap();
-
-    let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
-    let line_mesh_entity = tagged_entities[&line_mesh_id];
+    let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
     // Oscilloscopes
     let mut builder = OscilloscopeMeshBundle::builder(
@@ -1545,26 +1500,11 @@ impl MapData {
             .classname_brushes("room")
             .chain(self.classname_brushes("portal"));
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let vertex_id = std::any::TypeId::of::<Vertices>();
-        let vertex_entity = tagged_entities[&vertex_id];
-
-        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
-        let triangle_index_entity = tagged_entities[&triangle_index_id];
-
-        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
-        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
-
-        let line_index_id = std::any::TypeId::of::<LineIndices>();
-        let line_index_entity = tagged_entities[&line_index_id];
-
-        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
-        let line_mesh_entity = tagged_entities[&line_mesh_id];
+        let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
+        let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
+        let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
+        let line_index_entity = get_tagged_entity::<LineIndices>(world).unwrap();
+        let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
         for (entity, brushes) in entity_brushes {
             let entity_faces = self.entity_faces(brushes);
@@ -1727,26 +1667,11 @@ impl MapData {
 
         let entity_brushes = self.classname_brushes("mesh");
 
-        let (_, tagged_entities) = world
-            .query_mut::<&TaggedEntitiesComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-
-        let vertex_id = std::any::TypeId::of::<Vertices>();
-        let vertex_entity = tagged_entities[&vertex_id];
-
-        let triangle_index_id = std::any::TypeId::of::<TriangleIndices>();
-        let triangle_index_entity = tagged_entities[&triangle_index_id];
-
-        let triangle_mesh_id = std::any::TypeId::of::<TriangleMeshes>();
-        let triangle_mesh_entity = tagged_entities[&triangle_mesh_id];
-
-        let line_index_id = std::any::TypeId::of::<LineIndices>();
-        let line_index_entity = tagged_entities[&line_index_id];
-
-        let line_mesh_id = std::any::TypeId::of::<LineMeshes>();
-        let line_mesh_entity = tagged_entities[&line_mesh_id];
+        let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
+        let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
+        let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
+        let line_index_entity = get_tagged_entity::<LineIndices>(world).unwrap();
+        let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
         for (entity, brushes) in entity_brushes {
             let properties = self.geo_map.entity_properties.get(entity).unwrap();

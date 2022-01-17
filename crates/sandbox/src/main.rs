@@ -87,8 +87,9 @@
 //             * Create a RemoteComponent<T> abstraction for sharing components across threads
 //           [✓] Separate oscilloscope mesh creation from instancing
 //           [✓] Separate test geo triangle mesh creation from instancing
-//           [ ] Use Arc + RwLock around buffer LazyComponent to avoid having to force-create buffers before send
+//           [✓] Use Arc + RwLock around buffer LazyComponent to avoid having to force-create buffers before send
 //           [ ] Reduce boilerplate for cross-thread setup
+//               * Too much repetition in phosphor mod.rs
 //           [ ] Move map processing to filesystem thread
 //
 // TODO: [ ] Integrate rapier physics
@@ -141,8 +142,13 @@
 
 mod demos;
 
-use antigen_core::{receive_messages, try_receive_messages, WorldChannel, WorldExchange};
-use antigen_wgpu::wgpu::DeviceDescriptor;
+use antigen_core::{
+    receive_messages, send_clone_query, try_receive_messages,
+    TaggedEntitiesComponent, WorldChannel, WorldExchange,
+};
+use antigen_wgpu::{
+    wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
+};
 use antigen_winit::EventLoopHandler;
 use std::{
     thread::JoinHandle,
@@ -177,7 +183,7 @@ fn main() {
 
     // Setup game world
     let mut game_world = World::new();
-
+    game_world.spawn((TaggedEntitiesComponent::default(),));
     game_world.spawn((123, true, "abc"));
     game_world.spawn((42, false));
 
@@ -187,8 +193,9 @@ fn main() {
 
     // Setup render world
     let mut render_world = World::new();
+    render_world.spawn((TaggedEntitiesComponent::default(),));
     render_world.spawn(antigen_winit::BackendBundle::default());
-    render_world.spawn(antigen_wgpu::BackendBundle::from_env(
+    let wgpu_backend_entity = render_world.spawn(antigen_wgpu::BackendBundle::from_env(
         &DeviceDescriptor {
             label: Some("Device"),
             features: Default::default(),
@@ -198,6 +205,19 @@ fn main() {
         None,
     ));
 
+    // Clone WGPU backend components to game thread
+    send_clone_query::<
+        (
+            &InstanceComponent,
+            &AdapterComponent,
+            &DeviceComponent,
+            &QueueComponent,
+        ),
+        Game,
+    >(wgpu_backend_entity)((&mut render_world, &render_channel))
+    .unwrap();
+
+    // Assemble phosphor renderer
     demos::phosphor::assemble(&mut render_world, &render_channel);
 
     // Enter winit event loop
