@@ -143,13 +143,14 @@
 mod demos;
 
 use antigen_core::{
-    receive_messages, send_clone_query, try_receive_messages, TaggedEntitiesComponent,
-    WorldChannel, WorldExchange,
+    receive_messages, send_clone_query, try_receive_messages, PositionComponent,
+    TaggedEntitiesComponent, WorldChannel, WorldExchange, Construct, RotationComponent
 };
 use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
 };
 use antigen_winit::EventLoopHandler;
+use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -157,6 +158,8 @@ use std::{
 use winit::{event::Event, event_loop::ControlFlow, event_loop::EventLoopWindowTarget};
 
 use hecs::World;
+
+use antigen_rapier3d::{physics_backend_builder, ColliderComponent, RigidBodyComponent};
 
 const GAME_THREAD_TICK: Duration = Duration::from_nanos(16670000);
 
@@ -265,18 +268,34 @@ fn fs_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
 
 /// Game thread
 fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
+    // Create the physics backend
+    world.spawn(physics_backend_builder().build());
+
+    // Create the ground
+    world.spawn((ColliderComponent::new(
+        ColliderBuilder::cuboid(100.0, 0.1, 100.0).build(),
+    ),));
+
+    // Create the bounding ball.
+    let rigid_body_entity = world.spawn((
+        RigidBodyComponent::new(RigidBodyBuilder::new_dynamic().build()),
+        PositionComponent::construct(nalgebra::vector![0.0, 10.0, 0.0]),
+        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+    ));
+
+    world.spawn((ColliderComponent::new_with_parent(
+        ColliderBuilder::ball(0.5).restitution(0.7).build(),
+        rigid_body_entity,
+    ),));
+
     move || {
         spin_loop(GAME_THREAD_TICK, || {
-            println!("Game");
             try_receive_messages(&mut world, &channel).expect("Error handling message");
 
-            for (id, (number, &flag)) in world.query_mut::<(&mut i32, &bool)>() {
-                println!("Entity {:?}", id);
-                if flag {
-                    *number = number.saturating_mul(2);
-                    println!("\tNumber {}", *number);
-                }
-            }
+            antigen_rapier3d::insert_colliders_system(&mut world);
+            antigen_rapier3d::insert_rigid_bodies_system(&mut world);
+            antigen_rapier3d::step_physics_system(&mut world);
+            antigen_rapier3d::read_back_rigid_body_isometries_system(&mut world);
 
             antigen_wgpu::buffer_write_slice_system::<
                 demos::phosphor::TriangleMeshInstanceDataComponent,
@@ -289,9 +308,9 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
             antigen_wgpu::buffer_write_slice_system::<demos::phosphor::LineInstanceDataComponent, _>(
                 &mut world,
             );
-            antigen_wgpu::buffer_write_system::<demos::phosphor::PositionComponent>(&mut world);
-            antigen_wgpu::buffer_write_system::<demos::phosphor::RotationComponent>(&mut world);
-            antigen_wgpu::buffer_write_system::<demos::phosphor::ScaleComponent>(&mut world);
+            antigen_wgpu::buffer_write_system::<antigen_core::PositionComponent>(&mut world);
+            antigen_wgpu::buffer_write_system::<antigen_core::RotationComponent>(&mut world);
+            antigen_wgpu::buffer_write_system::<antigen_core::ScaleComponent>(&mut world);
             antigen_wgpu::buffer_write_system::<demos::phosphor::LineMeshIdComponent>(&mut world);
         })
     }

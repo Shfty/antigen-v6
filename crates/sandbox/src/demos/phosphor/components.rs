@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
 use parking_lot::RwLock;
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
 use antigen_core::{Changed, Usage};
 
@@ -47,11 +47,6 @@ pub struct LineInstances;
 pub struct Perspective;
 pub struct Orthographic;
 
-pub enum Position {}
-pub enum Rotation {}
-pub enum Scale {}
-pub enum LineMeshId {}
-
 pub struct Uniform;
 pub struct StorageBuffers;
 pub struct PhosphorDecay;
@@ -78,16 +73,8 @@ pub struct MeshIds;
 
 pub type MeshIdsComponent = Arc<RwLock<BTreeMap<String, (Option<u32>, Option<(u32, u32)>)>>>;
 
-// Position
-pub type PositionComponent = Usage<Position, nalgebra::Vector3<f32>>;
-
-// Rotation
-pub type RotationComponent = Usage<Rotation, nalgebra::Quaternion<f32>>;
-
-// Scale
-pub type ScaleComponent = Usage<Scale, nalgebra::Vector3<f32>>;
-
 // Line Mesh ID
+pub enum LineMeshId {}
 pub type LineMeshIdComponent = Usage<LineMeshId, u32>;
 
 /// Singleton shader data

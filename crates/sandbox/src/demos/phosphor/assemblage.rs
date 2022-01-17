@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use antigen_core::get_tagged_entity;
+use antigen_core::{get_tagged_entity, PositionComponent, RotationComponent, ScaleComponent};
 use antigen_wgpu::{
     buffer_size_of,
     wgpu::{BufferAddress, COPY_BUFFER_ALIGNMENT},
@@ -11,7 +11,7 @@ use hecs::{EntityBuilder, World};
 use super::{
     LineIndices, LineInstanceData, LineInstances, LineMeshData, LineMeshIdComponent,
     LineMeshInstanceData, LineMeshInstances, LineMeshes, MeshIds, MeshIdsComponent, Oscilloscope,
-    PositionComponent, RotationComponent, ScaleComponent, TriangleIndices, TriangleMeshData,
+    TriangleIndices, TriangleMeshData,
     TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes, VertexData, Vertices, BLACK,
     BLUE, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
 };
@@ -24,7 +24,7 @@ pub fn pad_align_triangle_list(indices: &mut Vec<u16>) {
 }
 
 /// Assemble mesh vertices
-pub fn vertices_bundle(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
+pub fn vertices_builder(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
 
     let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
@@ -48,7 +48,7 @@ pub fn vertices_bundle(world: &mut World, vertices: Vec<VertexData>) -> EntityBu
 }
 
 /// Assemble line indices for pre-existing mesh vertices
-pub fn line_indices_bundle(world: &mut World, indices: Vec<u32>) -> EntityBuilder {
+pub fn line_indices_builder(world: &mut World, indices: Vec<u32>) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
 
     let line_index_entity = get_tagged_entity::<LineIndices>(world).unwrap();
@@ -72,7 +72,7 @@ pub fn line_indices_bundle(world: &mut World, indices: Vec<u32>) -> EntityBuilde
 }
 
 /// Assembles mesh vertices and line indices
-pub fn line_mesh_bundle(
+pub fn line_mesh_builder(
     world: &mut World,
     vertices: Vec<VertexData>,
     indices: Vec<u32>,
@@ -95,12 +95,12 @@ pub fn line_mesh_bundle(
     let vertex_count = vertices.len();
     let index_count = indices.len();
 
-    builder.add_bundle(vertices_bundle(world, vertices).build());
+    builder.add_bundle(vertices_builder(world, vertices).build());
 
-    builder.add_bundle(line_indices_bundle(world, indices).build());
+    builder.add_bundle(line_indices_builder(world, indices).build());
 
     builder.add_bundle(
-        line_mesh_data_bundle(
+        line_mesh_data_builder(
             world,
             vertex_offset as u32,
             vertex_count as u32,
@@ -113,7 +113,7 @@ pub fn line_mesh_bundle(
     builder
 }
 
-pub fn line_mesh_data_bundle(
+pub fn line_mesh_data_builder(
     world: &mut World,
     vertex_offset: u32,
     vertex_count: u32,
@@ -143,7 +143,7 @@ pub fn line_mesh_data_bundle(
     builder
 }
 
-pub fn line_mesh_instance_bundle(
+pub fn line_mesh_instance_builder(
     world: &mut World,
     position: PositionComponent,
     rotation: RotationComponent,
@@ -211,7 +211,7 @@ pub fn line_mesh_instance_bundle(
 }
 
 /// Assemble line indices for a vector of vertices in line list format
-pub fn line_list_mesh_bundle(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
+pub fn line_list_mesh_builder(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
     let mut vs = 0u32;
     let indices = vertices
         .chunks(2)
@@ -222,11 +222,11 @@ pub fn line_list_mesh_bundle(world: &mut World, vertices: Vec<VertexData>) -> En
         })
         .collect::<Vec<_>>();
 
-    line_mesh_bundle(world, vertices, indices)
+    line_mesh_builder(world, vertices, indices)
 }
 
 /// Assemble line indices for a vector of vertices in line strip format
-pub fn line_strip_mesh_bundle(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
+pub fn line_strip_mesh_builder(world: &mut World, vertices: Vec<VertexData>) -> EntityBuilder {
     let mut indices = (0..vertices.len() as BufferAddress).collect::<Vec<_>>();
 
     let first = indices.remove(0) as u32;
@@ -239,11 +239,11 @@ pub fn line_strip_mesh_bundle(world: &mut World, vertices: Vec<VertexData>) -> E
 
     println!("Line strip indices: {:#?}", indices);
 
-    line_mesh_bundle(world, vertices, indices)
+    line_mesh_builder(world, vertices, indices)
 }
 
 /// Assembles an oscilloscope entity
-pub fn oscilloscope_mesh_bundle(
+pub fn oscilloscope_mesh_builder(
     world: &mut World,
     name: &str,
     color: (f32, f32, f32),
@@ -289,13 +289,13 @@ pub fn oscilloscope_mesh_bundle(
         Some((line_mesh, 1)),
     );
 
-    builder.add_bundle(line_mesh_bundle(world, vertices, indices).build());
+    builder.add_bundle(line_mesh_builder(world, vertices, indices).build());
 
     builder
 }
 
 /// Assemble mesh vertices and indices
-pub fn triangle_mesh_bundle(
+pub fn triangle_mesh_builder(
     world: &mut World,
     vertices: Vec<VertexData>,
     mut indices: Vec<u16>,
@@ -342,7 +342,7 @@ pub fn triangle_mesh_bundle(
     builder
 }
 
-pub fn triangle_mesh_data_bundle(
+pub fn triangle_mesh_data_builder(
     world: &mut World,
     vertex_count: u32,
     instance_count: u32,
@@ -386,7 +386,7 @@ pub fn triangle_mesh_data_bundle(
     builder
 }
 
-pub fn triangle_mesh_instance_data_bundle(
+pub fn triangle_mesh_instance_data_builder(
     world: &mut World,
     mesh: u32,
     position: PositionComponent,
@@ -432,7 +432,7 @@ pub fn triangle_mesh_instance_data_bundle(
 }
 
 /// Assemble triangle indices for a list of vertices in triangle list format
-pub fn triangle_list_mesh_bundle(
+pub fn triangle_list_mesh_builder(
     world: &mut World,
     mut base_index: u16,
     vertices: Vec<VertexData>,
@@ -446,11 +446,11 @@ pub fn triangle_list_mesh_bundle(
         })
         .collect::<Vec<_>>();
 
-    triangle_mesh_bundle(world, vertices, indices)
+    triangle_mesh_builder(world, vertices, indices)
 }
 
 /// Assemble triangle indices for a list of vertices in triangle fan format
-pub fn triangle_fan_mesh_bundle(
+pub fn triangle_fan_mesh_builder(
     world: &mut World,
     base_index: u16,
     vertices: Vec<VertexData>,
@@ -464,11 +464,11 @@ pub fn triangle_fan_mesh_bundle(
         })
         .collect::<Vec<_>>();
 
-    triangle_mesh_bundle(world, vertices, indices)
+    triangle_mesh_builder(world, vertices, indices)
 }
 
 /// Assemble the Box Bot
-pub fn box_bot_mesh_bundle(
+pub fn box_bot_mesh_builders(
     world: &mut World,
     triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
 ) -> Vec<EntityBuilder> {
@@ -511,7 +511,7 @@ pub fn box_bot_mesh_bundle(
     // Body cube
     let mut builder = EntityBuilder::new();
     builder.add_bundle(
-        triangle_mesh_bundle(
+        triangle_mesh_builder(
             world,
             vec![
                 VertexData::new((1.0, 1.0, 1.0), BLACK, BLACK, 0.0, -16.0),
@@ -580,7 +580,7 @@ pub fn box_bot_mesh_bundle(
     );
 
     builder.add_bundle(
-        triangle_mesh_data_bundle(
+        triangle_mesh_data_builder(
             world,
             36 * 2,
             0,
@@ -594,7 +594,7 @@ pub fn box_bot_mesh_bundle(
     builders.push(builder);
 
     // Cube lines
-    builders.push(line_list_mesh_bundle(
+    builders.push(line_list_mesh_builder(
         world,
         vec![
             VertexData::new((-25.0, -25.0, -25.0), RED, RED, 2.0, -30.0),
@@ -655,7 +655,7 @@ pub fn mesh_instance_builders(
     let (triangle_mesh, line_mesh) = mesh_ids.read()[mesh];
 
     if let Some(triangle_mesh) = triangle_mesh {
-        builders.push(triangle_mesh_instance_data_bundle(
+        builders.push(triangle_mesh_instance_data_builder(
             world,
             triangle_mesh,
             position,
@@ -665,7 +665,7 @@ pub fn mesh_instance_builders(
     }
 
     if let Some((line_mesh, line_count)) = line_mesh {
-        builders.push(line_mesh_instance_bundle(
+        builders.push(line_mesh_instance_builder(
             world,
             position.into(),
             rotation.into(),

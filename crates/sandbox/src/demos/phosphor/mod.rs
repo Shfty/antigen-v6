@@ -123,7 +123,8 @@ use antigen_winit::{
 
 use antigen_core::{
     get_tagged_entity, insert_tagged_entity, insert_tagged_entity_by_query, send_clone_query,
-    send_component, Construct, Indirect, Lift, MessageContext, MessageResult, SendTo, WorldChannel,
+    send_component, Construct, Indirect, Lift, MessageContext, MessageResult, PositionComponent,
+    RotationComponent, ScaleComponent, SendTo, WorldChannel,
 };
 
 use antigen_wgpu::{
@@ -369,10 +370,7 @@ fn assemble_map_meshes_message(
         world.extend(bundles);
 
         channel
-            .send_to::<Game>(assemble_map_mesh_instances_message(
-                map_data,
-                triangle_indexed_indirect_builder,
-            ))
+            .send_to::<Game>(assemble_map_mesh_instances_message(map_data))
             .unwrap();
 
         Ok(ctx)
@@ -381,13 +379,11 @@ fn assemble_map_meshes_message(
 
 fn assemble_map_mesh_instances_message(
     map_data: MapData,
-    triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
 ) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
     move |mut ctx| {
         let (world, _) = &mut ctx;
         println!("Assembling point entities on game thread");
-        let mut point_entities =
-            map_data.build_point_entities(world, triangle_indexed_indirect_builder);
+        let mut point_entities = map_data.build_point_entities(world);
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
         Ok(ctx)
@@ -1176,7 +1172,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 let key = format!("char_{}", grapheme);
                 register_mesh_ids(world, &key, None, Some((line_mesh, line_count)));
 
-                let mut builder = line_mesh_bundle(world, vertices, indices);
+                let mut builder = line_mesh_builder(world, vertices, indices);
                 let bundle = builder.build();
 
                 world.spawn(bundle);
@@ -1185,7 +1181,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     }
 
     // Load box bot mesh
-    let mut builders = box_bot_mesh_bundle(world, triangle_indexed_indirect_builder);
+    let mut builders = box_bot_mesh_builders(world, triangle_indexed_indirect_builder);
     let bundles = builders.iter_mut().map(EntityBuilder::build);
     world.extend(bundles);
 
@@ -1244,7 +1240,7 @@ fn assemble_test_geometry(world: &mut World) {
     let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
     // Oscilloscopes
-    let mut builder = oscilloscope_mesh_bundle(
+    let mut builder = oscilloscope_mesh_builder(
         world,
         "sin_cos_sin",
         RED,
@@ -1255,7 +1251,7 @@ fn assemble_test_geometry(world: &mut World) {
     let bundle = builder.build();
     world.spawn(bundle);
 
-    let mut builder = oscilloscope_mesh_bundle(
+    let mut builder = oscilloscope_mesh_builder(
         world,
         "sin_sin_cos",
         GREEN,
@@ -1266,7 +1262,7 @@ fn assemble_test_geometry(world: &mut World) {
     let bundle = builder.build();
     world.spawn(bundle);
 
-    let mut builder = oscilloscope_mesh_bundle(
+    let mut builder = oscilloscope_mesh_builder(
         world,
         "cos_cos_cos",
         BLUE,
@@ -1313,7 +1309,7 @@ fn assemble_test_geometry(world: &mut World) {
         Some((line_mesh, line_count)),
     );
 
-    let mut builder = line_strip_mesh_bundle(world, vertices);
+    let mut builder = line_strip_mesh_builder(world, vertices);
     let bundle = builder.build();
     world.spawn(bundle);
 }
@@ -1698,10 +1694,10 @@ impl MapData {
             let mut builder = EntityBuilder::new();
 
             builder
-                .add_bundle(triangle_mesh_bundle(world, mesh_vertices, triangle_indices).build());
+                .add_bundle(triangle_mesh_builder(world, mesh_vertices, triangle_indices).build());
 
             builder.add_bundle(
-                triangle_mesh_data_bundle(
+                triangle_mesh_data_builder(
                     world,
                     triangle_index_count,
                     0,
@@ -1712,10 +1708,10 @@ impl MapData {
                 .build(),
             );
 
-            builder.add_bundle(line_indices_bundle(world, line_indices).build());
+            builder.add_bundle(line_indices_builder(world, line_indices).build());
 
             builder.add_bundle(
-                line_mesh_data_bundle(
+                line_mesh_data_builder(
                     world,
                     base_vertex,
                     vertex_count,
@@ -1739,7 +1735,7 @@ impl MapData {
                 world,
                 &key,
                 entity_center.into(),
-                nalgebra::Quaternion::identity().into(),
+                nalgebra::UnitQuaternion::identity().into(),
                 nalgebra::vector![1.0, 1.0, 1.0].into(),
             ));
         }
@@ -1858,8 +1854,8 @@ impl MapData {
 
             // Singleton mesh instance
             builders.extend([
-                triangle_mesh_bundle(world, mesh_vertices, triangle_indices),
-                triangle_mesh_data_bundle(
+                triangle_mesh_builder(world, mesh_vertices, triangle_indices),
+                triangle_mesh_data_builder(
                     world,
                     triangle_index_count,
                     0,
@@ -1867,8 +1863,8 @@ impl MapData {
                     base_vertex,
                     triangle_indexed_indirect_builder,
                 ),
-                line_indices_bundle(world, line_indices),
-                line_mesh_data_bundle(
+                line_indices_builder(world, line_indices),
+                line_mesh_data_builder(
                     world,
                     base_vertex,
                     vertex_count,
@@ -1911,7 +1907,7 @@ impl MapData {
             let y = Self::property_expression_f32("y", oscilloscope).unwrap();
             let z = Self::property_expression_f32("z", oscilloscope).unwrap();
 
-            builders.push(oscilloscope_mesh_bundle(
+            builders.push(oscilloscope_mesh_builder(
                 world,
                 targetname,
                 color,
@@ -2013,11 +2009,7 @@ impl MapData {
             .as_str())
     }
 
-    pub fn build_point_entities(
-        &self,
-        world: &mut World,
-        triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
-    ) -> Vec<EntityBuilder> {
+    pub fn build_point_entities(&self, world: &mut World) -> Vec<EntityBuilder> {
         let mut builders = vec![];
 
         // Spawn player start entities
@@ -2043,7 +2035,7 @@ impl MapData {
                 world,
                 "box_bot",
                 origin.into(),
-                rotation.into_inner().into(),
+                rotation.into(),
                 scale.into(),
             ));
         }
@@ -2070,7 +2062,7 @@ impl MapData {
                 world,
                 &format!("oscilloscope_{}", targetname),
                 origin.into(),
-                nalgebra::Quaternion::identity().into(),
+                nalgebra::UnitQuaternion::identity().into(),
                 nalgebra::vector![1.0, 1.0, 1.0].into(),
             ));
         }
@@ -2100,9 +2092,10 @@ impl MapData {
                 world,
                 target,
                 origin.into(),
-                rotation.into_inner().into(),
+                rotation.into(),
                 scale.into(),
             ));
+
         }
 
         // Spawn text entities
@@ -2151,7 +2144,7 @@ impl MapData {
                         world,
                         &key,
                         (origin + ofs).into(),
-                        rotation.into_inner().into(),
+                        rotation.into(),
                         scale.into(),
                     ));
                 }

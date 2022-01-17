@@ -400,6 +400,7 @@ pub fn buffer_write_system<T: bytemuck::Pod + Send + Sync + 'static>(world: &mut
 
             let bytes = bytemuck::bytes_of(data_component.deref());
 
+            /*
             println!(
                 "Writing {} ({} bytes) to entity {:?} buffer at offset {}",
                 std::any::type_name::<T>(),
@@ -407,6 +408,7 @@ pub fn buffer_write_system<T: bytemuck::Pod + Send + Sync + 'static>(world: &mut
                 buffer_entity,
                 buffer_write.offset(),
             );
+            */
             queue.write_buffer(buffer, buffer_write.offset(), bytes);
 
             data_component.set_changed(false);
@@ -453,6 +455,7 @@ pub fn buffer_write_slice_system<
 
             let bytes = bytemuck::cast_slice(data_component.deref());
 
+            /*
             println!(
                 "Writing {} ({} bytes) to entity {:?} buffer at offset {}",
                 std::any::type_name::<T>(),
@@ -460,6 +463,7 @@ pub fn buffer_write_slice_system<
                 buffer_entity,
                 buffer_write.offset(),
             );
+            */
             queue.write_buffer(buffer, buffer_write.offset(), bytes);
 
             data_component.set_changed(false);
