@@ -88,7 +88,7 @@
 //           [✓] Separate oscilloscope mesh creation from instancing
 //           [✓] Separate test geo triangle mesh creation from instancing
 //           [✓] Use Arc + RwLock around buffer LazyComponent to avoid having to force-create buffers before send
-//           [ ] Reduce boilerplate for cross-thread setup
+//           [✓] Reduce boilerplate for cross-thread setup
 //               * Too much repetition in phosphor mod.rs
 //           [ ] Move map processing to filesystem thread
 //
@@ -143,8 +143,8 @@
 mod demos;
 
 use antigen_core::{
-    receive_messages, send_clone_query, try_receive_messages,
-    TaggedEntitiesComponent, WorldChannel, WorldExchange,
+    receive_messages, send_clone_query, try_receive_messages, TaggedEntitiesComponent,
+    WorldChannel, WorldExchange,
 };
 use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,

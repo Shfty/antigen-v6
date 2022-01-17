@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
-use std::{collections::BTreeMap, time::Instant};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use parking_lot::RwLock;
 
 use antigen_core::{Changed, Usage};
 
@@ -75,7 +76,7 @@ pub type OrthographicMatrixComponent = Usage<Orthographic, [[f32; 4]; 4]>;
 #[derive(Copy, Clone)]
 pub struct MeshIds;
 
-pub type MeshIdsComponent = BTreeMap<String, (Option<u32>, Option<(u32, u32)>)>;
+pub type MeshIdsComponent = Arc<RwLock<BTreeMap<String, (Option<u32>, Option<(u32, u32)>)>>>;
 
 // Position
 pub type PositionComponent = Usage<Position, nalgebra::Vector3<f32>>;

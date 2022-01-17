@@ -679,6 +679,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     builder.add(MeshIdsComponent::default());
     let mesh_ids_entity = world.spawn(builder.build());
 
+    send_clone_query::<(&MeshIds, &MeshIdsComponent), Game>(mesh_ids_entity)((world, channel))
+        .unwrap();
+
     // Buffer entities
     let uniform_entity = world.spawn(uniform_buffer_bundle().build());
     let vertex_entity = world.spawn(vertex_buffer_bundle().build());
@@ -1122,10 +1125,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         let mut mesh_brushes = map_data.build_meshes(world, triangle_indexed_indirect_builder);
         let bundles = mesh_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
-
-        // Clone mesh IDs to game thread
-        send_clone_query::<(&MeshIds, &MeshIdsComponent), Game>(mesh_ids_entity)((world, channel))
-            .unwrap();
 
         fn assemble_point_entities_message(
             map_data: MapData,

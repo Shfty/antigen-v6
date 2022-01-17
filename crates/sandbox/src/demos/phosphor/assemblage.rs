@@ -694,7 +694,7 @@ pub fn register_mesh_ids(
 ) {
     let query = world.query_mut::<&mut MeshIdsComponent>().with::<MeshIds>();
     let (_, mesh_ids) = query.into_iter().next().unwrap();
-    mesh_ids.insert(key.into(), (triangle_mesh, line_mesh));
+    mesh_ids.write().insert(key.into(), (triangle_mesh, line_mesh));
 }
 
 pub fn mesh_instance_builders(
@@ -709,7 +709,7 @@ pub fn mesh_instance_builders(
     let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
     let (_, mesh_ids) = query.into_iter().next().unwrap();
     dbg!("Fetching mesh", mesh);
-    let (triangle_mesh, line_mesh) = mesh_ids[mesh];
+    let (triangle_mesh, line_mesh) = mesh_ids.read()[mesh];
 
     if let Some(triangle_mesh) = triangle_mesh {
         builders.push(TriangleMeshInstanceDataBundle::builder(
