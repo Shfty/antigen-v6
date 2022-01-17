@@ -101,7 +101,7 @@ mod render_passes;
 mod svg_lines;
 mod systems;
 
-use antigen_fs::{load_file_string, FilePathComponent};
+use antigen_fs::{load_file_string, FilePathComponent, FileStringQuery};
 pub use assemblage::*;
 pub use components::*;
 pub use render_passes::*;
@@ -134,9 +134,8 @@ use antigen_wgpu::{
         SamplerDescriptor, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
         TextureUsages, TextureViewDescriptor,
     },
-    AdapterComponent, BindGroupComponent, BindGroupLayoutComponent, BufferComponent,
-    BufferLengthComponent, BufferLengthsComponent, DeviceComponent, InstanceComponent,
-    QueueComponent, RenderPipelineComponent, ShaderModuleComponent,
+    BindGroupComponent, BindGroupLayoutComponent, BufferComponent, BufferLengthComponent,
+    BufferLengthsComponent, RenderPipelineComponent, ShaderModuleComponent,
     ShaderModuleDescriptorComponent, SurfaceConfigurationComponent, TextureViewComponent,
 };
 
@@ -279,29 +278,120 @@ fn load_shader<T: Send + Sync + 'static, P: Copy + Into<PathBuf> + Send + Sync +
         .unwrap();
 }
 
-fn load_map_message<U: Send + Sync + 'static, P: Copy + Into<PathBuf>>(
-    map_path: P,
-    entity: Entity,
-) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
-    move |ctx| {
-        ctx.lift()
-            .and_then(load_file_string(map_path))
-            .and_then(antigen_shambler::parse_map_file_string(map_path))
-    }
-}
-
 fn load_map<
     U: Send + Sync + 'static,
     T: Send + Sync + 'static,
     P: Copy + Into<PathBuf> + Send + Sync + 'static,
+    F: Fn(u64) -> EntityBuilder + Copy + Send + Sync + 'static,
 >(
     channel: &WorldChannel,
-    entity: Entity,
     map_path: P,
+    triangle_indexed_indirect_builder: F,
 ) {
     channel
-        .send_to::<T>(load_map_message::<U, _>(map_path, entity))
+        .send_to::<T>(load_map_message::<U, _, _>(
+            map_path,
+            triangle_indexed_indirect_builder,
+        ))
         .unwrap();
+}
+
+fn load_map_message<
+    U: Send + Sync + 'static,
+    P: Copy + Into<PathBuf>,
+    F: Fn(u64) -> EntityBuilder + Copy + Send + Sync + 'static,
+>(
+    map_path: P,
+    triangle_indexed_indirect_builder: F,
+) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
+    move |ctx| {
+        ctx.lift()
+            .and_then(load_file_string(map_path))
+            .and_then(parse_map_file_string(
+                map_path,
+                triangle_indexed_indirect_builder,
+            ))
+    }
+}
+
+pub fn parse_map_file_string<'a, 'b, P: Into<PathBuf>>(
+    path: P,
+    triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy + Send + Sync + 'static,
+) -> impl FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
+    move |mut ctx| {
+        let (world, channel) = &mut ctx;
+
+        let map_path = path.into();
+        println!(
+            "Thread {} Looking for file string entities with path {:?}..",
+            std::thread::current().name().unwrap(),
+            map_path
+        );
+
+        let (entity, FileStringQuery { string, .. }) = world
+            .query_mut::<FileStringQuery>()
+            .into_iter()
+            .filter(|(_, FileStringQuery { path, .. })| ***path == *map_path)
+            .next()
+            .unwrap();
+
+        println!("Parsing map file for entity {:?}", entity);
+        let map = string
+            .parse::<antigen_shambler::shambler::shalrath::repr::Map>()
+            .unwrap();
+        let geo_map = GeoMap::from(map);
+        let map_data = MapData::from(geo_map);
+
+        channel
+            .send_to::<Render>(assemble_map_meshes_message(
+                map_data.clone(),
+                triangle_indexed_indirect_builder,
+            ))
+            .unwrap();
+
+        Ok(ctx)
+    }
+}
+
+fn assemble_map_meshes_message(
+    map_data: MapData,
+    triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy + Send + Sync + 'static,
+) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
+    move |mut ctx| {
+        let (world, channel) = &mut ctx;
+
+        let mut room_brushes = map_data.build_rooms(world, triangle_indexed_indirect_builder);
+        let bundles = room_brushes.iter_mut().map(EntityBuilder::build);
+        world.extend(bundles);
+
+        let mut mesh_brushes = map_data.build_meshes(world, triangle_indexed_indirect_builder);
+        let bundles = mesh_brushes.iter_mut().map(EntityBuilder::build);
+        world.extend(bundles);
+
+        channel
+            .send_to::<Game>(assemble_map_mesh_instances_message(
+                map_data,
+                triangle_indexed_indirect_builder,
+            ))
+            .unwrap();
+
+        Ok(ctx)
+    }
+}
+
+fn assemble_map_mesh_instances_message(
+    map_data: MapData,
+    triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
+) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
+    move |mut ctx| {
+        let (world, _) = &mut ctx;
+        println!("Assembling point entities on game thread");
+        let mut point_entities =
+            map_data.build_point_entities(world, triangle_indexed_indirect_builder);
+        let bundles = point_entities.iter_mut().map(EntityBuilder::build);
+        world.extend(bundles);
+        Ok(ctx)
+    }
 }
 
 fn insert_tagged_entity_by_query_message<Q: hecs::Query + Send + Sync + 'static, T: 'static>(
@@ -1086,7 +1176,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 let key = format!("char_{}", grapheme);
                 register_mesh_ids(world, &key, None, Some((line_mesh, line_count)));
 
-                let mut builder = LineMeshBundle::builder(world, vertices, indices);
+                let mut builder = line_mesh_bundle(world, vertices, indices);
                 let bundle = builder.build();
 
                 world.spawn(bundle);
@@ -1095,20 +1185,19 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     }
 
     // Load box bot mesh
-    let mut builders = BoxBotMeshBundle::builders(world, triangle_indexed_indirect_builder);
+    let mut builders = box_bot_mesh_bundle(world, triangle_indexed_indirect_builder);
     let bundles = builders.iter_mut().map(EntityBuilder::build);
     world.extend(bundles);
 
-    /*
-    load_map::<MapFile, Filesystem, _>(
-        channel,
-        renderer_entity,
-        "crates/sandbox/src/demos/phosphor/maps/index_align_test.map",
-    );
-    */
-
     assemble_test_geometry(world);
 
+    load_map::<MapFile, Filesystem, _, _>(
+        channel,
+        "crates/sandbox/src/demos/phosphor/maps/line_index_test.map",
+        triangle_indexed_indirect_builder,
+    );
+
+    /*
     // Load map file
     {
         let map_file = include_str!("maps/line_index_test.map");
@@ -1148,13 +1237,14 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
             ))
             .unwrap();
     }
+    */
 }
 
 fn assemble_test_geometry(world: &mut World) {
     let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
     // Oscilloscopes
-    let mut builder = OscilloscopeMeshBundle::builder(
+    let mut builder = oscilloscope_mesh_bundle(
         world,
         "sin_cos_sin",
         RED,
@@ -1165,7 +1255,7 @@ fn assemble_test_geometry(world: &mut World) {
     let bundle = builder.build();
     world.spawn(bundle);
 
-    let mut builder = OscilloscopeMeshBundle::builder(
+    let mut builder = oscilloscope_mesh_bundle(
         world,
         "sin_sin_cos",
         GREEN,
@@ -1176,7 +1266,7 @@ fn assemble_test_geometry(world: &mut World) {
     let bundle = builder.build();
     world.spawn(bundle);
 
-    let mut builder = OscilloscopeMeshBundle::builder(
+    let mut builder = oscilloscope_mesh_bundle(
         world,
         "cos_cos_cos",
         BLUE,
@@ -1223,11 +1313,12 @@ fn assemble_test_geometry(world: &mut World) {
         Some((line_mesh, line_count)),
     );
 
-    let mut builder = LineStripMeshBundle::builder(world, vertices);
+    let mut builder = line_strip_mesh_bundle(world, vertices);
     let bundle = builder.build();
     world.spawn(bundle);
 }
 
+#[derive(Clone)]
 struct MapData {
     geo_map: antigen_shambler::shambler::GeoMap,
     lines: antigen_shambler::shambler::line::Lines,
@@ -1606,12 +1697,11 @@ impl MapData {
             // Mesh entity
             let mut builder = EntityBuilder::new();
 
-            builder.add_bundle(
-                TriangleMeshBundle::builder(world, mesh_vertices, triangle_indices).build(),
-            );
+            builder
+                .add_bundle(triangle_mesh_bundle(world, mesh_vertices, triangle_indices).build());
 
             builder.add_bundle(
-                TriangleMeshDataBundle::builder(
+                triangle_mesh_data_bundle(
                     world,
                     triangle_index_count,
                     0,
@@ -1622,10 +1712,10 @@ impl MapData {
                 .build(),
             );
 
-            builder.add_bundle(LineIndicesBundle::builder(world, line_indices).build());
+            builder.add_bundle(line_indices_bundle(world, line_indices).build());
 
             builder.add_bundle(
-                LineMeshDataBundle::builder(
+                line_mesh_data_bundle(
                     world,
                     base_vertex,
                     vertex_count,
@@ -1768,8 +1858,8 @@ impl MapData {
 
             // Singleton mesh instance
             builders.extend([
-                TriangleMeshBundle::builder(world, mesh_vertices, triangle_indices),
-                TriangleMeshDataBundle::builder(
+                triangle_mesh_bundle(world, mesh_vertices, triangle_indices),
+                triangle_mesh_data_bundle(
                     world,
                     triangle_index_count,
                     0,
@@ -1777,8 +1867,8 @@ impl MapData {
                     base_vertex,
                     triangle_indexed_indirect_builder,
                 ),
-                LineIndicesBundle::builder(world, line_indices),
-                LineMeshDataBundle::builder(
+                line_indices_bundle(world, line_indices),
+                line_mesh_data_bundle(
                     world,
                     base_vertex,
                     vertex_count,
@@ -1821,7 +1911,7 @@ impl MapData {
             let y = Self::property_expression_f32("y", oscilloscope).unwrap();
             let z = Self::property_expression_f32("z", oscilloscope).unwrap();
 
-            builders.push(OscilloscopeMeshBundle::builder(
+            builders.push(oscilloscope_mesh_bundle(
                 world,
                 targetname,
                 color,
@@ -2091,16 +2181,16 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::buffer_write_slice_system::<VertexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<TriangleIndexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<TriangleMeshDataComponent, _>(world);
-            antigen_wgpu::buffer_write_system::<PositionComponent>(world);
-            antigen_wgpu::buffer_write_system::<RotationComponent>(world);
-            antigen_wgpu::buffer_write_system::<ScaleComponent>(world);
-            antigen_wgpu::buffer_write_system::<LineMeshIdComponent>(world);
             antigen_wgpu::buffer_write_slice_system::<TriangleMeshInstanceDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<LineVertexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<LineIndexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<LineMeshDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<LineMeshInstanceDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<LineInstanceDataComponent, _>(world);
+            antigen_wgpu::buffer_write_system::<PositionComponent>(world);
+            antigen_wgpu::buffer_write_system::<RotationComponent>(world);
+            antigen_wgpu::buffer_write_system::<ScaleComponent>(world);
+            antigen_wgpu::buffer_write_system::<LineMeshIdComponent>(world);
         }
         phosphor_update_beam_mesh_draw_count_system(world);
         phosphor_update_beam_line_draw_count_system(world);

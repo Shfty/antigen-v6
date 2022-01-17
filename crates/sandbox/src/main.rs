@@ -79,7 +79,7 @@
 // TODO: [✓] Separate triangle / line mesh instance position, rotation, scale out into distinct components
 //           * Should be able to create a single BufferWrite per member with appropriate offsets
 //
-// TODO: [>] Implement filesystem thread map loading / building
+// TODO: [✓] Implement filesystem thread map loading / building
 //           * Need to be able to read and write buffers from different threads
 //           * Use Arc<Buffer> and clone between threads
 //             * Render thread holds buffers, meshes, render passes
@@ -90,7 +90,7 @@
 //           [✓] Use Arc + RwLock around buffer LazyComponent to avoid having to force-create buffers before send
 //           [✓] Reduce boilerplate for cross-thread setup
 //               * Too much repetition in phosphor mod.rs
-//           [ ] Move map processing to filesystem thread
+//           [✓] Move map processing to filesystem thread
 //
 // TODO: [ ] Integrate rapier physics
 //           * Create collision from brush hulls
