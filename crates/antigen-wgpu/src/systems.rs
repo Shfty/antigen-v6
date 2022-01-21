@@ -61,7 +61,7 @@ pub fn create_window_surfaces_system(world: &mut World) {
 
                 surface.configure(device, &*surface_configuration_component);
 
-                surface_component.set_ready(surface);
+                surface_component.set_ready_with(surface);
             }
         }
     }
@@ -148,7 +148,7 @@ pub fn surface_texture_view_query(world: &mut World, entity: Entity) {
     if surface_texture_component.get_changed() {
         if let Some(surface_texture) = &**surface_texture_component {
             let view = surface_texture.texture.create_view(&texture_view_desc);
-            texture_view.set_ready(view);
+            texture_view.set_ready_with(view);
             surface_texture_component.set_changed(false);
         } else {
             texture_view.set_dropped();
@@ -214,7 +214,7 @@ pub fn create_shader_modules_system(world: &mut World) {
 
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
-        shader_module.set_ready(device.create_shader_module(&shader_module_desc));
+        shader_module.set_ready_with(device.create_shader_module(&shader_module_desc));
 
         shader_module_desc.set_changed(false);
         println!(
@@ -237,7 +237,7 @@ pub fn create_shader_modules_spirv_system<T: Send + Sync + 'static>(world: &mut 
 
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
-        shader_module.set_ready(unsafe { device.create_shader_module_spirv(&shader_module_desc) });
+        shader_module.set_ready_with(unsafe { device.create_shader_module_spirv(&shader_module_desc) });
 
         shader_module_desc.set_changed(false);
         println!(
@@ -258,7 +258,7 @@ pub fn create_buffers_system(world: &mut World) {
             continue;
         }
 
-        buffer.write().set_ready(device.create_buffer(&buffer_descriptor).into());
+        buffer.write().set_ready_with(device.create_buffer(&buffer_descriptor).into());
 
         buffer_descriptor.set_changed(false);
 
@@ -280,7 +280,7 @@ pub fn create_buffers_init_system(world: &mut World) {
 
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
-        buffer.write().set_ready(device.create_buffer_init(&buffer_init_descriptor).into());
+        buffer.write().set_ready_with(device.create_buffer_init(&buffer_init_descriptor).into());
 
         buffer_init_descriptor.set_changed(false);
 
@@ -311,7 +311,7 @@ pub fn create_textures_system(world: &mut World) {
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
 
-        texture.set_ready(device.create_texture(&*texture_descriptor).into());
+        texture.set_ready_with(device.create_texture(&*texture_descriptor).into());
 
         texture_descriptor_component.set_changed(false);
 
@@ -338,7 +338,7 @@ pub fn create_texture_views_system(world: &mut World) {
             continue;
         };
 
-        texture_view.set_ready(texture.create_view(&texture_view_descriptor));
+        texture_view.set_ready_with(texture.create_view(&texture_view_descriptor));
 
         texture_view_descriptor.set_changed(false);
 
@@ -357,7 +357,7 @@ pub fn create_samplers_system(world: &mut World) {
 
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
-        sampler.set_ready(device.create_sampler(&sampler_descriptor));
+        sampler.set_ready_with(device.create_sampler(&sampler_descriptor));
 
         sampler_descriptor.set_changed(false);
 
@@ -655,7 +655,7 @@ pub fn create_command_encoders_system(world: &mut World) {
 
         let mut query = world.query::<&DeviceComponent>();
         let (_, device) = query.into_iter().next().unwrap();
-        command_encoder.set_ready(device.create_command_encoder(&command_encoder_desc));
+        command_encoder.set_ready_with(device.create_command_encoder(&command_encoder_desc));
 
         command_encoder_desc.set_changed(false);
 

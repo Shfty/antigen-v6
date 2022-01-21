@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use parking_lot::RwLock;
 use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
-use antigen_core::{Changed, Usage};
+use antigen_core::{Changed, Usage, LazyComponent};
 
 // Phosphor renderer tag
 pub struct PhosphorRenderer;
@@ -225,3 +225,7 @@ pub struct Timer {
 }
 
 pub type TimerComponent = Changed<Timer>;
+
+pub enum MeshInstance {}
+pub type MeshInstanceComponent<'a> = Usage<MeshInstance, LazyComponent<(), &'a str>>;
+

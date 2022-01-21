@@ -15,7 +15,7 @@ pub fn create_windows_system<T>(world: &mut World, event_loop_proxy: &EventLoopW
     let pending_entities = query
         .into_iter()
         .flat_map(|(entity, window_component)| match *window_component {
-            LazyComponent::Pending => Some(entity),
+            LazyComponent::Pending(_) => Some(entity),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -32,7 +32,7 @@ pub fn create_windows_system<T>(world: &mut World, event_loop_proxy: &EventLoopW
         let size = window.inner_size();
 
         window_entity_map.insert(window.id(), entity);
-        window_component.set_ready(window);
+        window_component.set_ready_with(window);
 
         if let Some(window_size) = size_component {
             ***window_size = size;

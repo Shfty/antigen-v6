@@ -1,19 +1,24 @@
 use std::sync::atomic::Ordering;
 
-use antigen_core::{get_tagged_entity, PositionComponent, RotationComponent, ScaleComponent};
+use antigen_core::{
+    get_tagged_entity, Construct, PositionComponent, RotationComponent, ScaleComponent,
+};
+use antigen_rapier3d::{ColliderComponent, ColliderParentComponent, RigidBodyComponent};
 use antigen_wgpu::{
     buffer_size_of,
-    wgpu::{BufferAddress, COPY_BUFFER_ALIGNMENT},
+    wgpu::{BufferAddress, IndexFormat, LoadOp, Operations, COPY_BUFFER_ALIGNMENT},
     BufferDataBundle,
 };
 use hecs::{EntityBuilder, World};
+use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 
 use super::{
-    LineIndices, LineInstanceData, LineInstances, LineMeshData, LineMeshIdComponent,
-    LineMeshInstanceData, LineMeshInstances, LineMeshes, MeshIds, MeshIdsComponent, Oscilloscope,
-    TriangleIndices, TriangleMeshData,
-    TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes, VertexData, Vertices, BLACK,
-    BLUE, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
+    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, LineIndices, LineInstanceData,
+    LineInstances, LineMeshData, LineMeshIdComponent, LineMeshInstanceData, LineMeshInstances,
+    LineMeshes, MeshIds, MeshIdsComponent, Oscilloscope, PhosphorRenderer, StorageBuffers,
+    TriangleIndices, TriangleMeshData, TriangleMeshInstanceData, TriangleMeshInstances,
+    TriangleMeshes, Uniform, VertexData, Vertices, BLACK, BLUE, CLEAR_COLOR, GREEN,
+    MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -150,15 +155,15 @@ pub fn line_mesh_instance_builder(
     scale: ScaleComponent,
     line_mesh: LineMeshIdComponent,
     line_count: u32,
-) -> EntityBuilder {
+) -> Option<EntityBuilder> {
     let mut builder = EntityBuilder::new();
 
-    let line_mesh_instance_entity = get_tagged_entity::<LineMeshInstances>(world).unwrap();
-    let line_instance_entity = get_tagged_entity::<LineInstances>(world).unwrap();
+    let line_mesh_instance_entity = get_tagged_entity::<LineMeshInstances>(world)?;
+    let line_instance_entity = get_tagged_entity::<LineInstances>(world)?;
 
     let line_mesh_instance_head = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
-        .unwrap();
+        .ok()?;
     let base_offset =
         buffer_size_of::<LineMeshInstanceData>() * line_mesh_instance_head.load(Ordering::Relaxed);
 
@@ -191,7 +196,7 @@ pub fn line_mesh_instance_builder(
 
     let line_instance_head = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
-        .unwrap();
+        .ok()?;
 
     builder.add_bundle(BufferDataBundle::new(
         (0..line_count)
@@ -207,7 +212,7 @@ pub fn line_mesh_instance_builder(
 
     line_instance_head.fetch_add(line_count as BufferAddress, Ordering::Relaxed);
 
-    builder
+    Some(builder)
 }
 
 /// Assemble line indices for a vector of vertices in line list format
@@ -348,16 +353,17 @@ pub fn triangle_mesh_data_builder(
     instance_count: u32,
     index_offset: u32,
     vertex_offset: u32,
-    indexed_indirect_constructor: impl Fn(u64) -> EntityBuilder,
 ) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
 
     let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
     let triangle_mesh_instance_entity = get_tagged_entity::<TriangleMeshInstances>(world).unwrap();
 
-    let triangle_mesh_head = world
+    let triangle_mesh_length = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
         .unwrap();
+
+    let triangle_mesh_head = triangle_mesh_length.load(Ordering::Relaxed);
 
     builder.add_bundle(BufferDataBundle::new(
         vec![TriangleMeshData {
@@ -367,15 +373,14 @@ pub fn triangle_mesh_data_builder(
             vertex_offset,
             ..Default::default()
         }],
-        buffer_size_of::<TriangleMeshData>() * triangle_mesh_head.load(Ordering::Relaxed),
+        buffer_size_of::<TriangleMeshData>() * triangle_mesh_head,
         triangle_mesh_entity,
     ));
 
-    builder.add_bundle(
-        indexed_indirect_constructor(triangle_mesh_head.load(Ordering::Relaxed)).build(),
-    );
+    triangle_mesh_length.fetch_add(1, Ordering::Relaxed);
 
-    triangle_mesh_head.fetch_add(1, Ordering::Relaxed);
+    let mut indexed_indirect_builder = triangle_indexed_indirect_builder(world, triangle_mesh_head);
+    builder.add_bundle(indexed_indirect_builder.build());
 
     let triangle_mesh_instance_heads = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthsComponent>(triangle_mesh_instance_entity)
@@ -386,23 +391,98 @@ pub fn triangle_mesh_data_builder(
     builder
 }
 
+fn triangle_indexed_indirect_builder(world: &mut World, offset: u64) -> EntityBuilder {
+    let mut builder = EntityBuilder::new();
+
+    let beam_buffer_entity = get_tagged_entity::<BeamBuffer>(world).unwrap();
+    let beam_multisample_entity = get_tagged_entity::<BeamMultisample>(world).unwrap();
+    let beam_depth_buffer_entity = get_tagged_entity::<BeamDepthBuffer>(world).unwrap();
+    let beam_mesh_pass_entity = get_tagged_entity::<BeamMesh>(world).unwrap();
+    let uniform_entity = get_tagged_entity::<Uniform>(world).unwrap();
+    let storage_bind_group_entity = get_tagged_entity::<StorageBuffers>(world).unwrap();
+    let renderer_entity = get_tagged_entity::<PhosphorRenderer>(world).unwrap();
+
+    let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
+    let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
+    let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
+
+    builder.add(BeamMesh);
+
+    builder.add_bundle(
+        antigen_wgpu::RenderPassBundle::draw_indexed_indirect(
+            0,
+            Some("Beam Meshes".into()),
+            vec![(
+                beam_multisample_entity,
+                Some(beam_buffer_entity),
+                Operations {
+                    load: if offset == 0 {
+                        LoadOp::Clear(CLEAR_COLOR)
+                    } else {
+                        LoadOp::Load
+                    },
+                    store: true,
+                },
+            )],
+            Some((
+                beam_depth_buffer_entity,
+                Some(Operations {
+                    load: if offset == 0 {
+                        LoadOp::Clear(1.0)
+                    } else {
+                        LoadOp::Load
+                    },
+                    store: true,
+                }),
+                None,
+            )),
+            beam_mesh_pass_entity,
+            vec![(vertex_entity, 0..480000)],
+            Some((triangle_index_entity, 0..20000, IndexFormat::Uint16)),
+            vec![
+                (uniform_entity, vec![]),
+                (
+                    storage_bind_group_entity,
+                    vec![
+                        buffer_size_of::<TriangleMeshInstanceData>() as u32
+                            * (MAX_TRIANGLE_MESH_INSTANCES * offset as usize) as u32,
+                    ],
+                ),
+            ],
+            vec![],
+            None,
+            None,
+            None,
+            None,
+            (
+                triangle_mesh_entity,
+                buffer_size_of::<TriangleMeshData>() * offset,
+            ),
+            renderer_entity,
+        )
+        .build(),
+    );
+
+    builder
+}
+
 pub fn triangle_mesh_instance_data_builder(
     world: &mut World,
     mesh: u32,
     position: PositionComponent,
     rotation: RotationComponent,
     scale: ScaleComponent,
-) -> EntityBuilder {
+) -> Option<EntityBuilder> {
     let mut builder = EntityBuilder::new();
 
-    let triangle_mesh_instance_entity = get_tagged_entity::<TriangleMeshInstances>(world).unwrap();
+    let triangle_mesh_instance_entity = get_tagged_entity::<TriangleMeshInstances>(world)?;
 
     let triangle_mesh_instance_heads = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthsComponent>(triangle_mesh_instance_entity)
-        .unwrap();
+        .ok()?;
 
     let mut triangle_mesh_instance_head = triangle_mesh_instance_heads.write();
-    let triangle_mesh_instance_head = triangle_mesh_instance_head.get_mut(mesh as usize).unwrap();
+    let triangle_mesh_instance_head = triangle_mesh_instance_head.get_mut(mesh as usize)?;
 
     let base_offset = buffer_size_of::<TriangleMeshInstanceData>()
         * (*triangle_mesh_instance_head
@@ -428,7 +508,7 @@ pub fn triangle_mesh_instance_data_builder(
 
     *triangle_mesh_instance_head += 1;
 
-    builder
+    Some(builder)
 }
 
 /// Assemble triangle indices for a list of vertices in triangle list format
@@ -468,10 +548,7 @@ pub fn triangle_fan_mesh_builder(
 }
 
 /// Assemble the Box Bot
-pub fn box_bot_mesh_builders(
-    world: &mut World,
-    triangle_indexed_indirect_builder: impl Fn(u64) -> EntityBuilder + Copy,
-) -> Vec<EntityBuilder> {
+pub fn box_bot_mesh_builders(world: &mut World) -> Vec<EntityBuilder> {
     let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
     let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
     let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
@@ -580,15 +657,7 @@ pub fn box_bot_mesh_builders(
     );
 
     builder.add_bundle(
-        triangle_mesh_data_builder(
-            world,
-            36 * 2,
-            0,
-            base_triangle_index,
-            base_vertex,
-            triangle_indexed_indirect_builder,
-        )
-        .build(),
+        triangle_mesh_data_builder(world, 36 * 2, 0, base_triangle_index, base_vertex).build(),
     );
 
     builders.push(builder);
@@ -646,13 +715,13 @@ pub fn mesh_instance_builders(
     position: PositionComponent,
     rotation: RotationComponent,
     scale: ScaleComponent,
-) -> Vec<EntityBuilder> {
+) -> Option<Vec<EntityBuilder>> {
     let mut builders = vec![];
 
     let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
-    let (_, mesh_ids) = query.into_iter().next().unwrap();
+    let (_, mesh_ids) = query.into_iter().next()?;
     dbg!("Fetching mesh", mesh);
-    let (triangle_mesh, line_mesh) = mesh_ids.read()[mesh];
+    let (triangle_mesh, line_mesh) = *mesh_ids.read().get(mesh)?;
 
     if let Some(triangle_mesh) = triangle_mesh {
         builders.push(triangle_mesh_instance_data_builder(
@@ -661,7 +730,7 @@ pub fn mesh_instance_builders(
             position,
             rotation,
             scale,
-        ));
+        )?);
     }
 
     if let Some((line_mesh, line_count)) = line_mesh {
@@ -672,8 +741,20 @@ pub fn mesh_instance_builders(
             scale.into(),
             line_mesh.into(),
             line_count,
-        ));
+        )?);
     }
 
-    builders
+    // Create the bounding ball.
+    let rigid_body_entity = world.spawn((
+        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
+        PositionComponent::construct(nalgebra::vector![0.0, 10.0, 0.0]),
+        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+    ));
+
+    world.spawn((
+        ColliderComponent::new(ColliderBuilder::ball(0.5).restitution(0.7).build()),
+        ColliderParentComponent::construct(rigid_body_entity),
+    ));
+
+    Some(builders)
 }

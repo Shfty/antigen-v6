@@ -45,7 +45,7 @@ pub fn phosphor_prepare_tonemap(
             multiview: None,
         });
 
-        tonemap_pipeline.set_ready(pipeline);
+        tonemap_pipeline.set_ready_with(pipeline);
     }
 
     Some(())

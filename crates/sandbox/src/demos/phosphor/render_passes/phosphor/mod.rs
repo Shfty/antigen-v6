@@ -68,7 +68,7 @@ pub fn phosphor_prepare_phosphor_decay(
                 ],
             });
 
-            phosphor_bind_group_layout.set_ready(bind_group_layout);
+            phosphor_bind_group_layout.set_ready_with(bind_group_layout);
             phosphor_bind_group_layout.get().unwrap()
         };
 
@@ -91,7 +91,7 @@ pub fn phosphor_prepare_phosphor_decay(
             ],
             label: None,
         });
-        front_bind_group.set_ready(bind_group);
+        front_bind_group.set_ready_with(bind_group);
     }
 
     if back_bind_group.is_pending() {
@@ -113,7 +113,7 @@ pub fn phosphor_prepare_phosphor_decay(
             ],
             label: None,
         });
-        back_bind_group.set_ready(bind_group);
+        back_bind_group.set_ready_with(bind_group);
     }
 
     if phosphor_decay_pipeline.is_pending() {
@@ -144,7 +144,7 @@ pub fn phosphor_prepare_phosphor_decay(
             multiview: None,
         });
 
-        phosphor_decay_pipeline.set_ready(pipeline);
+        phosphor_decay_pipeline.set_ready_with(pipeline);
     }
 
     Some(())

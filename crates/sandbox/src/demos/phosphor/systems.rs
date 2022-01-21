@@ -1,7 +1,7 @@
 use std::{sync::atomic::Ordering, time::Instant};
 
 use super::*;
-use antigen_core::{Changed, ChangedTrait, Indirect};
+use antigen_core::{Changed, ChangedTrait, CopyToComponent, Indirect, LazyComponent};
 
 use antigen_wgpu::{
     wgpu::{
@@ -57,7 +57,7 @@ pub fn phosphor_prepare_uniform_bind_group(
             }],
         });
 
-        uniform_bind_group_layout.set_ready(bind_group_layout);
+        uniform_bind_group_layout.set_ready_with(bind_group_layout);
         uniform_bind_group_layout.get().unwrap()
     };
 
@@ -71,7 +71,7 @@ pub fn phosphor_prepare_uniform_bind_group(
             label: None,
         });
 
-        uniform_bind_group.set_ready(bind_group);
+        uniform_bind_group.set_ready_with(bind_group);
     }
 
     Some(())
@@ -179,7 +179,7 @@ pub fn phosphor_prepare_storage_bind_group(
                     ],
                 });
 
-            bind_group_layout.set_ready(storage_bind_group_layout);
+            bind_group_layout.set_ready_with(storage_bind_group_layout);
             bind_group_layout.get().unwrap()
         }
     };
@@ -223,7 +223,7 @@ pub fn phosphor_prepare_storage_bind_group(
             label: None,
         });
 
-        bind_group.set_ready(storage_bind_group);
+        bind_group.set_ready_with(storage_bind_group);
     }
 
     Some(())
@@ -663,4 +663,68 @@ pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {
     let (_, render_pass_draw) = query.into_iter().next().unwrap();
 
     render_pass_draw.1 = 0..(line_instance_count.load(Ordering::Relaxed) as u32);
+}
+
+pub fn assemble_line_mesh_instances_system(world: &mut World) {
+    let instances = world
+        .query_mut::<(
+            &mut MeshInstanceComponent,
+            Option<&PositionComponent>,
+            Option<&RotationComponent>,
+            Option<&ScaleComponent>,
+        )>()
+        .into_iter()
+        .flat_map(
+            |(entity, (line_mesh_instance, position, rotation, scale))| {
+                let position = if let Some(position) = position {
+                    **position
+                } else {
+                    nalgebra::Vector3::zeros()
+                };
+
+                let rotation = if let Some(rotation) = rotation {
+                    **rotation
+                } else {
+                    nalgebra::UnitQuaternion::identity()
+                };
+
+                let scale = if let Some(scale) = scale {
+                    **scale
+                } else {
+                    nalgebra::vector![1.0, 1.0, 1.0]
+                };
+
+                if let LazyComponent::Pending(mesh) = **line_mesh_instance {
+                    Some((entity, mesh, position, rotation, scale))
+                } else {
+                    None
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+
+    for (entity, mesh, position, rotation, scale) in instances {
+        if let Some(mut builders) =
+            mesh_instance_builders(world, mesh, position.into(), rotation.into(), scale.into())
+        {
+            world
+                .get_mut::<MeshInstanceComponent>(entity)
+                .unwrap()
+                .set_ready();
+
+            let copy_to_entities = builders
+                .iter_mut()
+                .map(|builder| world.spawn(builder.build()))
+                .collect::<Vec<_>>();
+
+            world.insert(
+                entity,
+                (
+                    CopyToComponent::<PositionComponent>::construct(copy_to_entities.clone()),
+                    CopyToComponent::<RotationComponent>::construct(copy_to_entities.clone()),
+                    CopyToComponent::<ScaleComponent>::construct(copy_to_entities),
+                ),
+            ).unwrap();
+        }
+    }
 }

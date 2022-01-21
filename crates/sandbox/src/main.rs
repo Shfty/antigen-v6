@@ -143,13 +143,15 @@
 mod demos;
 
 use antigen_core::{
-    receive_messages, send_clone_query, try_receive_messages, PositionComponent,
-    TaggedEntitiesComponent, WorldChannel, WorldExchange, Construct, RotationComponent
+    receive_messages, send_clone_query, try_receive_messages, Construct, LazyComponent,
+    PositionComponent, RotationComponent, ScaleComponent, TaggedEntitiesComponent, WorldChannel,
+    WorldExchange,
 };
 use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
 };
 use antigen_winit::EventLoopHandler;
+use demos::phosphor::MeshInstanceComponent;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use std::{
     thread::JoinHandle,
@@ -157,9 +159,11 @@ use std::{
 };
 use winit::{event::Event, event_loop::ControlFlow, event_loop::EventLoopWindowTarget};
 
-use hecs::World;
+use hecs::{EntityBuilder, World};
 
-use antigen_rapier3d::{physics_backend_builder, ColliderComponent, RigidBodyComponent};
+use antigen_rapier3d::{
+    physics_backend_builder, ColliderComponent, ColliderParentComponent, RigidBodyComponent,
+};
 
 const GAME_THREAD_TICK: Duration = Duration::from_nanos(16670000);
 
@@ -190,14 +194,12 @@ fn main() {
     game_world.spawn((123, true, "abc"));
     game_world.spawn((42, false));
 
-    // Spawn filesystem and game threads
-    spawn_world::<Filesystem, _, _>(fs_thread(fs_world, fs_channel));
-    spawn_world::<Game, _, _>(game_thread(game_world, game_channel));
-
     // Setup render world
     let mut render_world = World::new();
+
     render_world.spawn((TaggedEntitiesComponent::default(),));
     render_world.spawn(antigen_winit::BackendBundle::default());
+
     let wgpu_backend_entity = render_world.spawn(antigen_wgpu::BackendBundle::from_env(
         &DeviceDescriptor {
             label: Some("Device"),
@@ -207,6 +209,25 @@ fn main() {
         None,
         None,
     ));
+
+    let mut builder = EntityBuilder::new();
+    builder.add(demos::phosphor::MeshIds);
+    builder.add(demos::phosphor::MeshIdsComponent::default());
+    let mesh_ids_entity = render_world.spawn(builder.build());
+
+    // Spawn filesystem and game threads
+    spawn_world::<Filesystem, _, _>(fs_thread(fs_world, fs_channel));
+    spawn_world::<Game, _, _>(game_thread(game_world, game_channel));
+
+    // Clone mesh IDs to game thread
+    send_clone_query::<
+        (
+            &demos::phosphor::MeshIds,
+            &demos::phosphor::MeshIdsComponent,
+        ),
+        Game,
+    >(mesh_ids_entity)((&mut render_world, &render_channel))
+    .unwrap();
 
     // Clone WGPU backend components to game thread
     send_clone_query::<
@@ -269,33 +290,54 @@ fn fs_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
 /// Game thread
 fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
     // Create the physics backend
-    world.spawn(physics_backend_builder().build());
+    world.spawn(physics_backend_builder(nalgebra::Vector3::new(0.0, -98.1, 0.0)).build());
 
     // Create the ground
     world.spawn((ColliderComponent::new(
-        ColliderBuilder::cuboid(100.0, 0.1, 100.0).build(),
+        ColliderBuilder::cuboid(1000.0, 0.1, 1000.0).build(),
     ),));
 
     // Create the bounding ball.
     let rigid_body_entity = world.spawn((
-        RigidBodyComponent::new(RigidBodyBuilder::new_dynamic().build()),
-        PositionComponent::construct(nalgebra::vector![0.0, 10.0, 0.0]),
+        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
+        PositionComponent::construct(nalgebra::vector![-2.0, 100.0, -2.0]),
         RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+        ScaleComponent::construct(nalgebra::vector![0.5, 0.5, 0.5]),
+        MeshInstanceComponent::construct("triangle_equilateral"),
     ));
 
-    world.spawn((ColliderComponent::new_with_parent(
-        ColliderBuilder::ball(0.5).restitution(0.7).build(),
-        rigid_body_entity,
-    ),));
+    world.spawn((
+        ColliderComponent::construct(ColliderBuilder::ball(15.0).restitution(0.7).build()),
+        ColliderParentComponent::construct(rigid_body_entity),
+    ));
+
+    let rigid_body_entity = world.spawn((
+        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
+        PositionComponent::construct(nalgebra::vector![2.0, 50.0, 2.0]),
+        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+        ScaleComponent::construct(nalgebra::vector![0.5, 0.5, 0.5]),
+        MeshInstanceComponent::construct("triangle_equilateral"),
+    ));
+
+    world.spawn((
+        ColliderComponent::construct(ColliderBuilder::ball(15.0).restitution(0.7).build()),
+        ColliderParentComponent::construct(rigid_body_entity),
+    ));
 
     move || {
         spin_loop(GAME_THREAD_TICK, || {
             try_receive_messages(&mut world, &channel).expect("Error handling message");
 
+            demos::phosphor::assemble_line_mesh_instances_system(&mut world);
+
             antigen_rapier3d::insert_colliders_system(&mut world);
             antigen_rapier3d::insert_rigid_bodies_system(&mut world);
             antigen_rapier3d::step_physics_system(&mut world);
             antigen_rapier3d::read_back_rigid_body_isometries_system(&mut world);
+
+            antigen_core::copy_to_system::<PositionComponent>(&mut world);
+            antigen_core::copy_to_system::<RotationComponent>(&mut world);
+            antigen_core::copy_to_system::<ScaleComponent>(&mut world);
 
             antigen_wgpu::buffer_write_slice_system::<
                 demos::phosphor::TriangleMeshInstanceDataComponent,

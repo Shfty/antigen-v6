@@ -1,45 +1,76 @@
+use crate::{Construct, peano::Z};
+
 /// A lazily-initialized component that can be pending, ready, or dropped
 #[derive(Debug)]
-pub enum LazyComponent<T> {
-    Pending,
-    Ready(T),
-    Dropped,
+pub enum LazyComponent<R, P = (), D = ()> {
+    Pending(P),
+    Ready(R),
+    Dropped(D),
 }
 
-impl<T> Default for LazyComponent<T> {
+impl<R, P, D> Default for LazyComponent<R, P, D>
+where
+    P: Default,
+{
     fn default() -> Self {
-        LazyComponent::Pending
+        LazyComponent::Pending(Default::default())
     }
 }
 
-impl<T> Copy for LazyComponent<T> where T: Copy {}
-
-impl<T> Clone for LazyComponent<T> where T: Clone {
+impl<R, P, D> Clone for LazyComponent<R, P, D>
+where
+    R: Clone,
+    P: Clone,
+    D: Clone,
+{
     fn clone(&self) -> Self {
         match self {
-            LazyComponent::Pending => LazyComponent::Pending,
-            LazyComponent::Ready(data) => LazyComponent::Ready(data.clone()),
-            LazyComponent::Dropped => LazyComponent::Dropped,
+            LazyComponent::Pending(p) => LazyComponent::Pending(p.clone()),
+            LazyComponent::Ready(r) => LazyComponent::Ready(r.clone()),
+            LazyComponent::Dropped(d) => LazyComponent::Dropped(d.clone()),
         }
     }
 }
 
-impl<T> PartialEq for LazyComponent<T> where T: PartialEq {
+impl<R, P, D> Copy for LazyComponent<R, P, D>
+where
+    R: Copy,
+    P: Copy,
+    D: Copy,
+{
+}
+
+impl<R, P, D> PartialEq for LazyComponent<R, P, D>
+where
+    R: PartialEq,
+    P: PartialEq,
+    D: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (LazyComponent::Pending, LazyComponent::Pending) => true,
+            (LazyComponent::Pending(lhs), LazyComponent::Pending(rhs)) => lhs.eq(rhs),
             (LazyComponent::Ready(lhs), LazyComponent::Ready(rhs)) => lhs.eq(rhs),
-            (LazyComponent::Dropped, LazyComponent::Dropped) => true,
-            _ => false
+            (LazyComponent::Dropped(lhs), LazyComponent::Dropped(rhs)) => lhs.eq(rhs),
+            _ => false,
         }
     }
 }
 
-impl<T> Eq for LazyComponent<T> where T: Eq {}
+impl<R, P, D> Eq for LazyComponent<R, P, D>
+where
+    R: Eq,
+    P: Eq,
+    D: Eq,
+{
+}
 
-impl<T> LazyComponent<T> {
+impl<R, P, D> LazyComponent<R, P, D> {
+    pub fn new(p: P) -> LazyComponent<R, P, D> {
+        LazyComponent::Pending(p)
+    }
+
     pub fn is_pending(&self) -> bool {
-        matches!(self, LazyComponent::Pending)
+        matches!(self, LazyComponent::Pending(_))
     }
 
     pub fn is_ready(&self) -> bool {
@@ -47,36 +78,67 @@ impl<T> LazyComponent<T> {
     }
 
     pub fn is_dropped(&self) -> bool {
-        matches!(self, LazyComponent::Dropped)
+        matches!(self, LazyComponent::Dropped(_))
     }
 
-    pub fn set_pending(&mut self) {
-        *self = LazyComponent::Pending;
+    pub fn set_pending(&mut self)
+    where
+        P: Default,
+    {
+        *self = LazyComponent::Pending(Default::default());
     }
 
-    pub fn set_ready(&mut self, inner: T) {
-        *self = LazyComponent::Ready(inner);
+    pub fn set_pending_with(&mut self, p: P) {
+        *self = LazyComponent::Pending(p);
     }
 
-    pub fn set_dropped(&mut self) {
-        *self = LazyComponent::Dropped;
+    pub fn set_ready(&mut self)
+    where
+        R: Default,
+    {
+        *self = LazyComponent::Ready(Default::default());
     }
 
-    pub fn take(&mut self) -> Self {
-        std::mem::replace(self, LazyComponent::Dropped)
+    pub fn set_ready_with(&mut self, r: R) {
+        *self = LazyComponent::Ready(r);
     }
 
-    pub fn get(&self) -> Option<&T> {
+    pub fn set_dropped(&mut self)
+    where
+        D: Default,
+    {
+        *self = LazyComponent::Dropped(Default::default());
+    }
+
+    pub fn set_dropped_with(&mut self, d: D) {
+        *self = LazyComponent::Dropped(d);
+    }
+
+    pub fn take(&mut self) -> Self
+    where
+        D: Default,
+    {
+        std::mem::replace(self, LazyComponent::Dropped(Default::default()))
+    }
+
+    pub fn get(&self) -> Option<&R> {
         match self {
-            LazyComponent::Ready(component) => Some(component),
+            LazyComponent::Ready(r) => Some(r),
             _ => None,
         }
     }
 
-    pub fn get_mut(&mut self) -> Option<&mut T> {
+    pub fn get_mut(&mut self) -> Option<&mut R> {
         match self {
-            LazyComponent::Ready(component) => Some(component),
+            LazyComponent::Ready(r) => Some(r),
             _ => None,
         }
     }
 }
+
+impl<R, P, D> Construct<P, Z> for LazyComponent<R, P, D> {
+    fn construct(r: P) -> Self {
+        LazyComponent::Pending(r)
+    }
+}
+

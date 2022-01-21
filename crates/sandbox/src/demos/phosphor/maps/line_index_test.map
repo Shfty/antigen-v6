@@ -1,12 +1,11 @@
-// Game: Generic
+// Game: Antigen
 // Format: Valve
 // entity 0
 {
 "mapversion" "220"
 "classname" "worldspawn"
 "_tb_textures" ""
-"_tb_def" "external:/home/josh/.local/src/TrenchBroom/build/app/games/Quake/Quake.fgd"
-"_tb_layer_hidden" "1"
+"_tb_def" "builtin:Antigen.fgd"
 }
 // entity 1
 {

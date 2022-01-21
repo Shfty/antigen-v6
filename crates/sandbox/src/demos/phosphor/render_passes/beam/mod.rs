@@ -93,7 +93,7 @@ pub fn phosphor_prepare_beam_mesh(
             multiview: None,
         });
 
-        beam_mesh_pipeline.set_ready(pipeline);
+        beam_mesh_pipeline.set_ready_with(pipeline);
     }
 
     Some(())
@@ -176,7 +176,7 @@ pub fn phosphor_prepare_beam_line(
             multiview: None,
         });
 
-        beam_line_pipeline.set_ready(pipeline);
+        beam_line_pipeline.set_ready_with(pipeline);
     }
 
     Some(())

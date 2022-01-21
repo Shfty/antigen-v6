@@ -34,3 +34,26 @@ where
         world.query_one_mut::<T>(self.entity).unwrap()
     }
 }
+
+pub struct IndirectMulti<T> {
+    entities: Vec<Entity>,
+    _phantom: PhantomData<T>,
+}
+
+impl<T> Construct<Vec<Entity>, Z> for IndirectMulti<T> {
+    fn construct(entities: Vec<Entity>) -> Self {
+        IndirectMulti {
+            entities,
+            _phantom: Default::default(),
+        }
+    }
+}
+
+impl<T> IndirectMulti<T>
+where
+    T: Query + Component,
+{
+    pub fn entities(&self) -> &Vec<Entity> {
+        &self.entities
+    }
+}
