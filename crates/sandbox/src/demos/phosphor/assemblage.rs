@@ -1,4 +1,4 @@
-use std::sync::atomic::Ordering;
+use std::{borrow::Cow, sync::atomic::Ordering};
 
 use antigen_core::{
     get_tagged_entity, Construct, PositionComponent, RotationComponent, ScaleComponent,
@@ -289,7 +289,7 @@ pub fn oscilloscope_mesh_builder(
 
     register_mesh_ids(
         world,
-        &format!("oscilloscope_{}", name),
+        Cow::Owned(format!("oscilloscope_{}", name)),
         None,
         Some((line_mesh, 1)),
     );
@@ -567,7 +567,7 @@ pub fn box_bot_mesh_builders(world: &mut World) -> Vec<EntityBuilder> {
 
     register_mesh_ids(
         world,
-        "box_bot",
+        "box_bot".into(),
         Some(triangle_mesh_head as u32),
         Some((line_mesh_head as u32, 12)),
     );
@@ -698,7 +698,7 @@ pub fn box_bot_mesh_builders(world: &mut World) -> Vec<EntityBuilder> {
 
 pub fn register_mesh_ids(
     world: &mut World,
-    key: &str,
+    key: Cow<'static, str>,
     triangle_mesh: Option<u32>,
     line_mesh: Option<(u32, u32)>,
 ) {
@@ -711,7 +711,7 @@ pub fn register_mesh_ids(
 
 pub fn mesh_instance_builders(
     world: &mut World,
-    mesh: &str,
+    mesh: Cow<'static, str>,
     position: PositionComponent,
     rotation: RotationComponent,
     scale: ScaleComponent,
@@ -720,8 +720,7 @@ pub fn mesh_instance_builders(
 
     let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
     let (_, mesh_ids) = query.into_iter().next()?;
-    dbg!("Fetching mesh", mesh);
-    let (triangle_mesh, line_mesh) = *mesh_ids.read().get(mesh)?;
+    let (triangle_mesh, line_mesh) = *mesh_ids.read().get(&mesh)?;
 
     if let Some(triangle_mesh) = triangle_mesh {
         builders.push(triangle_mesh_instance_data_builder(

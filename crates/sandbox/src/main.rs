@@ -155,7 +155,7 @@ use demos::phosphor::MeshInstanceComponent;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use std::{
     thread::JoinHandle,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, borrow::Cow,
 };
 use winit::{event::Event, event_loop::ControlFlow, event_loop::EventLoopWindowTarget};
 
@@ -303,7 +303,7 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
         PositionComponent::construct(nalgebra::vector![-2.0, 100.0, -2.0]),
         RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
         ScaleComponent::construct(nalgebra::vector![0.5, 0.5, 0.5]),
-        MeshInstanceComponent::construct("triangle_equilateral"),
+        MeshInstanceComponent::construct(Cow::Borrowed("triangle_equilateral")),
     ));
 
     world.spawn((
@@ -316,7 +316,7 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
         PositionComponent::construct(nalgebra::vector![2.0, 50.0, 2.0]),
         RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
         ScaleComponent::construct(nalgebra::vector![0.5, 0.5, 0.5]),
-        MeshInstanceComponent::construct("triangle_equilateral"),
+        MeshInstanceComponent::construct(Cow::Borrowed("triangle_equilateral")),
     ));
 
     world.spawn((

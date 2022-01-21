@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use parking_lot::RwLock;
-use std::{collections::BTreeMap, sync::Arc, time::Instant};
+use std::{collections::BTreeMap, sync::Arc, time::Instant, borrow::Cow};
 
 use antigen_core::{Changed, Usage, LazyComponent};
 
@@ -71,7 +71,7 @@ pub type OrthographicMatrixComponent = Usage<Orthographic, [[f32; 4]; 4]>;
 #[derive(Copy, Clone)]
 pub struct MeshIds;
 
-pub type MeshIdsComponent = Arc<RwLock<BTreeMap<String, (Option<u32>, Option<(u32, u32)>)>>>;
+pub type MeshIdsComponent = Arc<RwLock<BTreeMap<Cow<'static, str>, (Option<u32>, Option<(u32, u32)>)>>>;
 
 // Line Mesh ID
 pub enum LineMeshId {}
@@ -227,5 +227,5 @@ pub struct Timer {
 pub type TimerComponent = Changed<Timer>;
 
 pub enum MeshInstance {}
-pub type MeshInstanceComponent<'a> = Usage<MeshInstance, LazyComponent<(), &'a str>>;
+pub type MeshInstanceComponent<'a> = Usage<MeshInstance, LazyComponent<(), Cow<'static, str>>>;
 

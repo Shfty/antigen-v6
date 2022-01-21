@@ -110,7 +110,8 @@ pub use systems::*;
 
 use expression::{EvalTrait, Expression};
 use std::{
-    collections::BTreeMap, error::Error, path::PathBuf, sync::atomic::Ordering, time::Instant,
+    borrow::Cow, collections::BTreeMap, error::Error, path::PathBuf, sync::atomic::Ordering,
+    time::Instant,
 };
 
 use antigen_winit::{
@@ -131,7 +132,7 @@ use antigen_wgpu::{
     buffer_size_of, spawn_shader_from_file_string,
     wgpu::{
         AddressMode, BufferAddress, BufferDescriptor, BufferUsages, Color,
-        CommandEncoderDescriptor, Extent3d, FilterMode, IndexFormat, LoadOp, Maintain, Operations,
+        CommandEncoderDescriptor, Extent3d, FilterMode, LoadOp, Maintain, Operations,
         SamplerDescriptor, TextureAspect, TextureDescriptor, TextureDimension, TextureFormat,
         TextureUsages, TextureViewDescriptor,
     },
@@ -333,6 +334,10 @@ pub fn parse_map_file_string<'a, 'b, P: Into<PathBuf>>(
             .send_to::<Render>(assemble_map_meshes_message(map_data.clone()))
             .unwrap();
 
+        channel
+            .send_to::<Game>(assemble_map_mesh_instances_message(map_data))
+            .unwrap();
+
         Ok(ctx)
     }
 }
@@ -341,7 +346,7 @@ fn assemble_map_meshes_message(
     map_data: MapData,
 ) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
     move |mut ctx| {
-        let (world, channel) = &mut ctx;
+        let (world, _) = &mut ctx;
 
         let mut room_brushes = map_data.build_rooms(world);
         let bundles = room_brushes.iter_mut().map(EntityBuilder::build);
@@ -351,9 +356,9 @@ fn assemble_map_meshes_message(
         let bundles = mesh_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
-        channel
-            .send_to::<Game>(assemble_map_mesh_instances_message(map_data))
-            .unwrap();
+        let mut oscilloscope_meshes = map_data.build_oscilloscopes(world);
+        let bundles = oscilloscope_meshes.iter_mut().map(EntityBuilder::build);
+        world.extend(bundles);
 
         Ok(ctx)
     }
@@ -1058,7 +1063,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         >())
         .unwrap();
 
-
     // Load SVG meshes
     {
         let svg = SvgLayers::parse("crates/sandbox/src/demos/phosphor/fonts/basic.svg")
@@ -1090,7 +1094,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
                 let line_count = indices.len() as u32 / 2;
 
                 let key = format!("char_{}", grapheme);
-                register_mesh_ids(world, &key, None, Some((line_mesh, line_count)));
+                register_mesh_ids(world, key.into(), None, Some((line_mesh, line_count)));
 
                 let mut builder = line_mesh_builder(world, vertices, indices);
                 let bundle = builder.build();
@@ -1181,7 +1185,7 @@ fn assemble_test_geometry(world: &mut World) {
 
     register_mesh_ids(
         world,
-        "triangle_equilateral",
+        "triangle_equilateral".into(),
         None,
         Some((line_mesh, line_count)),
     );
@@ -1598,22 +1602,22 @@ impl MapData {
             let key = format!("entity_{}", entity);
             register_mesh_ids(
                 world,
-                &key,
+                key.clone().into(),
                 Some(triangle_mesh),
                 Some((line_mesh, line_count)),
             );
 
-            builders.extend(
-                mesh_instance_builders(
-                    world,
-                    &key,
-                    entity_center.into(),
-                    nalgebra::UnitQuaternion::identity().into(),
-                    nalgebra::vector![1.0, 1.0, 1.0].into(),
-                )
-                .unwrap()
-                .into_iter(),
-            );
+            // Mesh instance entity
+            let mut builder = EntityBuilder::new();
+            builder.add(PositionComponent::construct(entity_center));
+            builder.add(RotationComponent::construct(
+                nalgebra::UnitQuaternion::identity().into(),
+            ));
+            builder.add(ScaleComponent::construct(
+                nalgebra::vector![1.0, 1.0, 1.0].into(),
+            ));
+            builder.add(MeshInstanceComponent::construct(Cow::Owned(key)));
+            builders.push(builder);
         }
 
         builders
@@ -1746,11 +1750,17 @@ impl MapData {
 
             register_mesh_ids(
                 world,
-                &entity_mesh_name,
+                entity_mesh_name.to_owned().into(),
                 Some(triangle_mesh),
                 Some((line_mesh as u32, line_index_count / 2)),
             );
         }
+
+        builders
+    }
+
+    pub fn build_oscilloscopes(&self, world: &mut World) -> Vec<EntityBuilder> {
+        let mut builders = vec![];
 
         // Load oscilloscope meshes
         let oscilloscope_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
@@ -1902,16 +1912,12 @@ impl MapData {
             let rotation = Self::property_rotation(player_start, true);
             let scale = Self::property_scale(player_start);
 
-            builders.extend(
-                mesh_instance_builders(
-                    world,
-                    "box_bot",
-                    origin.into(),
-                    rotation.into(),
-                    scale.into(),
-                )
-                .unwrap(),
-            );
+            let mut builder = EntityBuilder::new();
+            builder.add(PositionComponent::construct(origin));
+            builder.add(RotationComponent::construct(rotation));
+            builder.add(ScaleComponent::construct(scale));
+            builder.add(MeshInstanceComponent::construct(Cow::Borrowed("box_bot")));
+            builders.push(builder);
         }
 
         // Spawn oscilloscope entities
@@ -1932,16 +1938,17 @@ impl MapData {
             let origin = Self::property_origin(oscilloscope);
             let targetname = Self::property_targetname(oscilloscope);
 
-            builders.extend(
-                mesh_instance_builders(
-                    world,
-                    &format!("oscilloscope_{}", targetname),
-                    origin.into(),
-                    nalgebra::UnitQuaternion::identity().into(),
-                    nalgebra::vector![1.0, 1.0, 1.0].into(),
-                )
-                .unwrap(),
-            );
+            let mut builder = EntityBuilder::new();
+            builder.add(PositionComponent::construct(origin));
+            builder.add(RotationComponent::construct(
+                nalgebra::UnitQuaternion::identity(),
+            ));
+            builder.add(ScaleComponent::construct(nalgebra::vector![1.0, 1.0, 1.0]));
+            builder.add(MeshInstanceComponent::construct(Cow::Owned(format!(
+                "oscilloscope_{}",
+                targetname
+            ))));
+            builders.push(builder);
         }
 
         // Spawn mesh instance entities
@@ -1965,10 +1972,12 @@ impl MapData {
 
             let target = Self::property_string("target", properties).unwrap();
 
-            builders.extend(
-                mesh_instance_builders(world, target, origin.into(), rotation.into(), scale.into())
-                    .unwrap(),
-            );
+            let mut builder = EntityBuilder::new();
+            builder.add(PositionComponent::construct(origin));
+            builder.add(RotationComponent::construct(rotation));
+            builder.add(ScaleComponent::construct(scale));
+            builder.add(MeshInstanceComponent::construct(Cow::Owned(target.into())));
+            builders.push(builder);
         }
 
         // Spawn text entities
@@ -2013,16 +2022,13 @@ impl MapData {
                     let ofs = rotation * ofs;
 
                     let key = format!("char_{}", c.to_string().as_str());
-                    builders.extend(
-                        mesh_instance_builders(
-                            world,
-                            &key,
-                            (origin + ofs).into(),
-                            rotation.into(),
-                            scale.into(),
-                        )
-                        .unwrap(),
-                    );
+
+                    let mut builder = EntityBuilder::new();
+                    builder.add(PositionComponent::construct(origin + ofs));
+                    builder.add(RotationComponent::construct(rotation));
+                    builder.add(ScaleComponent::construct(scale));
+                    builder.add(MeshInstanceComponent::construct(Cow::Owned(key)));
+                    builders.push(builder);
                 }
             }
         }
@@ -2033,6 +2039,8 @@ impl MapData {
 
 pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoopHandler<T> {
     fn prepare_schedule(world: &mut World) {
+        assemble_line_mesh_instances_system(world);
+
         // parallel
         {
             antigen_wgpu::create_shader_modules_system(world);
@@ -2041,6 +2049,7 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::create_texture_views_system(world);
             antigen_wgpu::create_samplers_system(world);
         }
+
         //parallel
         {
             antigen_wgpu::buffer_write_system::<TotalTimeComponent>(world);

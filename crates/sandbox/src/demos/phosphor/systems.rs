@@ -694,8 +694,8 @@ pub fn assemble_line_mesh_instances_system(world: &mut World) {
                     nalgebra::vector![1.0, 1.0, 1.0]
                 };
 
-                if let LazyComponent::Pending(mesh) = **line_mesh_instance {
-                    Some((entity, mesh, position, rotation, scale))
+                if let LazyComponent::Pending(mesh) = &**line_mesh_instance {
+                    Some((entity, mesh.clone(), position, rotation, scale))
                 } else {
                     None
                 }
