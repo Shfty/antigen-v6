@@ -92,8 +92,10 @@
 //               * Too much repetition in phosphor mod.rs
 //           [✓] Move map processing to filesystem thread
 //
-// TODO: [ ] Integrate rapier physics
+// TODO: [>] Integrate rapier physics
 //           * Create collision from brush hulls
+// 
+// TODO: [ ] Fix lines projecting from behind the camera
 //
 // TODO: [ ] Figure out why lower-case z is missing from text test
 //
@@ -154,8 +156,9 @@ use antigen_winit::EventLoopHandler;
 use demos::phosphor::MeshInstanceComponent;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use std::{
+    borrow::Cow,
     thread::JoinHandle,
-    time::{Duration, Instant}, borrow::Cow,
+    time::{Duration, Instant},
 };
 use winit::{event::Event, event_loop::ControlFlow, event_loop::EventLoopWindowTarget};
 
@@ -294,20 +297,31 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
 
     // Create the ground
     world.spawn((ColliderComponent::new(
-        ColliderBuilder::cuboid(1000.0, 0.1, 1000.0).build(),
+        ColliderBuilder::cuboid(10000.0, 0.1, 10000.0).build(),
     ),));
 
     // Create the bounding ball.
     let rigid_body_entity = world.spawn((
         RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-        PositionComponent::construct(nalgebra::vector![-2.0, 100.0, -2.0]),
+        PositionComponent::construct(nalgebra::vector![-2.0, 150.0, -2.0]),
         RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-        ScaleComponent::construct(nalgebra::vector![0.5, 0.5, 0.5]),
-        MeshInstanceComponent::construct(Cow::Borrowed("triangle_equilateral")),
+        MeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
     ));
 
     world.spawn((
-        ColliderComponent::construct(ColliderBuilder::ball(15.0).restitution(0.7).build()),
+        ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
+        ColliderParentComponent::construct(rigid_body_entity),
+    ));
+
+    let rigid_body_entity = world.spawn((
+        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
+        PositionComponent::construct(nalgebra::vector![2.0, 100.0, 2.0]),
+        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+        MeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
+    ));
+
+    world.spawn((
+        ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
         ColliderParentComponent::construct(rigid_body_entity),
     ));
 
@@ -315,12 +329,11 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
         RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
         PositionComponent::construct(nalgebra::vector![2.0, 50.0, 2.0]),
         RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-        ScaleComponent::construct(nalgebra::vector![0.5, 0.5, 0.5]),
-        MeshInstanceComponent::construct(Cow::Borrowed("triangle_equilateral")),
+        MeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
     ));
 
     world.spawn((
-        ColliderComponent::construct(ColliderBuilder::ball(15.0).restitution(0.7).build()),
+        ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
         ColliderParentComponent::construct(rigid_body_entity),
     ));
 

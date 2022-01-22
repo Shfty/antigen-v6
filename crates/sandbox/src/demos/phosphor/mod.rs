@@ -63,7 +63,9 @@
 //       [ ] Changed<PathComponent> map file reloading
 //           * Will allow a system to read ArgsComponent and load a map based on its value
 //
-//       [ ] Investigate infinite perspective projection + reversed Z
+//       [>] Investigate infinite perspective projection + reversed Z
+//           [✓] Implement new matrix
+//           [ ] Fix triangle-line Z-fighting
 //
 // TODO: [ ] Implement HDR bloom
 //           * Render mipmaps for final buffer
@@ -187,19 +189,15 @@ pub fn orthographic_matrix(aspect: f32, zoom: f32, near: f32, far: f32) -> [[f32
     projection.into()
 }
 
-pub fn perspective_matrix(
-    aspect: f32,
-    (ofs_x, ofs_y): (f32, f32),
-    near: f32,
-    far: f32,
-) -> [[f32; 4]; 4] {
+pub fn perspective_matrix(aspect: f32, (ofs_x, ofs_y): (f32, f32), near: f32) -> [[f32; 4]; 4] {
     let x = ofs_x * std::f32::consts::PI;
-    let view = nalgebra_glm::look_at_lh(
+    let view = nalgebra_glm::look_at_rh(
         &nalgebra::vector![x.sin() * 300.0, ofs_y * 150.0, -x.cos() * 300.0],
         &nalgebra::vector![0.0, 0.0, 0.0],
         &nalgebra::Vector3::y_axis(),
     );
-    let projection = nalgebra_glm::perspective_lh_zo(aspect, (45.0f32).to_radians(), near, far);
+    let mut projection = nalgebra_glm::infinite_perspective_rh_zo(aspect, (45.0f32).to_radians(), near);
+    projection.append_nonuniform_scaling_mut(&nalgebra::vector![-1.0, 1.0, 1.0]);
 
     let matrix = projection * view;
 
@@ -348,11 +346,11 @@ fn assemble_map_meshes_message(
     move |mut ctx| {
         let (world, _) = &mut ctx;
 
-        let mut room_brushes = map_data.build_rooms(world);
+        let mut room_brushes = map_data.build_rooms(world, 1.0);
         let bundles = room_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
-        let mut mesh_brushes = map_data.build_meshes(world);
+        let mut mesh_brushes = map_data.build_meshes(world, 1.0);
         let bundles = mesh_brushes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
@@ -370,7 +368,7 @@ fn assemble_map_mesh_instances_message(
     move |mut ctx| {
         let (world, _) = &mut ctx;
         println!("Assembling point entities on game thread");
-        let mut point_entities = map_data.build_point_entities(world);
+        let mut point_entities = map_data.build_point_entities();
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
         Ok(ctx)
@@ -563,7 +561,6 @@ fn perspective_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
                 640.0 / 480.0,
                 (0.0, 0.0),
                 1.0,
-                500.0,
             )),
             0,
             uniform_entity,
@@ -1456,177 +1453,86 @@ impl MapData {
         })
     }
 
-    pub fn build_rooms(&self, world: &mut World) -> Vec<EntityBuilder> {
-        let mut builders = vec![];
-
+    pub fn build_rooms(&self, world: &mut World, scale_factor: f32) -> Vec<EntityBuilder> {
         let entity_brushes = self
             .classname_brushes("room")
             .chain(self.classname_brushes("portal"));
 
-        let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
-        let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
-        let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
-        let line_index_entity = get_tagged_entity::<LineIndices>(world).unwrap();
-        let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
-
-        for (entity, brushes) in entity_brushes {
-            let entity_faces = self.entity_faces(brushes);
-            let entity_center = self.entity_centers[entity];
-            let entity_center = entity_center.xzy();
-
-            // Generate mesh
-            let mut mesh_vertices: Vec<VertexData> = Default::default();
-            let mut triangle_indices: Vec<TriangleIndexData> = Default::default();
-            let mut line_indices: Vec<LineIndexData> = Default::default();
-
-            let scale_factor = 1.0;
-
-            // Gather mesh and line geometry
-            let base_vertex = world
-                .query_one_mut::<&mut BufferLengthComponent>(vertex_entity)
-                .unwrap()
-                .load(Ordering::Relaxed) as u32;
-
-            let base_triangle_index = world
-                .query_one_mut::<&mut BufferLengthComponent>(triangle_index_entity)
-                .unwrap()
-                .load(Ordering::Relaxed) as u32;
-
-            let triangle_mesh = world
-                .query_one_mut::<&mut BufferLengthComponent>(triangle_mesh_entity)
-                .unwrap()
-                .load(Ordering::Relaxed) as u32;
-
-            let base_line_index = world
-                .query_one_mut::<&mut BufferLengthComponent>(line_index_entity)
-                .unwrap()
-                .load(Ordering::Relaxed) as u32;
-
-            let line_mesh = world
-                .query_one_mut::<&mut BufferLengthComponent>(line_mesh_entity)
-                .unwrap()
-                .load(Ordering::Relaxed) as u32;
-
-            let mut local_vertex_head = 0u16;
-            let mut local_index_head = 0u32;
-
-            for face_id in entity_faces {
-                if self.face_duplicates.iter().any(|(a, _)| a == face_id) {
-                    continue;
-                }
-
-                if self
-                    .face_face_containment
-                    .iter()
-                    .any(|(_, b)| b.contains(face_id))
-                {
-                    continue;
-                }
-
-                if self
-                    .brush_face_containment
-                    .iter()
-                    .any(|(_, b)| b.contains(face_id))
-                {
-                    continue;
-                }
-
-                if !self.interior_faces.contains(&face_id) {
-                    continue;
-                }
-
-                // Fetch and interpret texture data
-                let texture_name = self.face_texture(&face_id);
-                let color = Self::face_color(texture_name);
-                let intensity = Self::face_intensity(texture_name);
-
-                let verts = self
-                    .face_vertices(face_id, color, intensity, scale_factor)
-                    .map(|vertex| VertexData {
-                        position: [
-                            vertex.position[0] - entity_center[0],
-                            vertex.position[1] - entity_center[1],
-                            vertex.position[2] - entity_center[2],
-                        ],
-                        ..vertex
-                    })
-                    .collect::<Vec<_>>();
-                let vertex_count = verts.len();
-                mesh_vertices.extend(verts);
-
-                triangle_indices.extend(self.face_triangle_indices(face_id, local_vertex_head));
-                line_indices.extend(self.face_line_indices(face_id, local_index_head));
-
-                local_vertex_head += vertex_count as u16;
-                local_index_head += vertex_count as u32;
-            }
-
-            let vertex_count = mesh_vertices.len() as u32;
-            let triangle_index_count = triangle_indices.len() as u32;
-            let line_index_count = line_indices.len() as u32;
-
-            let line_count = line_index_count / 2;
-
-            // Mesh entity
-            let mut builder = EntityBuilder::new();
-
-            builder
-                .add_bundle(triangle_mesh_builder(world, mesh_vertices, triangle_indices).build());
-
-            builder.add_bundle(
-                triangle_mesh_data_builder(
-                    world,
-                    triangle_index_count,
-                    0,
-                    base_triangle_index,
-                    base_vertex,
-                )
-                .build(),
-            );
-
-            builder.add_bundle(line_indices_builder(world, line_indices).build());
-
-            builder.add_bundle(
-                line_mesh_data_builder(
-                    world,
-                    base_vertex,
-                    vertex_count,
-                    base_line_index,
-                    line_index_count,
-                )
-                .build(),
-            );
-
-            builders.push(builder);
-
-            let key = format!("entity_{}", entity);
-            register_mesh_ids(
-                world,
-                key.clone().into(),
-                Some(triangle_mesh),
-                Some((line_mesh, line_count)),
-            );
-
-            // Mesh instance entity
-            let mut builder = EntityBuilder::new();
-            builder.add(PositionComponent::construct(entity_center));
-            builder.add(RotationComponent::construct(
-                nalgebra::UnitQuaternion::identity().into(),
-            ));
-            builder.add(ScaleComponent::construct(
-                nalgebra::vector![1.0, 1.0, 1.0].into(),
-            ));
-            builder.add(MeshInstanceComponent::construct(Cow::Owned(key)));
-            builders.push(builder);
-        }
-
-        builders
+        self.build_brush_entities(
+            world,
+            entity_brushes,
+            |face_id| {
+                self.face_duplicates.iter().any(|(a, _)| a == face_id)
+                    || self
+                        .face_face_containment
+                        .iter()
+                        .any(|(_, b)| b.contains(face_id))
+                    || self
+                        .brush_face_containment
+                        .iter()
+                        .any(|(_, b)| b.contains(face_id))
+                    || !self.interior_faces.contains(&face_id)
+            },
+            |entity, properties| {
+                let classname = Self::property_string("classname", properties).unwrap();
+                format!("{}_{}", classname, entity)
+            },
+            |entity_center, key| {
+                // Mesh instance entity
+                let mut builder = EntityBuilder::new();
+                builder.add(PositionComponent::construct(entity_center.xzy()));
+                builder.add(RotationComponent::construct(
+                    nalgebra::UnitQuaternion::identity().into(),
+                ));
+                builder.add(ScaleComponent::construct(
+                    nalgebra::vector![1.0, 1.0, 1.0].into(),
+                ));
+                builder.add(MeshInstanceComponent::construct(Cow::Owned(key)));
+                std::iter::once(builder)
+            },
+            scale_factor,
+        )
     }
 
-    pub fn build_meshes(&self, world: &mut World) -> Vec<EntityBuilder> {
-        let mut builders = vec![];
-
+    pub fn build_meshes(&self, world: &mut World, scale_factor: f32) -> Vec<EntityBuilder> {
         let entity_brushes = self.classname_brushes("mesh");
+        self.build_brush_entities(
+            world,
+            entity_brushes,
+            |face_id| {
+                self.face_duplicates.iter().any(|(_, b)| b == face_id)
+                    || self
+                        .face_face_containment
+                        .iter()
+                        .any(|(_, b)| b.contains(face_id))
+                    || self
+                        .brush_face_containment
+                        .iter()
+                        .any(|(_, b)| b.contains(face_id))
+            },
+            |_, properties| Self::property_targetname(properties).to_string(),
+            |_, _| std::iter::empty(),
+            scale_factor,
+        )
+    }
+
+    pub fn build_brush_entities<'a, I, C, N, A, R>(
+        &self,
+        world: &mut World,
+        brushes: I,
+        cull_face: C,
+        mesh_name: N,
+        after_register: A,
+        scale_factor: f32,
+    ) -> Vec<EntityBuilder>
+    where
+        I: Iterator<Item = (&'a EntityId, &'a Vec<BrushId>)>,
+        C: Fn(&FaceId) -> bool + Copy,
+        N: Fn(&EntityId, &Properties) -> String,
+        A: Fn(nalgebra::Vector3<f32>, String) -> R,
+        R: Iterator<Item = EntityBuilder>,
+    {
+        let mut builders = vec![];
 
         let vertex_entity = get_tagged_entity::<Vertices>(world).unwrap();
         let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
@@ -1634,9 +1540,9 @@ impl MapData {
         let line_index_entity = get_tagged_entity::<LineIndices>(world).unwrap();
         let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
-        for (entity, brushes) in entity_brushes {
+        for (entity, brushes) in brushes {
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            let entity_mesh_name = Self::property_targetname(properties);
+            let entity_mesh_name = mesh_name(entity, properties);
 
             let entity_faces = self.entity_faces(brushes);
             let entity_center = self.entity_centers[entity];
@@ -1645,8 +1551,6 @@ impl MapData {
             let mut mesh_vertices: Vec<VertexData> = Default::default();
             let mut triangle_indices: Vec<TriangleIndexData> = Default::default();
             let mut line_indices: Vec<LineIndexData> = Default::default();
-
-            let scale_factor = 1.0;
 
             // Gather mesh and line geometry
             let base_vertex = world
@@ -1677,27 +1581,7 @@ impl MapData {
             let mut local_vertex_head = 0u16;
             let mut local_index_head = 0u32;
 
-            for face_id in entity_faces {
-                if self.face_duplicates.iter().any(|(_, b)| b == face_id) {
-                    continue;
-                }
-
-                if self
-                    .face_face_containment
-                    .iter()
-                    .any(|(_, b)| b.contains(face_id))
-                {
-                    continue;
-                }
-
-                if self
-                    .brush_face_containment
-                    .iter()
-                    .any(|(_, b)| b.contains(face_id))
-                {
-                    continue;
-                }
-
+            for face_id in entity_faces.filter(|face_id| !cull_face(face_id)) {
                 // Fetch and interpret texture data
                 let texture_name = self.face_texture(&face_id);
                 let color = Self::face_color(texture_name);
@@ -1728,6 +1612,11 @@ impl MapData {
             let triangle_index_count = triangle_indices.len() as u32;
             let line_index_count = line_indices.len() as u32;
 
+            let convex_hull = mesh_vertices
+                .iter()
+                .map(|VertexData { position, .. }| *position)
+                .collect::<Vec<_>>();
+
             // Singleton mesh instance
             builders.extend([
                 triangle_mesh_builder(world, mesh_vertices, triangle_indices),
@@ -1754,6 +1643,8 @@ impl MapData {
                 Some(triangle_mesh),
                 Some((line_mesh as u32, line_index_count / 2)),
             );
+
+            builders.extend(after_register(entity_center, entity_mesh_name));
         }
 
         builders
@@ -1890,7 +1781,7 @@ impl MapData {
             .as_str())
     }
 
-    pub fn build_point_entities(&self, world: &mut World) -> Vec<EntityBuilder> {
+    pub fn build_point_entities(&self) -> Vec<EntityBuilder> {
         let mut builders: Vec<EntityBuilder> = vec![];
 
         // Spawn player start entities

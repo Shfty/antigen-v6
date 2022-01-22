@@ -13,12 +13,12 @@ use hecs::{EntityBuilder, World};
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 
 use super::{
-    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, LineIndices, LineInstanceData,
-    LineInstances, LineMeshData, LineMeshIdComponent, LineMeshInstanceData, LineMeshInstances,
-    LineMeshes, MeshIds, MeshIdsComponent, Oscilloscope, PhosphorRenderer, StorageBuffers,
-    TriangleIndices, TriangleMeshData, TriangleMeshInstanceData, TriangleMeshInstances,
-    TriangleMeshes, Uniform, VertexData, Vertices, BLACK, BLUE, CLEAR_COLOR, GREEN,
-    MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
+    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, ConvexHullComponent, LineIndices,
+    LineInstanceData, LineInstances, LineMeshData, LineMeshIdComponent, LineMeshInstanceData,
+    LineMeshInstances, LineMeshes, MeshIds, MeshIdsComponent, Oscilloscope, PhosphorRenderer,
+    StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshInstanceData,
+    TriangleMeshInstances, TriangleMeshes, Uniform, VertexData, Vertices, BLACK, BLUE, CLEAR_COLOR,
+    GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT

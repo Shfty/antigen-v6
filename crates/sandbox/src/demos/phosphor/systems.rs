@@ -572,7 +572,7 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
 
     let aspect = surface_config.width as f32 / surface_config.height as f32;
 
-    ***perspective_matrix = super::perspective_matrix(aspect, (0.0, 0.0), 1.0, 500.0);
+    ***perspective_matrix = super::perspective_matrix(aspect, (0.0, 0.0), 1.0);
     perspective_matrix.set_changed(true);
 
     ***orthographic_matrix = super::orthographic_matrix(aspect, 200.0, 1.0, 500.0);
@@ -629,7 +629,6 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
             surface_config.width as f32 / surface_config.height as f32,
             (-norm_x, norm_y),
             1.0,
-            500.0,
         );
         perspective_matrix.set_changed(true);
     }

@@ -229,3 +229,5 @@ pub type TimerComponent = Changed<Timer>;
 pub enum MeshInstance {}
 pub type MeshInstanceComponent<'a> = Usage<MeshInstance, LazyComponent<(), Cow<'static, str>>>;
 
+pub enum ConvexHull {}
+pub type ConvexHullComponent = Usage<ConvexHull, Vec<[f32; 3]>>;
