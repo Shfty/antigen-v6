@@ -27,10 +27,12 @@ pub enum Scale {}
 pub type ScaleComponent = Usage<Scale, nalgebra::Vector3<f32>>;
 
 pub enum CopyTo {}
-pub type CopyToComponent<'a, T> = Usage<CopyTo, IndirectMulti<&'a mut Changed<T>>>;
+pub type CopyToComponent<'a, U, T> = Usage<U, IndirectMulti<&'a mut Changed<T>>>;
 
-pub fn copy_to_system<T: hecs::Component + PartialEq + Copy>(world: &mut hecs::World) {
-    for (_, (value, copy_to)) in world.query::<(&T, &CopyToComponent<T>)>().into_iter() {
+pub fn copy_to_system<U: hecs::Component, T: hecs::Component + PartialEq + Copy>(
+    world: &mut hecs::World,
+) {
+    for (_, (value, copy_to)) in world.query::<(&T, &CopyToComponent<U, T>)>().into_iter() {
         for target in copy_to.entities() {
             let mut query = world.query_one::<&mut Changed<T>>(*target).unwrap();
             let target = query.get().unwrap();

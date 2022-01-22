@@ -94,7 +94,7 @@
 //
 // TODO: [>] Integrate rapier physics
 //           * Create collision from brush hulls
-// 
+//
 // TODO: [ ] Fix lines projecting from behind the camera
 //
 // TODO: [ ] Figure out why lower-case z is missing from text test
@@ -125,18 +125,32 @@
 //            * If camera is not inside a room, find the closest one
 //              * Ideally should use distance-to-nearest-surface
 //              * If impractical, distance-to-center should suffice
+//            * Updating current room on portal traversal will be more efficient
+//              after starting sector has been determined
+//          * Rendering the whole scene twice with a small offset is a good place to start
 //
 // TODO: [ ] Investigate box portals for room-inside-room
 //
 // TODO: [ ] Generalize map -> entities + components conversion
 //           * Need a way to map classname to a set of entities, properties to components
-//           * Multiple cases to consider:
-//             * Simple single-value components
-//               * Parse single property via FromStr
-//             * Complex multi-value components
-//               * Parse multiple properties via FromStr
-//               * Use component.member naming for TrenchBroom properties
+//           * Catch-all Point and Brush entity classnames
+//             * Collects all relevant components into single classnames
+//             * Specialize to bundle-like constructs by subclassing in FGD and overriding with default values
+//             * Covers both pre-made and fully-customizable cases
+//           * Simple no-value property to instantiate component
+//           * component.member naming to map to component members
 //           * Traits + cons lists to model classname -> components relation?
+//             * Would be ideal to do this at build-time
+//             * Could use plugin-registry from antigen-v4
+//             * Separate build target that draws from the registered types
+//               and outputs a TrenchBroom game config + fgd
+//             * Should allow for both tool and runtime usage via shared code
+//               * Tool use case can be a CLI program using args + stdout
+//               * Runtime usage should embody the 'game as its own editor' paradigm
+//                 * Same functionality, different interface
+//
+// TODO: [ ] TrenchBroom special entity support for shambler
+//           * Implement as its own GeoMap-dependent struct
 //
 // TODO: [ ] Implement bloom pass
 //
@@ -145,15 +159,14 @@
 mod demos;
 
 use antigen_core::{
-    receive_messages, send_clone_query, try_receive_messages, Construct, LazyComponent,
-    PositionComponent, RotationComponent, ScaleComponent, TaggedEntitiesComponent, WorldChannel,
-    WorldExchange,
+    receive_messages, send_clone_query, try_receive_messages, Construct, PositionComponent,
+    RotationComponent, ScaleComponent, TaggedEntitiesComponent, WorldChannel, WorldExchange,
 };
 use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
 };
 use antigen_winit::EventLoopHandler;
-use demos::phosphor::MeshInstanceComponent;
+use demos::phosphor::{LineMeshInstanceComponent, TriangleMeshInstanceComponent, TriangleMeshInstance, LineMeshInstance};
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use std::{
     borrow::Cow,
@@ -301,46 +314,59 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
     ),));
 
     // Create the bounding ball.
-    let rigid_body_entity = world.spawn((
-        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-        PositionComponent::construct(nalgebra::vector![-2.0, 150.0, -2.0]),
-        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-        MeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-    ));
+    let rigid_body_entity = world.reserve_entity();
+    world
+        .insert(
+            rigid_body_entity,
+            (
+                PositionComponent::construct(nalgebra::vector![-2.0, 150.0, -2.0]),
+                RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+                TriangleMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
+                LineMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
+                RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
+                ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
+                ColliderParentComponent::construct(rigid_body_entity),
+            ),
+        )
+        .unwrap();
 
-    world.spawn((
-        ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
-        ColliderParentComponent::construct(rigid_body_entity),
-    ));
+    let rigid_body_entity = world.reserve_entity();
+    world
+        .insert(
+            rigid_body_entity,
+            (
+                PositionComponent::construct(nalgebra::vector![2.0, 100.0, 2.0]),
+                RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+                TriangleMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
+                LineMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
+                RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
+                ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
+                ColliderParentComponent::construct(rigid_body_entity),
+            ),
+        )
+        .unwrap();
 
-    let rigid_body_entity = world.spawn((
-        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-        PositionComponent::construct(nalgebra::vector![2.0, 100.0, 2.0]),
-        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-        MeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-    ));
-
-    world.spawn((
-        ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
-        ColliderParentComponent::construct(rigid_body_entity),
-    ));
-
-    let rigid_body_entity = world.spawn((
-        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-        PositionComponent::construct(nalgebra::vector![2.0, 50.0, 2.0]),
-        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-        MeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-    ));
-
-    world.spawn((
-        ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
-        ColliderParentComponent::construct(rigid_body_entity),
-    ));
+    let rigid_body_entity = world.reserve_entity();
+    world
+        .insert(
+            rigid_body_entity,
+            (
+                PositionComponent::construct(nalgebra::vector![-2.0, 50.0, -2.0]),
+                RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
+                TriangleMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
+                LineMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
+                RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
+                ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
+                ColliderParentComponent::construct(rigid_body_entity),
+            ),
+        )
+        .unwrap();
 
     move || {
         spin_loop(GAME_THREAD_TICK, || {
             try_receive_messages(&mut world, &channel).expect("Error handling message");
 
+            demos::phosphor::assemble_triangle_mesh_instances_system(&mut world);
             demos::phosphor::assemble_line_mesh_instances_system(&mut world);
 
             antigen_rapier3d::insert_colliders_system(&mut world);
@@ -348,9 +374,13 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
             antigen_rapier3d::step_physics_system(&mut world);
             antigen_rapier3d::read_back_rigid_body_isometries_system(&mut world);
 
-            antigen_core::copy_to_system::<PositionComponent>(&mut world);
-            antigen_core::copy_to_system::<RotationComponent>(&mut world);
-            antigen_core::copy_to_system::<ScaleComponent>(&mut world);
+            antigen_core::copy_to_system::<TriangleMeshInstance, PositionComponent>(&mut world);
+            antigen_core::copy_to_system::<TriangleMeshInstance, RotationComponent>(&mut world);
+            antigen_core::copy_to_system::<TriangleMeshInstance, ScaleComponent>(&mut world);
+
+            antigen_core::copy_to_system::<LineMeshInstance, PositionComponent>(&mut world);
+            antigen_core::copy_to_system::<LineMeshInstance, RotationComponent>(&mut world);
+            antigen_core::copy_to_system::<LineMeshInstance, ScaleComponent>(&mut world);
 
             antigen_wgpu::buffer_write_slice_system::<
                 demos::phosphor::TriangleMeshInstanceDataComponent,

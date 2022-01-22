@@ -196,7 +196,8 @@ pub fn perspective_matrix(aspect: f32, (ofs_x, ofs_y): (f32, f32), near: f32) ->
         &nalgebra::vector![0.0, 0.0, 0.0],
         &nalgebra::Vector3::y_axis(),
     );
-    let mut projection = nalgebra_glm::infinite_perspective_rh_zo(aspect, (45.0f32).to_radians(), near);
+    let mut projection =
+        nalgebra_glm::infinite_perspective_rh_zo(aspect, (45.0f32).to_radians(), near);
     projection.append_nonuniform_scaling_mut(&nalgebra::vector![-1.0, 1.0, 1.0]);
 
     let matrix = projection * view;
@@ -1487,7 +1488,10 @@ impl MapData {
                 builder.add(ScaleComponent::construct(
                     nalgebra::vector![1.0, 1.0, 1.0].into(),
                 ));
-                builder.add(MeshInstanceComponent::construct(Cow::Owned(key)));
+                builder.add(TriangleMeshInstanceComponent::construct(Cow::Owned(
+                    key.clone(),
+                )));
+                builder.add(LineMeshInstanceComponent::construct(Cow::Owned(key)));
                 std::iter::once(builder)
             },
             scale_factor,
@@ -1807,7 +1811,12 @@ impl MapData {
             builder.add(PositionComponent::construct(origin));
             builder.add(RotationComponent::construct(rotation));
             builder.add(ScaleComponent::construct(scale));
-            builder.add(MeshInstanceComponent::construct(Cow::Borrowed("box_bot")));
+            builder.add(TriangleMeshInstanceComponent::construct(Cow::Borrowed(
+                "box_bot",
+            )));
+            builder.add(LineMeshInstanceComponent::construct(Cow::Borrowed(
+                "box_bot",
+            )));
             builders.push(builder);
         }
 
@@ -1835,7 +1844,7 @@ impl MapData {
                 nalgebra::UnitQuaternion::identity(),
             ));
             builder.add(ScaleComponent::construct(nalgebra::vector![1.0, 1.0, 1.0]));
-            builder.add(MeshInstanceComponent::construct(Cow::Owned(format!(
+            builder.add(LineMeshInstanceComponent::construct(Cow::Owned(format!(
                 "oscilloscope_{}",
                 targetname
             ))));
@@ -1867,7 +1876,43 @@ impl MapData {
             builder.add(PositionComponent::construct(origin));
             builder.add(RotationComponent::construct(rotation));
             builder.add(ScaleComponent::construct(scale));
-            builder.add(MeshInstanceComponent::construct(Cow::Owned(target.into())));
+            builder.add(LineMeshInstanceComponent::construct(Cow::Owned(
+                target.to_owned(),
+            )));
+            builder.add(TriangleMeshInstanceComponent::construct(Cow::Owned(
+                target.to_owned(),
+            )));
+            builders.push(builder);
+        }
+        
+        // Spawn line mesh instance entities
+        let mesh_instance_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
+            let properties = self.geo_map.entity_properties.get(point_entity)?;
+            if let Some(classname) = properties.0.iter().find(|p| p.key == "classname") {
+                if classname.value == "line_mesh_instance" {
+                    Some(properties)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+
+        for properties in mesh_instance_entities.into_iter() {
+            let origin = Self::property_origin(properties);
+            let rotation = Self::property_rotation(properties, false);
+            let scale = Self::property_scale(properties);
+
+            let target = Self::property_string("target", properties).unwrap();
+
+            let mut builder = EntityBuilder::new();
+            builder.add(PositionComponent::construct(origin));
+            builder.add(RotationComponent::construct(rotation));
+            builder.add(ScaleComponent::construct(scale));
+            builder.add(LineMeshInstanceComponent::construct(Cow::Owned(
+                target.to_owned(),
+            )));
             builders.push(builder);
         }
 
@@ -1918,7 +1963,7 @@ impl MapData {
                     builder.add(PositionComponent::construct(origin + ofs));
                     builder.add(RotationComponent::construct(rotation));
                     builder.add(ScaleComponent::construct(scale));
-                    builder.add(MeshInstanceComponent::construct(Cow::Owned(key)));
+                    builder.add(LineMeshInstanceComponent::construct(Cow::Owned(key)));
                     builders.push(builder);
                 }
             }
@@ -1930,6 +1975,7 @@ impl MapData {
 
 pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoopHandler<T> {
     fn prepare_schedule(world: &mut World) {
+        assemble_triangle_mesh_instances_system(world);
         assemble_line_mesh_instances_system(world);
 
         // parallel

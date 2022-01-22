@@ -226,8 +226,11 @@ pub struct Timer {
 
 pub type TimerComponent = Changed<Timer>;
 
-pub enum MeshInstance {}
-pub type MeshInstanceComponent<'a> = Usage<MeshInstance, LazyComponent<(), Cow<'static, str>>>;
+pub enum TriangleMeshInstance {}
+pub type TriangleMeshInstanceComponent<'a> = Usage<TriangleMeshInstance, LazyComponent<(), Cow<'static, str>>>;
+
+pub enum LineMeshInstance {}
+pub type LineMeshInstanceComponent<'a> = Usage<LineMeshInstance, LazyComponent<(), Cow<'static, str>>>;
 
 pub enum ConvexHull {}
 pub type ConvexHullComponent = Usage<ConvexHull, Vec<[f32; 3]>>;

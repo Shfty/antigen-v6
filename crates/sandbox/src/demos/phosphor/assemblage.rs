@@ -42,12 +42,10 @@ pub fn vertices_builder(world: &mut World, vertices: Vec<VertexData>) -> EntityB
 
     let vertex_data = BufferDataBundle::new(
         vertices,
-        buffer_size_of::<VertexData>() * vertex_head.load(Ordering::Relaxed),
+        buffer_size_of::<VertexData>() * vertex_head.fetch_add(vertex_count as BufferAddress, Ordering::Relaxed),
         vertex_entity,
     );
     builder.add_bundle(vertex_data);
-
-    vertex_head.fetch_add(vertex_count as BufferAddress, Ordering::Relaxed);
 
     builder
 }
@@ -65,13 +63,11 @@ pub fn line_indices_builder(world: &mut World, indices: Vec<u32>) -> EntityBuild
 
     let index_data = BufferDataBundle::new(
         indices,
-        buffer_size_of::<u32>() * line_index_head.load(Ordering::Relaxed),
+        buffer_size_of::<u32>() * line_index_head.fetch_add(index_count as BufferAddress, Ordering::Relaxed),
         line_index_entity,
     );
 
     builder.add_bundle(index_data);
-
-    line_index_head.fetch_add(index_count as BufferAddress, Ordering::Relaxed);
 
     builder
 }
@@ -139,11 +135,9 @@ pub fn line_mesh_data_builder(
             index_offset: index_offset,
             index_count: index_count,
         }],
-        buffer_size_of::<LineMeshData>() * line_mesh_head.load(Ordering::Relaxed),
+        buffer_size_of::<LineMeshData>() * line_mesh_head.fetch_add(1, Ordering::Relaxed),
         line_mesh_entity,
     ));
-
-    line_mesh_head.fetch_add(1, Ordering::Relaxed);
 
     builder
 }
@@ -153,10 +147,15 @@ pub fn line_mesh_instance_builder(
     position: PositionComponent,
     rotation: RotationComponent,
     scale: ScaleComponent,
-    line_mesh: LineMeshIdComponent,
-    line_count: u32,
+    mesh: &Cow<'static, str>,
 ) -> Option<EntityBuilder> {
     let mut builder = EntityBuilder::new();
+
+    let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
+    let (_, mesh_ids) = query.into_iter().next()?;
+    let (_, line_mesh) = *mesh_ids.read().get(mesh)?;
+    let (line_mesh, line_count) =
+        line_mesh.unwrap_or_else(|| panic!("Mesh {mesh:?} has no line component"));
 
     let line_mesh_instance_entity = get_tagged_entity::<LineMeshInstances>(world)?;
     let line_instance_entity = get_tagged_entity::<LineInstances>(world)?;
@@ -174,7 +173,7 @@ pub fn line_mesh_instance_builder(
     ));
 
     builder.add_bundle(BufferDataBundle::new(
-        line_mesh,
+        LineMeshIdComponent::construct(line_mesh),
         base_offset + buffer_size_of::<[f32; 3]>(),
         line_mesh_instance_entity,
     ));
@@ -191,8 +190,7 @@ pub fn line_mesh_instance_builder(
         line_mesh_instance_entity,
     ));
 
-    let mesh_instance = line_mesh_instance_head.load(Ordering::Relaxed) as u32;
-    line_mesh_instance_head.fetch_add(1, Ordering::Relaxed);
+    let mesh_instance = line_mesh_instance_head.fetch_add(1, Ordering::Relaxed) as u32;
 
     let line_instance_head = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
@@ -206,11 +204,9 @@ pub fn line_mesh_instance_builder(
                 line_index: i,
             })
             .collect::<Vec<_>>(),
-        buffer_size_of::<LineInstanceData>() * line_instance_head.load(Ordering::Relaxed),
+        buffer_size_of::<LineInstanceData>() * line_instance_head.fetch_add(line_count as BufferAddress, Ordering::Relaxed),
         line_instance_entity,
     ));
-
-    line_instance_head.fetch_add(line_count as BufferAddress, Ordering::Relaxed);
 
     Some(builder)
 }
@@ -315,16 +311,14 @@ pub fn triangle_mesh_builder(
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(vertex_entity)
         .unwrap();
 
-    let vertex_offset = buffer_size_of::<VertexData>() * vertex_head.load(Ordering::Relaxed);
     let vertex_count = vertices.len();
+    let vertex_offset = buffer_size_of::<VertexData>() * vertex_head.fetch_add(vertex_count as u64, Ordering::Relaxed);
 
     builder.add_bundle(BufferDataBundle::new(
         vertices,
         vertex_offset,
         vertex_entity,
     ));
-
-    vertex_head.fetch_add(vertex_count as u64, Ordering::Relaxed);
 
     // Indices
     pad_align_triangle_list(&mut indices);
@@ -333,16 +327,14 @@ pub fn triangle_mesh_builder(
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_index_entity)
         .unwrap();
 
-    let index_offset = buffer_size_of::<u16>() * triangle_index_head.load(Ordering::Relaxed);
     let index_count = indices.len();
+    let index_offset = buffer_size_of::<u16>() * triangle_index_head.fetch_add(index_count as u64, Ordering::Relaxed);
 
     builder.add_bundle(BufferDataBundle::new(
         indices,
         index_offset,
         triangle_index_entity,
     ));
-
-    triangle_index_head.fetch_add(index_count as u64, Ordering::Relaxed);
 
     builder
 }
@@ -363,7 +355,7 @@ pub fn triangle_mesh_data_builder(
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(triangle_mesh_entity)
         .unwrap();
 
-    let triangle_mesh_head = triangle_mesh_length.load(Ordering::Relaxed);
+    let triangle_mesh_head = triangle_mesh_length.fetch_add(1, Ordering::Relaxed);
 
     builder.add_bundle(BufferDataBundle::new(
         vec![TriangleMeshData {
@@ -376,8 +368,6 @@ pub fn triangle_mesh_data_builder(
         buffer_size_of::<TriangleMeshData>() * triangle_mesh_head,
         triangle_mesh_entity,
     ));
-
-    triangle_mesh_length.fetch_add(1, Ordering::Relaxed);
 
     let mut indexed_indirect_builder = triangle_indexed_indirect_builder(world, triangle_mesh_head);
     builder.add_bundle(indexed_indirect_builder.build());
@@ -466,14 +456,20 @@ fn triangle_indexed_indirect_builder(world: &mut World, offset: u64) -> EntityBu
     builder
 }
 
-pub fn triangle_mesh_instance_data_builder(
+pub fn triangle_mesh_instance_builder(
     world: &mut World,
-    mesh: u32,
+    mesh: &Cow<'static, str>,
     position: PositionComponent,
     rotation: RotationComponent,
     scale: ScaleComponent,
 ) -> Option<EntityBuilder> {
     let mut builder = EntityBuilder::new();
+
+    let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
+    let (_, mesh_ids) = query.into_iter().next()?;
+    let (triangle_mesh, _) = *mesh_ids.read().get(mesh)?;
+    let triangle_mesh =
+        triangle_mesh.unwrap_or_else(|| panic!("Mesh {mesh:?} has no triangle component"));
 
     let triangle_mesh_instance_entity = get_tagged_entity::<TriangleMeshInstances>(world)?;
 
@@ -482,11 +478,12 @@ pub fn triangle_mesh_instance_data_builder(
         .ok()?;
 
     let mut triangle_mesh_instance_head = triangle_mesh_instance_heads.write();
-    let triangle_mesh_instance_head = triangle_mesh_instance_head.get_mut(mesh as usize)?;
+    let triangle_mesh_instance_head =
+        triangle_mesh_instance_head.get_mut(triangle_mesh as usize)?;
 
     let base_offset = buffer_size_of::<TriangleMeshInstanceData>()
         * (*triangle_mesh_instance_head
-            + (mesh * MAX_TRIANGLE_MESH_INSTANCES as u32) as BufferAddress);
+            + (triangle_mesh * MAX_TRIANGLE_MESH_INSTANCES as u32) as BufferAddress);
 
     builder.add_bundle(BufferDataBundle::new(
         position,
@@ -707,53 +704,4 @@ pub fn register_mesh_ids(
     mesh_ids
         .write()
         .insert(key.into(), (triangle_mesh, line_mesh));
-}
-
-pub fn mesh_instance_builders(
-    world: &mut World,
-    mesh: Cow<'static, str>,
-    position: PositionComponent,
-    rotation: RotationComponent,
-    scale: ScaleComponent,
-) -> Option<Vec<EntityBuilder>> {
-    let mut builders = vec![];
-
-    let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
-    let (_, mesh_ids) = query.into_iter().next()?;
-    let (triangle_mesh, line_mesh) = *mesh_ids.read().get(&mesh)?;
-
-    if let Some(triangle_mesh) = triangle_mesh {
-        builders.push(triangle_mesh_instance_data_builder(
-            world,
-            triangle_mesh,
-            position,
-            rotation,
-            scale,
-        )?);
-    }
-
-    if let Some((line_mesh, line_count)) = line_mesh {
-        builders.push(line_mesh_instance_builder(
-            world,
-            position.into(),
-            rotation.into(),
-            scale.into(),
-            line_mesh.into(),
-            line_count,
-        )?);
-    }
-
-    // Create the bounding ball.
-    let rigid_body_entity = world.spawn((
-        RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-        PositionComponent::construct(nalgebra::vector![0.0, 10.0, 0.0]),
-        RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-    ));
-
-    world.spawn((
-        ColliderComponent::new(ColliderBuilder::ball(0.5).restitution(0.7).build()),
-        ColliderParentComponent::construct(rigid_body_entity),
-    ));
-
-    Some(builders)
 }

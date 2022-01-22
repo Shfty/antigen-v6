@@ -664,10 +664,83 @@ pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {
     render_pass_draw.1 = 0..(line_instance_count.load(Ordering::Relaxed) as u32);
 }
 
+pub fn assemble_triangle_mesh_instances_system(world: &mut World) {
+    let instances = world
+        .query_mut::<(
+            &mut TriangleMeshInstanceComponent,
+            Option<&PositionComponent>,
+            Option<&RotationComponent>,
+            Option<&ScaleComponent>,
+        )>()
+        .into_iter()
+        .flat_map(
+            |(entity, (triangle_mesh_instance, position, rotation, scale))| {
+                let position = if let Some(position) = position {
+                    **position
+                } else {
+                    nalgebra::Vector3::zeros()
+                };
+
+                let rotation = if let Some(rotation) = rotation {
+                    **rotation
+                } else {
+                    nalgebra::UnitQuaternion::identity()
+                };
+
+                let scale = if let Some(scale) = scale {
+                    **scale
+                } else {
+                    nalgebra::vector![1.0, 1.0, 1.0]
+                };
+
+                if let LazyComponent::Pending(mesh) = &**triangle_mesh_instance {
+                    Some((entity, mesh.clone(), position, rotation, scale))
+                } else {
+                    None
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+
+    for (entity, mesh, position, rotation, scale) in instances {
+        if let Some(mut builder) = triangle_mesh_instance_builder(
+            world,
+            &mesh,
+            position.into(),
+            rotation.into(),
+            scale.into(),
+        ) {
+            world
+                .get_mut::<TriangleMeshInstanceComponent>(entity)
+                .unwrap()
+                .set_ready();
+
+            let copy_to_entity = vec![world.spawn(builder.build())];
+
+            world
+                .insert(
+                    entity,
+                    (
+                        CopyToComponent::<TriangleMeshInstance, PositionComponent>::construct(
+                            copy_to_entity.clone(),
+                        ),
+                        CopyToComponent::<TriangleMeshInstance, RotationComponent>::construct(
+                            copy_to_entity.clone(),
+                        ),
+                        CopyToComponent::<TriangleMeshInstance, ScaleComponent>::construct(
+                            copy_to_entity,
+                        ),
+                    ),
+                )
+                .unwrap();
+        }
+    }
+}
+
 pub fn assemble_line_mesh_instances_system(world: &mut World) {
     let instances = world
         .query_mut::<(
-            &mut MeshInstanceComponent,
+            &mut LineMeshInstanceComponent,
             Option<&PositionComponent>,
             Option<&RotationComponent>,
             Option<&ScaleComponent>,
@@ -703,27 +776,32 @@ pub fn assemble_line_mesh_instances_system(world: &mut World) {
         .collect::<Vec<_>>();
 
     for (entity, mesh, position, rotation, scale) in instances {
-        if let Some(mut builders) =
-            mesh_instance_builders(world, mesh, position.into(), rotation.into(), scale.into())
+        if let Some(mut builder) =
+            line_mesh_instance_builder(world, position.into(), rotation.into(), scale.into(), &mesh)
         {
             world
-                .get_mut::<MeshInstanceComponent>(entity)
+                .get_mut::<LineMeshInstanceComponent>(entity)
                 .unwrap()
                 .set_ready();
 
-            let copy_to_entities = builders
-                .iter_mut()
-                .map(|builder| world.spawn(builder.build()))
-                .collect::<Vec<_>>();
+            let copy_to_entity = vec![world.spawn(builder.build())];
 
-            world.insert(
-                entity,
-                (
-                    CopyToComponent::<PositionComponent>::construct(copy_to_entities.clone()),
-                    CopyToComponent::<RotationComponent>::construct(copy_to_entities.clone()),
-                    CopyToComponent::<ScaleComponent>::construct(copy_to_entities),
-                ),
-            ).unwrap();
+            world
+                .insert(
+                    entity,
+                    (
+                        CopyToComponent::<LineMeshInstance, PositionComponent>::construct(
+                            copy_to_entity.clone(),
+                        ),
+                        CopyToComponent::<LineMeshInstance, RotationComponent>::construct(
+                            copy_to_entity.clone(),
+                        ),
+                        CopyToComponent::<LineMeshInstance, ScaleComponent>::construct(
+                            copy_to_entity,
+                        ),
+                    ),
+                )
+                .unwrap();
         }
     }
 }
