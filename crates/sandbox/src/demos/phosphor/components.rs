@@ -1,8 +1,8 @@
 use bytemuck::{Pod, Zeroable};
 use parking_lot::RwLock;
-use std::{collections::BTreeMap, sync::Arc, time::Instant, borrow::Cow};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc, time::Instant};
 
-use antigen_core::{Changed, Usage, LazyComponent};
+use antigen_core::{Changed, LazyComponent, Usage};
 
 // Phosphor renderer tag
 pub struct PhosphorRenderer;
@@ -69,9 +69,13 @@ pub type OrthographicMatrixComponent = Usage<Orthographic, [[f32; 4]; 4]>;
 
 /// Mesh ID map
 #[derive(Copy, Clone)]
-pub struct MeshIds;
+pub struct TriangleMeshIds;
 
-pub type MeshIdsComponent = Arc<RwLock<BTreeMap<Cow<'static, str>, (Option<u32>, Option<(u32, u32)>)>>>;
+#[derive(Copy, Clone)]
+pub struct LineMeshIds;
+
+pub type TriangleMeshIdsComponent = Arc<RwLock<BTreeMap<Cow<'static, str>, u32>>>;
+pub type LineMeshIdsComponent = Arc<RwLock<BTreeMap<Cow<'static, str>, (u32, u32)>>>;
 
 // Line Mesh ID
 pub enum LineMeshId {}
@@ -227,10 +231,12 @@ pub struct Timer {
 pub type TimerComponent = Changed<Timer>;
 
 pub enum TriangleMeshInstance {}
-pub type TriangleMeshInstanceComponent<'a> = Usage<TriangleMeshInstance, LazyComponent<(), Cow<'static, str>>>;
+pub type TriangleMeshInstanceComponent<'a> =
+    Usage<TriangleMeshInstance, LazyComponent<(), Cow<'static, str>>>;
 
 pub enum LineMeshInstance {}
-pub type LineMeshInstanceComponent<'a> = Usage<LineMeshInstance, LazyComponent<(), Cow<'static, str>>>;
+pub type LineMeshInstanceComponent<'a> =
+    Usage<LineMeshInstance, LazyComponent<(), Cow<'static, str>>>;
 
 pub enum ConvexHull {}
 pub type ConvexHullComponent = Usage<ConvexHull, Vec<[f32; 3]>>;

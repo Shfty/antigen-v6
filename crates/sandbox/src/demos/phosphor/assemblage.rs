@@ -3,22 +3,21 @@ use std::{borrow::Cow, sync::atomic::Ordering};
 use antigen_core::{
     get_tagged_entity, Construct, PositionComponent, RotationComponent, ScaleComponent,
 };
-use antigen_rapier3d::{ColliderComponent, ColliderParentComponent, RigidBodyComponent};
 use antigen_wgpu::{
     buffer_size_of,
     wgpu::{BufferAddress, IndexFormat, LoadOp, Operations, COPY_BUFFER_ALIGNMENT},
     BufferDataBundle,
 };
 use hecs::{EntityBuilder, World};
-use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 
 use super::{
-    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, ConvexHullComponent, LineIndices,
-    LineInstanceData, LineInstances, LineMeshData, LineMeshIdComponent, LineMeshInstanceData,
-    LineMeshInstances, LineMeshes, MeshIds, MeshIdsComponent, Oscilloscope, PhosphorRenderer,
-    StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshInstanceData,
-    TriangleMeshInstances, TriangleMeshes, Uniform, VertexData, Vertices, BLACK, BLUE, CLEAR_COLOR,
-    GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
+    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, LineIndices,
+    LineInstanceData, LineInstances, LineMeshData, LineMeshIdComponent, LineMeshIds,
+    LineMeshIdsComponent, LineMeshInstanceData, LineMeshInstances, LineMeshes, Oscilloscope,
+    PhosphorRenderer, StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshIds,
+    TriangleMeshIdsComponent, TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes,
+    Uniform, VertexData, Vertices, BLACK, BLUE, CLEAR_COLOR, GREEN, MAX_TRIANGLE_MESH_INSTANCES,
+    RED, WHITE,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -42,7 +41,8 @@ pub fn vertices_builder(world: &mut World, vertices: Vec<VertexData>) -> EntityB
 
     let vertex_data = BufferDataBundle::new(
         vertices,
-        buffer_size_of::<VertexData>() * vertex_head.fetch_add(vertex_count as BufferAddress, Ordering::Relaxed),
+        buffer_size_of::<VertexData>()
+            * vertex_head.fetch_add(vertex_count as BufferAddress, Ordering::Relaxed),
         vertex_entity,
     );
     builder.add_bundle(vertex_data);
@@ -63,7 +63,8 @@ pub fn line_indices_builder(world: &mut World, indices: Vec<u32>) -> EntityBuild
 
     let index_data = BufferDataBundle::new(
         indices,
-        buffer_size_of::<u32>() * line_index_head.fetch_add(index_count as BufferAddress, Ordering::Relaxed),
+        buffer_size_of::<u32>()
+            * line_index_head.fetch_add(index_count as BufferAddress, Ordering::Relaxed),
         line_index_entity,
     );
 
@@ -151,11 +152,11 @@ pub fn line_mesh_instance_builder(
 ) -> Option<EntityBuilder> {
     let mut builder = EntityBuilder::new();
 
-    let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
+    let query = world
+        .query_mut::<&LineMeshIdsComponent>()
+        .with::<LineMeshIds>();
     let (_, mesh_ids) = query.into_iter().next()?;
-    let (_, line_mesh) = *mesh_ids.read().get(mesh)?;
-    let (line_mesh, line_count) =
-        line_mesh.unwrap_or_else(|| panic!("Mesh {mesh:?} has no line component"));
+    let (line_mesh, line_count) = *mesh_ids.read().get(mesh)?;
 
     let line_mesh_instance_entity = get_tagged_entity::<LineMeshInstances>(world)?;
     let line_instance_entity = get_tagged_entity::<LineInstances>(world)?;
@@ -163,8 +164,9 @@ pub fn line_mesh_instance_builder(
     let line_mesh_instance_head = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_instance_entity)
         .ok()?;
-    let base_offset =
-        buffer_size_of::<LineMeshInstanceData>() * line_mesh_instance_head.load(Ordering::Relaxed);
+
+    let mesh_instance = line_mesh_instance_head.fetch_add(1, Ordering::Relaxed);
+    let base_offset = buffer_size_of::<LineMeshInstanceData>() * mesh_instance;
 
     builder.add_bundle(BufferDataBundle::new(
         position,
@@ -190,8 +192,6 @@ pub fn line_mesh_instance_builder(
         line_mesh_instance_entity,
     ));
 
-    let mesh_instance = line_mesh_instance_head.fetch_add(1, Ordering::Relaxed) as u32;
-
     let line_instance_head = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_instance_entity)
         .ok()?;
@@ -200,11 +200,12 @@ pub fn line_mesh_instance_builder(
         (0..line_count)
             .into_iter()
             .map(|i| LineInstanceData {
-                mesh_instance,
+                mesh_instance: mesh_instance as u32,
                 line_index: i,
             })
             .collect::<Vec<_>>(),
-        buffer_size_of::<LineInstanceData>() * line_instance_head.fetch_add(line_count as BufferAddress, Ordering::Relaxed),
+        buffer_size_of::<LineInstanceData>()
+            * line_instance_head.fetch_add(line_count as BufferAddress, Ordering::Relaxed),
         line_instance_entity,
     ));
 
@@ -283,11 +284,10 @@ pub fn oscilloscope_mesh_builder(
         .unwrap()
         .load(Ordering::Relaxed) as u32;
 
-    register_mesh_ids(
+    register_line_mesh_id(
         world,
         Cow::Owned(format!("oscilloscope_{}", name)),
-        None,
-        Some((line_mesh, 1)),
+        (line_mesh, 1),
     );
 
     builder.add_bundle(line_mesh_builder(world, vertices, indices).build());
@@ -312,7 +312,8 @@ pub fn triangle_mesh_builder(
         .unwrap();
 
     let vertex_count = vertices.len();
-    let vertex_offset = buffer_size_of::<VertexData>() * vertex_head.fetch_add(vertex_count as u64, Ordering::Relaxed);
+    let vertex_offset = buffer_size_of::<VertexData>()
+        * vertex_head.fetch_add(vertex_count as u64, Ordering::Relaxed);
 
     builder.add_bundle(BufferDataBundle::new(
         vertices,
@@ -328,7 +329,8 @@ pub fn triangle_mesh_builder(
         .unwrap();
 
     let index_count = indices.len();
-    let index_offset = buffer_size_of::<u16>() * triangle_index_head.fetch_add(index_count as u64, Ordering::Relaxed);
+    let index_offset = buffer_size_of::<u16>()
+        * triangle_index_head.fetch_add(index_count as u64, Ordering::Relaxed);
 
     builder.add_bundle(BufferDataBundle::new(
         indices,
@@ -465,11 +467,11 @@ pub fn triangle_mesh_instance_builder(
 ) -> Option<EntityBuilder> {
     let mut builder = EntityBuilder::new();
 
-    let query = world.query_mut::<&MeshIdsComponent>().with::<MeshIds>();
+    let query = world
+        .query_mut::<&TriangleMeshIdsComponent>()
+        .with::<TriangleMeshIds>();
     let (_, mesh_ids) = query.into_iter().next()?;
-    let (triangle_mesh, _) = *mesh_ids.read().get(mesh)?;
-    let triangle_mesh =
-        triangle_mesh.unwrap_or_else(|| panic!("Mesh {mesh:?} has no triangle component"));
+    let triangle_mesh = *mesh_ids.read().get(mesh)?;
 
     let triangle_mesh_instance_entity = get_tagged_entity::<TriangleMeshInstances>(world)?;
 
@@ -562,12 +564,8 @@ pub fn box_bot_mesh_builders(world: &mut World) -> Vec<EntityBuilder> {
         .unwrap()
         .load(Ordering::Relaxed);
 
-    register_mesh_ids(
-        world,
-        "box_bot".into(),
-        Some(triangle_mesh_head as u32),
-        Some((line_mesh_head as u32, 12)),
-    );
+    register_triangle_mesh_id(world, "box_bot".into(), triangle_mesh_head as u32);
+    register_line_mesh_id(world, "box_bot".into(), (line_mesh_head as u32, 12));
 
     // Build mesh components
     let mut builders = vec![];
@@ -693,15 +691,18 @@ pub fn box_bot_mesh_builders(world: &mut World) -> Vec<EntityBuilder> {
     builders
 }
 
-pub fn register_mesh_ids(
-    world: &mut World,
-    key: Cow<'static, str>,
-    triangle_mesh: Option<u32>,
-    line_mesh: Option<(u32, u32)>,
-) {
-    let query = world.query_mut::<&mut MeshIdsComponent>().with::<MeshIds>();
+pub fn register_triangle_mesh_id(world: &mut World, key: Cow<'static, str>, triangle_mesh: u32) {
+    let query = world
+        .query_mut::<&mut TriangleMeshIdsComponent>()
+        .with::<TriangleMeshIds>();
     let (_, mesh_ids) = query.into_iter().next().unwrap();
-    mesh_ids
-        .write()
-        .insert(key.into(), (triangle_mesh, line_mesh));
+    mesh_ids.write().insert(key.into(), triangle_mesh);
+}
+
+pub fn register_line_mesh_id(world: &mut World, key: Cow<'static, str>, line_mesh: (u32, u32)) {
+    let query = world
+        .query_mut::<&mut LineMeshIdsComponent>()
+        .with::<LineMeshIds>();
+    let (_, mesh_ids) = query.into_iter().next().unwrap();
+    mesh_ids.write().insert(key.into(), line_mesh);
 }

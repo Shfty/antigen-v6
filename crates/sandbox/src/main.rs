@@ -166,7 +166,10 @@ use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
 };
 use antigen_winit::EventLoopHandler;
-use demos::phosphor::{LineMeshInstanceComponent, TriangleMeshInstanceComponent, TriangleMeshInstance, LineMeshInstance};
+use demos::phosphor::{
+    LineMeshInstance, LineMeshInstanceComponent, TriangleMeshInstance,
+    TriangleMeshInstanceComponent,
+};
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use std::{
     borrow::Cow,
@@ -227,22 +230,32 @@ fn main() {
     ));
 
     let mut builder = EntityBuilder::new();
-    builder.add(demos::phosphor::MeshIds);
-    builder.add(demos::phosphor::MeshIdsComponent::default());
-    let mesh_ids_entity = render_world.spawn(builder.build());
+    builder.add(demos::phosphor::TriangleMeshIds);
+    builder.add(demos::phosphor::TriangleMeshIdsComponent::default());
+    let triangle_mesh_ids_entity = render_world.spawn(builder.build());
 
-    // Spawn filesystem and game threads
-    spawn_world::<Filesystem, _, _>(fs_thread(fs_world, fs_channel));
-    spawn_world::<Game, _, _>(game_thread(game_world, game_channel));
+    let mut builder = EntityBuilder::new();
+    builder.add(demos::phosphor::LineMeshIds);
+    builder.add(demos::phosphor::LineMeshIdsComponent::default());
+    let line_mesh_ids_entity = render_world.spawn(builder.build());
 
     // Clone mesh IDs to game thread
     send_clone_query::<
         (
-            &demos::phosphor::MeshIds,
-            &demos::phosphor::MeshIdsComponent,
+            &demos::phosphor::TriangleMeshIds,
+            &demos::phosphor::TriangleMeshIdsComponent,
         ),
         Game,
-    >(mesh_ids_entity)((&mut render_world, &render_channel))
+    >(triangle_mesh_ids_entity)((&mut render_world, &render_channel))
+    .unwrap();
+
+    send_clone_query::<
+        (
+            &demos::phosphor::LineMeshIds,
+            &demos::phosphor::LineMeshIdsComponent,
+        ),
+        Game,
+    >(line_mesh_ids_entity)((&mut render_world, &render_channel))
     .unwrap();
 
     // Clone WGPU backend components to game thread
@@ -256,6 +269,10 @@ fn main() {
         Game,
     >(wgpu_backend_entity)((&mut render_world, &render_channel))
     .unwrap();
+
+    // Spawn filesystem and game threads
+    spawn_world::<Filesystem, _, _>(fs_thread(fs_world, fs_channel));
+    spawn_world::<Game, _, _>(game_thread(game_world, game_channel));
 
     // Assemble phosphor renderer
     demos::phosphor::assemble(&mut render_world, &render_channel);
@@ -307,60 +324,6 @@ fn fs_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
 fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
     // Create the physics backend
     world.spawn(physics_backend_builder(nalgebra::Vector3::new(0.0, -98.1, 0.0)).build());
-
-    // Create the ground
-    world.spawn((ColliderComponent::new(
-        ColliderBuilder::cuboid(10000.0, 0.1, 10000.0).build(),
-    ),));
-
-    // Create the bounding ball.
-    let rigid_body_entity = world.reserve_entity();
-    world
-        .insert(
-            rigid_body_entity,
-            (
-                PositionComponent::construct(nalgebra::vector![-2.0, 150.0, -2.0]),
-                RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-                TriangleMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-                LineMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-                RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-                ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
-                ColliderParentComponent::construct(rigid_body_entity),
-            ),
-        )
-        .unwrap();
-
-    let rigid_body_entity = world.reserve_entity();
-    world
-        .insert(
-            rigid_body_entity,
-            (
-                PositionComponent::construct(nalgebra::vector![2.0, 100.0, 2.0]),
-                RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-                TriangleMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-                LineMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-                RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-                ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
-                ColliderParentComponent::construct(rigid_body_entity),
-            ),
-        )
-        .unwrap();
-
-    let rigid_body_entity = world.reserve_entity();
-    world
-        .insert(
-            rigid_body_entity,
-            (
-                PositionComponent::construct(nalgebra::vector![-2.0, 50.0, -2.0]),
-                RotationComponent::construct(nalgebra::UnitQuaternion::identity()),
-                TriangleMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-                LineMeshInstanceComponent::construct(Cow::Borrowed("polyhedron")),
-                RigidBodyComponent::construct(RigidBodyBuilder::new_dynamic().build()),
-                ColliderComponent::construct(ColliderBuilder::ball(16.0).restitution(0.7).build()),
-                ColliderParentComponent::construct(rigid_body_entity),
-            ),
-        )
-        .unwrap();
 
     move || {
         spin_loop(GAME_THREAD_TICK, || {

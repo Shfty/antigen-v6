@@ -90,11 +90,15 @@ pub fn insert_colliders_system(world: &mut World) {
     let (_, (collider_set, rigid_body_set)) = query.into_iter().next().unwrap();
 
     for (_, components) in world
-        .query::<(&mut ColliderComponent, Option<&ColliderParentComponent>)>()
+        .query::<(
+            &mut ColliderComponent,
+            Option<&ColliderParentComponent>,
+            Option<&RigidBodyComponent>,
+        )>()
         .into_iter()
     {
         match components {
-            (collider @ ColliderComponent::Pending(_), None) => {
+            (collider @ ColliderComponent::Pending(_), None, None) => {
                 let c = if let LazyComponent::Pending(c) = collider.take() {
                     c
                 } else {
@@ -103,7 +107,7 @@ pub fn insert_colliders_system(world: &mut World) {
                 let handle = collider_set.insert(c);
                 *collider = ColliderComponent::Ready(handle);
             }
-            (collider @ ColliderComponent::Pending(_), Some(parent)) => {
+            (collider @ ColliderComponent::Pending(_), Some(parent), _) => {
                 let mut query = parent.get(world);
                 let parent = query.get().unwrap();
                 if let LazyComponent::Ready(parent) = **parent {
@@ -113,6 +117,17 @@ pub fn insert_colliders_system(world: &mut World) {
                         panic!("No collider component")
                     };
                     let handle = collider_set.insert_with_parent(c, parent, rigid_body_set);
+                    *collider = ColliderComponent::Ready(handle);
+                }
+            }
+            (collider @ ColliderComponent::Pending(_), None, Some(rigid_body)) => {
+                if let LazyComponent::Ready(rb) = **rigid_body {
+                    let c = if let LazyComponent::Pending(c) = collider.take() {
+                        c
+                    } else {
+                        panic!("No collider component")
+                    };
+                    let handle = collider_set.insert_with_parent(c, rb, rigid_body_set);
                     *collider = ColliderComponent::Ready(handle);
                 }
             }
