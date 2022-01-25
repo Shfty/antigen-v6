@@ -7,7 +7,6 @@
 "_tb_textures" "textures;textures/prototype_1_3"
 "_tb_def" "builtin:Antigen.fgd"
 "_tb_layer_locked" "1"
-"_tb_layer_hidden" "1"
 }
 // entity 1
 {
@@ -828,6 +827,7 @@
 "_tb_name" "Text"
 "_tb_id" "5"
 "_tb_layer_sort_index" "4"
+"_tb_layer_hidden" "1"
 }
 // entity 43
 {
@@ -1493,7 +1493,6 @@
 "_tb_name" "Polyhedrons"
 "_tb_id" "7"
 "_tb_layer_sort_index" "6"
-"_tb_layer_hidden" "1"
 }
 // entity 54
 {

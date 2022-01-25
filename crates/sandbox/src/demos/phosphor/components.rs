@@ -239,5 +239,7 @@ pub type LineMeshInstanceComponent<'a> =
     Usage<LineMeshInstance, LazyComponent<(), Cow<'static, str>>>;
 
 pub struct SharedShapes;
-pub type SharedShapesComponent =
-    Usage<SharedShapes, BTreeMap<String, rapier3d::geometry::SharedShape>>;
+pub type SharedShapesComponent = Usage<
+    SharedShapes,
+    BTreeMap<String, Box<dyn Fn(nalgebra::Vector3<f32>) -> rapier3d::geometry::SharedShape + Send + Sync + 'static>>,
+>;

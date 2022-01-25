@@ -1649,42 +1649,31 @@ impl MapData {
                         }
                     }
 
-                    let entity_center = self.entity_centers[entity];
-
                     let brush_vertices = brush_vertices
                         .into_iter()
-                        .map(|vertex| {
-                            rapier3d::prelude::nalgebra::Point3::new(
-                                vertex.x - entity_center.x,
-                                vertex.z - entity_center.z,
-                                vertex.y - entity_center.y,
-                            )
-                        })
+                        .map(|vertex| vertex.xzy() - entity_center.xzy())
                         .collect::<Vec<_>>();
 
-                    SharedShape::convex_hull(&brush_vertices[..]).unwrap()
+                    vec![(
+                        rapier3d::prelude::nalgebra::Isometry::identity(),
+                        brush_vertices,
+                    )]
                 }
                 "compound" => {
                     let mut brush_hulls = vec![];
+
                     for brush in brushes {
                         let brush_center = self.brush_centers[brush];
                         let mut brush_vertices = vec![];
                         for face in &self.geo_map.brush_faces[brush] {
                             let face_vertices = &self.face_vertices[face];
                             for vertex in face_vertices {
-                                let point = rapier3d::prelude::nalgebra::Point3::new(
-                                    vertex.x - brush_center.x,
-                                    vertex.z - brush_center.z,
-                                    vertex.y - brush_center.y,
-                                );
-
-                                if !brush_vertices.contains(&point) {
-                                    brush_vertices.push(point);
+                                if !brush_vertices.contains(vertex) {
+                                    brush_vertices.push(vertex.xzy() - brush_center.xzy());
                                 }
                             }
                         }
 
-                        let shape = SharedShape::convex_hull(&brush_vertices[..]).unwrap();
                         brush_hulls.push((
                             rapier3d::prelude::Isometry::new(
                                 rapier3d::prelude::nalgebra::Vector3::<f32>::new(
@@ -1694,16 +1683,40 @@ impl MapData {
                                 ),
                                 rapier3d::prelude::nalgebra::Vector3::<f32>::zeros(),
                             ),
-                            shape,
+                            brush_vertices,
                         ));
                     }
 
-                    SharedShape::compound(brush_hulls)
+                    brush_hulls
                 }
                 _ => unimplemented!(),
             };
 
-            shared_shapes.insert(key.to_owned(), shape);
+            let shape_fn = move |scale: nalgebra::Vector3<f32>| {
+                let mut compound = vec![];
+                for (isometry, convex_hull) in &shape {
+                    let mut scaled_hull = vec![];
+                    for vertex in convex_hull {
+                        let scaled_vert = vertex.component_mul(&scale.xzy());
+                        scaled_hull.push(rapier3d::prelude::nalgebra::Point3::new(
+                            scaled_vert.x,
+                            scaled_vert.y,
+                            scaled_vert.z,
+                        ));
+                    }
+                    compound.push((
+                        *isometry,
+                        SharedShape::convex_hull(&scaled_hull[..]).unwrap(),
+                    ))
+                }
+                if compound.len() == 1 {
+                    compound.remove(0).1
+                } else {
+                    SharedShape::compound(compound)
+                }
+            };
+
+            shared_shapes.insert(key.to_owned(), Box::new(shape_fn));
         }
     }
 
@@ -1916,10 +1929,6 @@ impl MapData {
         }
     }
 
-    fn property_targetname(properties: &Properties) -> &str {
-        Self::property_string("targetname", properties).unwrap()
-    }
-
     fn property_f32_3(
         key: &str,
         properties: &Properties,
@@ -2101,7 +2110,7 @@ impl MapData {
                                 .next()
                                 .expect("No SharedShapesComponent");
 
-                            let shape = shared_shapes[&mesh].clone();
+                            let shape = shared_shapes[&mesh](scale);
 
                             ColliderBuilder::new(shape)
                         }
