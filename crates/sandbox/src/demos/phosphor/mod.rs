@@ -1422,101 +1422,74 @@ impl MapData {
         })
     }
 
+    fn assemble_brush_entity_triangle_mesh(
+        &self,
+        entity: &EntityId,
+        cull_face: impl Fn(&FaceId) -> bool,
+    ) -> (Vec<VertexData>, Vec<TriangleIndexData>, Vec<LineIndexData>) {
+        let brushes = &self.geo_map.entity_brushes[entity];
+        let properties = &self.geo_map.entity_properties[entity];
+
+        let mut mesh_vertices: Vec<VertexData> = Default::default();
+        let mut triangle_indices: Vec<TriangleIndexData> = Default::default();
+        let mut line_indices: Vec<LineIndexData> = Default::default();
+
+        let mut local_vertex_head = 0u16;
+        let mut local_index_head = 0u32;
+
+        let entity_faces = self.entity_faces(brushes);
+        let entity_center = self.entity_centers[entity];
+
+        for face_id in entity_faces.filter(|face_id| cull_face(face_id)) {
+            // Fetch and interpret texture data
+            let texture_name = self.face_texture(&face_id);
+            let color = Self::face_color(texture_name);
+            let intensity = Self::face_intensity(texture_name);
+
+            let verts = self
+                .face_vertices(face_id, color, intensity, 1.0)
+                .map(|vertex| VertexData {
+                    position: [
+                        vertex.position[0] - entity_center[0],
+                        vertex.position[1] - entity_center[2],
+                        vertex.position[2] - entity_center[1],
+                    ],
+                    ..vertex
+                })
+                .collect::<Vec<_>>();
+            let vertex_count = verts.len();
+            mesh_vertices.extend(verts);
+
+            triangle_indices.extend(self.face_triangle_indices(face_id, local_vertex_head));
+            line_indices.extend(self.face_line_indices(face_id, local_index_head));
+
+            local_vertex_head += vertex_count as u16;
+            local_index_head += vertex_count as u32;
+        }
+
+        (mesh_vertices, triangle_indices, line_indices)
+    }
+
     pub fn assemble_brush_entities_render_thread(&self, world: &mut World) -> Vec<EntityBuilder> {
         let entity_brushes = self.classname_brushes("brush");
-        let ref this = self;
         let mut builders = vec![];
 
         // Brush entity meshes
-        for (entity, brushes) in entity_brushes.into_iter().filter(|(entity, _)| {
+        for (entity, _) in entity_brushes.into_iter().filter(|(entity, _)| {
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            matches!(Self::property_bool("mesh", properties), Ok(true))
+            matches!(Self::property_bool("visual_mesh", properties), Ok(true))
         }) {
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            let entity_mesh_name = Self::property_string("mesh.name", properties)
+            let entity_mesh_name = Self::property_string("visual_mesh.name", properties)
                 .map(ToString::to_string)
                 .unwrap_or_else(|_| Self::default_entity_name(entity));
 
-            let entity_faces = this.entity_faces(brushes);
-            let entity_center = this.entity_centers[entity];
-
             // Generate mesh
-            let mut mesh_vertices: Vec<VertexData> = Default::default();
-            let mut triangle_indices: Vec<TriangleIndexData> = Default::default();
-            let mut line_indices: Vec<LineIndexData> = Default::default();
-
-            let mut local_vertex_head = 0u16;
-            let mut local_index_head = 0u32;
-
-            for face_id in entity_faces.filter(|face_id| {
-                if matches!(
-                    Self::property_bool("mesh.cull_duplicate_faces", properties),
-                    Ok(true),
-                ) && self.face_duplicates.iter().any(|(_, b)| b == *face_id)
-                {
-                    return false;
-                }
-
-                if matches!(
-                    Self::property_bool("mesh.cull_face_face_containment", properties),
-                    Ok(true)
-                ) && self
-                    .face_face_containment
-                    .iter()
-                    .any(|(_, b)| b.contains(face_id))
-                {
-                    return false;
-                }
-
-                if matches!(
-                    Self::property_bool("mesh.cull_brush_face_containment", properties),
-                    Ok(true)
-                ) && self
-                    .brush_face_containment
-                    .iter()
-                    .any(|(_, b)| b.contains(face_id))
-                {
-                    return false;
-                }
-
-                if matches!(
-                    Self::property_bool("mesh.cull_interior_faces", properties),
-                    Ok(true)
-                ) && !self.interior_faces.contains(&face_id)
-                {
-                    return false;
-                }
-
-                true
-            }) {
-                // Fetch and interpret texture data
-                let texture_name = this.face_texture(&face_id);
-                let color = Self::face_color(texture_name);
-                let intensity = Self::face_intensity(texture_name);
-
-                let verts = this
-                    .face_vertices(face_id, color, intensity, 1.0)
-                    .map(|vertex| VertexData {
-                        position: [
-                            vertex.position[0] - entity_center[0],
-                            vertex.position[1] - entity_center[2],
-                            vertex.position[2] - entity_center[1],
-                        ],
-                        ..vertex
-                    })
-                    .collect::<Vec<_>>();
-                let vertex_count = verts.len();
-                mesh_vertices.extend(verts);
-
-                triangle_indices.extend(this.face_triangle_indices(face_id, local_vertex_head));
-                line_indices.extend(this.face_line_indices(face_id, local_index_head));
-
-                local_vertex_head += vertex_count as u16;
-                local_index_head += vertex_count as u32;
-            }
+            let (mesh_vertices, triangle_indices, line_indices) =
+                self.assemble_brush_entity_triangle_mesh(entity, self.brush_cull_predicate(entity, "visual_mesh"));
 
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            let ty = Self::property_string("mesh.type", properties).expect("No mesh.type property");
+            let ty = Self::property_string("visual_mesh.type", properties).expect("No mesh.type property");
             builders.extend(match ty {
                 "triangles_and_lines" => Self::build_brush_entity_triangle_line_meshes(
                     self,
@@ -1611,6 +1584,52 @@ impl MapData {
         builders
     }
 
+    pub fn brush_cull_predicate(&self, entity: &EntityId, component_property: &str) -> impl Fn(&FaceId) -> bool + '_ {
+        let properties = &self.geo_map.entity_properties[entity];
+        let component_property = component_property.to_string();
+move |face_id| {
+            if matches!(
+                Self::property_bool(&(component_property.clone() + ".cull_duplicate_faces"), properties),
+                Ok(true),
+            ) && self.face_duplicates.iter().any(|(_, b)| b == face_id)
+            {
+                return false;
+            }
+
+            if matches!(
+                Self::property_bool(&(component_property.clone() + ".cull_face_face_containment"), properties),
+                Ok(true)
+            ) && self
+                .face_face_containment
+                .iter()
+                .any(|(_, b)| b.contains(face_id))
+            {
+                return false;
+            }
+
+            if matches!(
+                Self::property_bool(&(component_property.clone() + ".cull_brush_face_containment"), properties),
+                Ok(true)
+            ) && self
+                .brush_face_containment
+                .iter()
+                .any(|(_, b)| b.contains(face_id))
+            {
+                return false;
+            }
+
+            if matches!(
+                Self::property_bool(&(component_property.clone() + ".cull_interior_faces"), properties),
+                Ok(true)
+            ) && !self.interior_faces.contains(&face_id)
+            {
+                return false;
+            }
+
+            true
+        }
+    }
+
     pub fn assemble_brush_entities_game_thread(&self, world: &mut World) {
         let (_, shared_shapes) = world
             .query_mut::<&mut SharedShapesComponent>()
@@ -1618,105 +1637,131 @@ impl MapData {
             .next()
             .expect("No SharedShapesComponent");
 
-        let entity_brushes = self.classname_brushes("brush").filter(|(entity, _)| {
+        for (entity, brushes) in self.classname_brushes("brush") {
             let properties = &self.geo_map.entity_properties[entity];
-            Self::property_string("convex_hull", properties).is_ok()
-        });
-
-        for (entity, brushes) in entity_brushes {
-            let properties = &self.geo_map.entity_properties[entity];
-            if !matches!(Self::property_bool("convex_hull", properties), Ok(true)) {
-                continue;
-            }
 
             let entity_center = self.entity_centers[entity];
 
-            let key = Self::property_string("convex_hull.name", properties)
-                .map(ToString::to_string)
-                .unwrap_or_else(|_| Self::default_entity_name(entity));
+            if matches!(Self::property_bool("convex_hull", properties), Ok(true)) {
+                let key = Self::property_string("convex_hull.name", properties)
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|_| Self::default_entity_name(entity));
 
-            let shape = match Self::property_string("convex_hull.type", properties).unwrap() {
-                "single" => {
-                    let mut brush_vertices = vec![];
-                    for brush in brushes {
-                        for face in &self.geo_map.brush_faces[brush] {
-                            let face_vertices = &self.face_vertices[face];
-                            for vertex in face_vertices {
-                                if !brush_vertices.contains(vertex) {
-                                    brush_vertices.push(*vertex);
-                                }
-                            }
-                        }
-                    }
-
-                    let brush_vertices = brush_vertices
-                        .into_iter()
-                        .map(|vertex| vertex.xzy() - entity_center.xzy())
-                        .collect::<Vec<_>>();
-
-                    vec![(
-                        rapier3d::prelude::nalgebra::Isometry::identity(),
-                        brush_vertices,
-                    )]
-                }
-                "compound" => {
-                    let mut brush_hulls = vec![];
-
-                    for brush in brushes {
-                        let brush_center = self.brush_centers[brush];
+                let shape = match Self::property_string("convex_hull.type", properties).unwrap() {
+                    "single" => {
                         let mut brush_vertices = vec![];
-                        for face in &self.geo_map.brush_faces[brush] {
-                            let face_vertices = &self.face_vertices[face];
-                            for vertex in face_vertices {
-                                if !brush_vertices.contains(vertex) {
-                                    brush_vertices.push(vertex.xzy() - brush_center.xzy());
+                        for brush in brushes {
+                            for face in &self.geo_map.brush_faces[brush] {
+                                let face_vertices = &self.face_vertices[face];
+                                for vertex in face_vertices {
+                                    if !brush_vertices.contains(vertex) {
+                                        brush_vertices.push(*vertex);
+                                    }
                                 }
                             }
                         }
 
-                        brush_hulls.push((
-                            rapier3d::prelude::Isometry::new(
-                                rapier3d::prelude::nalgebra::Vector3::<f32>::new(
-                                    brush_center.x - entity_center.x,
-                                    brush_center.z - entity_center.z,
-                                    brush_center.y - entity_center.y,
-                                ),
-                                rapier3d::prelude::nalgebra::Vector3::<f32>::zeros(),
-                            ),
+                        let brush_vertices = brush_vertices
+                            .into_iter()
+                            .map(|vertex| vertex.xzy() - entity_center.xzy())
+                            .collect::<Vec<_>>();
+
+                        vec![(
+                            rapier3d::prelude::nalgebra::Isometry::identity(),
                             brush_vertices,
-                        ));
+                        )]
                     }
+                    "compound" => {
+                        let mut brush_hulls = vec![];
 
-                    brush_hulls
-                }
-                _ => unimplemented!(),
-            };
+                        for brush in brushes {
+                            let brush_center = self.brush_centers[brush];
+                            let mut brush_vertices = vec![];
+                            for face in &self.geo_map.brush_faces[brush] {
+                                let face_vertices = &self.face_vertices[face];
+                                for vertex in face_vertices {
+                                    if !brush_vertices.contains(vertex) {
+                                        brush_vertices.push(vertex.xzy() - brush_center.xzy());
+                                    }
+                                }
+                            }
 
-            let shape_fn = move |scale: nalgebra::Vector3<f32>| {
-                let mut compound = vec![];
-                for (isometry, convex_hull) in &shape {
-                    let mut scaled_hull = vec![];
-                    for vertex in convex_hull {
-                        let scaled_vert = vertex.component_mul(&scale.xzy());
-                        scaled_hull.push(rapier3d::prelude::nalgebra::Point3::new(
-                            scaled_vert.x,
-                            scaled_vert.y,
-                            scaled_vert.z,
-                        ));
+                            brush_hulls.push((
+                                rapier3d::prelude::Isometry::new(
+                                    rapier3d::prelude::nalgebra::Vector3::<f32>::new(
+                                        brush_center.x - entity_center.x,
+                                        brush_center.z - entity_center.z,
+                                        brush_center.y - entity_center.y,
+                                    ),
+                                    rapier3d::prelude::nalgebra::Vector3::<f32>::zeros(),
+                                ),
+                                brush_vertices,
+                            ));
+                        }
+
+                        brush_hulls
                     }
-                    compound.push((
-                        *isometry,
-                        SharedShape::convex_hull(&scaled_hull[..]).unwrap(),
-                    ))
-                }
-                if compound.len() == 1 {
-                    compound.remove(0).1
-                } else {
-                    SharedShape::compound(compound)
-                }
-            };
+                    _ => unimplemented!(),
+                };
 
-            shared_shapes.insert(key.to_owned(), Box::new(shape_fn));
+                let shape_fn = move |scale: nalgebra::Vector3<f32>| {
+                    let mut compound = vec![];
+                    for (isometry, convex_hull) in &shape {
+                        let mut scaled_hull = vec![];
+                        for vertex in convex_hull {
+                            let scaled_vert = vertex.component_mul(&scale.xzy());
+                            scaled_hull.push(rapier3d::prelude::nalgebra::Point3::new(
+                                scaled_vert.x,
+                                scaled_vert.y,
+                                scaled_vert.z,
+                            ));
+                        }
+                        compound.push((
+                            *isometry,
+                            SharedShape::convex_hull(&scaled_hull[..]).unwrap(),
+                        ))
+                    }
+                    if compound.len() == 1 {
+                        compound.remove(0).1
+                    } else {
+                        SharedShape::compound(compound)
+                    }
+                };
+
+                shared_shapes.insert(key.to_owned(), Box::new(shape_fn));
+            }
+
+            if matches!(Self::property_bool("trimesh", properties), Ok(true)) {
+                let key = Self::property_string("trimesh.name", properties)
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|_| Self::default_entity_name(entity));
+
+                let (mesh_vertices, triangle_indices, _) =
+                    self.assemble_brush_entity_triangle_mesh(entity, self.brush_cull_predicate(entity, "trimesh"));
+
+                let mesh_vertices = mesh_vertices
+                    .into_iter()
+                    .map(|VertexData { position, .. }| {
+                        rapier3d::prelude::nalgebra::Point3::new(
+                            position[0],
+                            position[1],
+                            position[2],
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                let triangle_indices = triangle_indices
+                    .chunks(3)
+                    .map(|inds| [inds[0] as u32, inds[1] as u32, inds[2] as u32])
+                    .collect::<Vec<_>>();
+
+
+                let shape_fn = move |_| 
+                SharedShape::trimesh(mesh_vertices.clone(), triangle_indices.clone());
+
+
+                shared_shapes.insert(key, Box::new(shape_fn));
+            }
         }
     }
 
@@ -2087,17 +2132,40 @@ impl MapData {
                         "ball" => {
                             let radius =
                                 Self::property_f32("collider.ball.radius", properties).unwrap();
-                            ColliderBuilder::ball(radius)
+                            ColliderBuilder::ball(radius * scale.x.max(scale.y).max(scale.z))
                         }
                         "cuboid" => {
                             let extents =
                                 Self::property_f32_3("collider.cuboid.extents", properties)
                                     .unwrap();
-                            ColliderBuilder::cuboid(extents.0, extents.1, extents.2)
+                            ColliderBuilder::cuboid(
+                                extents.0 * scale.x,
+                                extents.1 * scale.y,
+                                extents.2 * scale.z,
+                            )
                         }
                         "convex_hull" => {
                             let mesh = if let Ok(mesh) =
                                 Self::property_string("collider.convex_hull.mesh", properties)
+                            {
+                                mesh.to_owned()
+                            } else {
+                                Self::default_entity_name(entity)
+                            };
+
+                            let (_, shared_shapes) = world
+                                .query_mut::<&SharedShapesComponent>()
+                                .into_iter()
+                                .next()
+                                .expect("No SharedShapesComponent");
+
+                            let shape = shared_shapes[&mesh](scale);
+
+                            ColliderBuilder::new(shape)
+                        }
+                        "trimesh" => {
+                            let mesh = if let Ok(mesh) =
+                                Self::property_string("collider.trimesh.mesh", properties)
                             {
                                 mesh.to_owned()
                             } else {

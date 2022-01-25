@@ -104,13 +104,13 @@
 //
 // TODO: [>] Integrate rapier physics
 //           [✓] Create collision from brush hulls
-//           [ ] Scale support for colliders
+//           [✓] Scale support for colliders
 //               * Rapier has no concept of scale
 //               * Will need to generate one SharedShape instance for each scaled entity
 //                 * Multiply ball radius by largest scale axis
 //                 * Multiply cuboid extents by scale
 //                 * Scale vertices for convex hulls and trimeshes
-//           [ ] Trimesh brush collision
+//           [✓] Trimesh brush collision
 //
 // TODO: [✓] Refactor TB oscilloscope handling
 //           * Semantically, oscilloscope is an animation over a line segment

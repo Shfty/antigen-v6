@@ -7,6 +7,7 @@
 "_tb_textures" "textures;textures/prototype_1_3"
 "_tb_def" "builtin:Antigen.fgd"
 "_tb_layer_locked" "1"
+"_tb_layer_hidden" "1"
 }
 // entity 1
 {
@@ -31,9 +32,9 @@
 // entity 3
 {
 "classname" "brush"
-"mesh.name" "arrow"
-"mesh" "true"
-"mesh.type" "triangles_and_lines"
+"visual_mesh.name" "arrow"
+"visual_mesh" "true"
+"visual_mesh.type" "triangles_and_lines"
 "_tb_layer" "1"
 // brush 0
 {
@@ -670,10 +671,10 @@
 "convex_hull" "true"
 "convex_hull.name" "box_bot"
 "convex_hull.type" "single"
-"mesh" "true"
-"mesh.cull_brush_face_containment" "true"
-"mesh.name" "box_bot"
-"mesh.type" "triangles_and_lines"
+"visual_mesh" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.name" "box_bot"
+"visual_mesh.type" "triangles_and_lines"
 "_tb_layer" "3"
 // brush 0
 {
@@ -866,7 +867,6 @@
 "_tb_name" "Room and Portal Test"
 "_tb_id" "6"
 "_tb_layer_sort_index" "5"
-"_tb_layer_hidden" "1"
 }
 // entity 47
 {
@@ -875,15 +875,18 @@
 "line_mesh_instance" "true"
 "triangle_mesh_instance" "true"
 "room" "true"
-"mesh.type" "triangles_and_lines"
-"mesh.cull_interior_faces" "true"
-"mesh.cull_face_face_containment" "true"
-"mesh.cull_duplicate_faces" "true"
-"mesh.cull_brush_face_containment" "true"
-"collider.type" "convex_hull"
-"convex_hull" "true"
-"convex_hull.type" "compound"
-"mesh" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"collider.type" "trimesh"
+"visual_mesh" "true"
+"trimesh" "true"
+"trimesh.cull_brush_face_containment" "true"
+"trimesh.cull_duplicate_faces" "true"
+"trimesh.cull_face_face_containment" "true"
+"trimesh.cull_interior_faces" "true"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1134,10 +1137,10 @@
 // entity 48
 {
 "classname" "brush"
-"mesh.type" "triangles_and_lines"
+"visual_mesh.type" "triangles_and_lines"
 "line_mesh_instance" "true"
-"mesh" "true"
-"mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"visual_mesh.cull_interior_faces" "true"
 "triangle_mesh_instance" "true"
 "portal" "true"
 "portal.use_target_targetname" "true"
@@ -1157,10 +1160,10 @@
 // entity 49
 {
 "classname" "brush"
-"mesh.type" "triangles_and_lines"
+"visual_mesh.type" "triangles_and_lines"
 "line_mesh_instance" "true"
-"mesh" "true"
-"mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"visual_mesh.cull_interior_faces" "true"
 "triangle_mesh_instance" "true"
 "portal" "true"
 "portal.use_target_targetname" "true"
@@ -1180,10 +1183,10 @@
 // entity 50
 {
 "classname" "brush"
-"mesh.type" "triangles_and_lines"
+"visual_mesh.type" "triangles_and_lines"
 "line_mesh_instance" "true"
-"mesh" "true"
-"mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"visual_mesh.cull_interior_faces" "true"
 "triangle_mesh_instance" "true"
 "portal" "true"
 "portal.use_target_targetname" "true"
@@ -1203,10 +1206,10 @@
 // entity 51
 {
 "classname" "brush"
-"mesh.type" "triangles_and_lines"
+"visual_mesh.type" "triangles_and_lines"
 "line_mesh_instance" "true"
-"mesh" "true"
-"mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"visual_mesh.cull_interior_faces" "true"
 "triangle_mesh_instance" "true"
 "portal" "true"
 "portal.use_target_targetname" "true"
@@ -1227,18 +1230,21 @@
 {
 "classname" "brush"
 "collider" "true"
-"mesh.cull_interior_faces" "true"
-"mesh.cull_duplicate_faces" "true"
-"mesh.cull_face_face_containment" "true"
-"mesh.cull_brush_face_containment" "true"
-"mesh" "true"
-"convex_hull" "true"
-"collider.type" "convex_hull"
-"convex_hull.type" "compound"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh" "true"
+"collider.type" "trimesh"
 "line_mesh_instance" "true"
-"mesh.type" "triangles_and_lines"
+"visual_mesh.type" "triangles_and_lines"
 "triangle_mesh_instance" "true"
 "room" "true"
+"trimesh" "true"
+"trimesh.cull_brush_face_containment" "true"
+"trimesh.cull_duplicate_faces" "true"
+"trimesh.cull_face_face_containment" "true"
+"trimesh.cull_interior_faces" "true"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1497,13 +1503,13 @@
 // entity 54
 {
 "classname" "brush"
-"mesh" "true"
-"mesh.type" "triangles_and_lines"
-"mesh.name" "polyhedron"
+"visual_mesh" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.name" "polyhedron"
 "convex_hull" "true"
 "convex_hull.name" "polyhedron"
 "convex_hull.type" "single"
-"mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
 "_tb_layer" "7"
 // brush 0
 {
