@@ -443,22 +443,24 @@ pub fn phosphor_update_oscilloscopes_system(world: &mut World) {
     let mut query = world.query::<&Changed<DeltaTimeComponent>>();
     let (_, delta_time) = query.iter().next().expect("No delta time component");
 
-    for (entity, (oscilloscope, vertex_data)) in world
+    for (_, (oscilloscope, vertex_data)) in world
         .query::<(&Oscilloscope, &mut Changed<VertexDataComponent>)>()
         .into_iter()
     {
-        println!("Updating oscilloscope for entity {:?}", entity);
+        let (fx, fy, fz) = oscilloscope.eval(***total_time);
 
-        {
-            let (fx, fy, fz) = oscilloscope.eval(***total_time);
-
-            vertex_data[0] = vertex_data[1];
-            vertex_data[0].intensity += vertex_data[0].delta_intensity * ***delta_time;
-
-            vertex_data[1].position[0] = fx;
-            vertex_data[1].position[1] = fy;
-            vertex_data[1].position[2] = fz;
+        for i in 1..vertex_data.len() {
+            let i0 = i - 1;
+            let i1 = i;
+            vertex_data[i0] = vertex_data[i1];
+            vertex_data[i0].intensity += vertex_data[i0].delta_intensity * ***delta_time;
         }
+
+        let last_idx = vertex_data.len() - 1;
+        let last = &mut vertex_data[last_idx];
+        last.position[0] = fx;
+        last.position[1] = fy;
+        last.position[2] = fz;
 
         vertex_data.set_changed(true);
     }

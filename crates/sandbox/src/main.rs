@@ -92,8 +92,26 @@
 //               * Too much repetition in phosphor mod.rs
 //           [✓] Move map processing to filesystem thread
 //
+// TODO: [✓] Replace room with brush
+//           [✓] Generalized component support for brush entities
+//               * Should be able to use any point entity component
+//               * Treat entity center as transform origin
+//           [✓] Generalize face culling via special properties
+//
 // TODO: [>] Integrate rapier physics
-//           * Create collision from brush hulls
+//           [✓] Create collision from brush hulls
+//           [ ] Scale support for colliders
+//               * Rapier has no concept of scale
+//               * Will need to generate one SharedShape instance for each scaled entity
+//                 * Multiply ball radius by largest scale axis
+//                 * Multiply cuboid extents by scale
+//                 * Scale vertices for convex hulls and trimeshes
+//           [ ] Trimesh brush collision
+//
+// TODO: [ ] Refactor TB oscilloscope handling
+//           * Semantically, oscilloscope is an animation over a line segment
+//             * Should be able to split off into an animation component
+//             * Leave line mesh creation and instancing to their respective properties
 //
 // TODO: [ ] Fix lines projecting from behind the camera
 //
@@ -133,11 +151,12 @@
 //
 // TODO: [ ] Generalize map -> entities + components conversion
 //           * Need a way to map classname to a set of entities, properties to components
-//           * Catch-all Point and Brush entity classnames
+//          [>] Catch-all Point and Brush entity classnames
 //             * Collects all relevant components into single classnames
 //             * Specialize to bundle-like constructs by subclassing in FGD and overriding with default values
 //             * Covers both pre-made and fully-customizable cases
-//           * Simple no-value property to instantiate component
+//           * Simple bool property to instantiate component
+//             * Allows defaults to commicate on/off for subclasses
 //           * component.member naming to map to component members
 //           * Traits + cons lists to model classname -> components relation?
 //             * Would be ideal to do this at build-time
@@ -152,27 +171,26 @@
 // TODO: [ ] TrenchBroom special entity support for shambler
 //           * Implement as its own GeoMap-dependent struct
 //
-// TODO: [ ] Implement bloom pass
+// TODO: [ ] Surface / Content flags support for shambler
+//           * Should be able to use for trimesh collision lookup,
+//             provided that rapier returns face information
+//
+// TODO: [ ] Implement HDR bloom pass
 //
 //
 
 mod demos;
 
 use antigen_core::{
-    receive_messages, send_clone_query, try_receive_messages, Construct, PositionComponent,
-    RotationComponent, ScaleComponent, TaggedEntitiesComponent, WorldChannel, WorldExchange,
+    receive_messages, send_clone_query, try_receive_messages, PositionComponent, RotationComponent,
+    ScaleComponent, TaggedEntitiesComponent, WorldChannel, WorldExchange,
 };
 use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
 };
 use antigen_winit::EventLoopHandler;
-use demos::phosphor::{
-    LineMeshInstance, LineMeshInstanceComponent, TriangleMeshInstance,
-    TriangleMeshInstanceComponent,
-};
-use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
+use demos::phosphor::{LineMeshInstance, TriangleMeshInstance};
 use std::{
-    borrow::Cow,
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -180,9 +198,7 @@ use winit::{event::Event, event_loop::ControlFlow, event_loop::EventLoopWindowTa
 
 use hecs::{EntityBuilder, World};
 
-use antigen_rapier3d::{
-    physics_backend_builder, ColliderComponent, ColliderParentComponent, RigidBodyComponent,
-};
+use antigen_rapier3d::physics_backend_builder;
 
 const GAME_THREAD_TICK: Duration = Duration::from_nanos(16670000);
 
@@ -204,18 +220,20 @@ fn main() {
     // Spawn exchange into its own thread
     exchange.spawn();
 
-    // Setup filesystem world
+    // Create worlds
     let fs_world = World::new();
-
-    // Setup game world
     let mut game_world = World::new();
-    game_world.spawn((TaggedEntitiesComponent::default(),));
-    game_world.spawn((123, true, "abc"));
-    game_world.spawn((42, false));
-
-    // Setup render world
     let mut render_world = World::new();
 
+    // Setup game world
+    game_world.spawn((TaggedEntitiesComponent::default(),));
+
+    let mut builder = EntityBuilder::new();
+    builder.add(demos::phosphor::SharedShapes);
+    builder.add(demos::phosphor::SharedShapesComponent::default());
+    game_world.spawn(builder.build());
+
+    // Setup render world
     render_world.spawn((TaggedEntitiesComponent::default(),));
     render_world.spawn(antigen_winit::BackendBundle::default());
 

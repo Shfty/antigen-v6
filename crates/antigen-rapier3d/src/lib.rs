@@ -89,49 +89,66 @@ pub fn insert_colliders_system(world: &mut World) {
     let mut query = world.query::<(&mut ColliderSet, &mut RigidBodySet)>();
     let (_, (collider_set, rigid_body_set)) = query.into_iter().next().unwrap();
 
-    for (_, components) in world
+    for (_, (collider_component, position, rotation, rigid_body, collider_parent)) in world
         .query::<(
             &mut ColliderComponent,
-            Option<&ColliderParentComponent>,
+            Option<&PositionComponent>,
+            Option<&RotationComponent>,
             Option<&RigidBodyComponent>,
+            Option<&ColliderParentComponent>,
         )>()
         .into_iter()
     {
-        match components {
-            (collider @ ColliderComponent::Pending(_), None, None) => {
-                let c = if let LazyComponent::Pending(c) = collider.take() {
-                    c
-                } else {
-                    panic!("No collider component")
-                };
-                let handle = collider_set.insert(c);
-                *collider = ColliderComponent::Ready(handle);
+        if let ColliderComponent::Pending(collider) = collider_component {
+            // If not attached to a rigidbody, apply position / rotation directly
+            if rigid_body.is_none() {
+                if let Some(position) = position {
+                    collider.set_translation(rapier3d::prelude::nalgebra::Vector3::new(
+                        position.x, position.y, position.z,
+                    ));
+                }
+
+                if let Some(rotation) = rotation {
+                    let (x, y, z) = rotation.euler_angles();
+                    collider.set_rotation(rapier3d::prelude::nalgebra::Vector3::new(x, y, z));
+                }
             }
-            (collider @ ColliderComponent::Pending(_), Some(parent), _) => {
-                let mut query = parent.get(world);
-                let parent = query.get().unwrap();
-                if let LazyComponent::Ready(parent) = **parent {
-                    let c = if let LazyComponent::Pending(c) = collider.take() {
+
+            match (rigid_body, collider_parent) {
+                (None, None) => {
+                    let c = if let LazyComponent::Pending(c) = collider_component.take() {
                         c
                     } else {
                         panic!("No collider component")
                     };
-                    let handle = collider_set.insert_with_parent(c, parent, rigid_body_set);
-                    *collider = ColliderComponent::Ready(handle);
+                    let handle = collider_set.insert(c);
+                    *collider_component = ColliderComponent::Ready(handle);
+                }
+                (Some(rigid_body), _) => {
+                    if let LazyComponent::Ready(rb) = **rigid_body {
+                        let c = if let LazyComponent::Pending(c) = collider_component.take() {
+                            c
+                        } else {
+                            panic!("No collider component")
+                        };
+                        let handle = collider_set.insert_with_parent(c, rb, rigid_body_set);
+                        *collider_component = ColliderComponent::Ready(handle);
+                    }
+                }
+                (None, Some(parent)) => {
+                    let mut query = parent.get(world);
+                    let parent = query.get().unwrap();
+                    if let LazyComponent::Ready(parent) = **parent {
+                        let c = if let LazyComponent::Pending(c) = collider_component.take() {
+                            c
+                        } else {
+                            panic!("No collider component")
+                        };
+                        let handle = collider_set.insert_with_parent(c, parent, rigid_body_set);
+                        *collider_component = ColliderComponent::Ready(handle);
+                    }
                 }
             }
-            (collider @ ColliderComponent::Pending(_), None, Some(rigid_body)) => {
-                if let LazyComponent::Ready(rb) = **rigid_body {
-                    let c = if let LazyComponent::Pending(c) = collider.take() {
-                        c
-                    } else {
-                        panic!("No collider component")
-                    };
-                    let handle = collider_set.insert_with_parent(c, rb, rigid_body_set);
-                    *collider = ColliderComponent::Ready(handle);
-                }
-            }
-            _ => (),
         }
     }
 }

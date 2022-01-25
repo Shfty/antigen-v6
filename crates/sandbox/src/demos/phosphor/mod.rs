@@ -107,7 +107,7 @@ use antigen_fs::{load_file_string, FilePathComponent, FileStringQuery};
 use antigen_rapier3d::{ColliderComponent, RigidBodyComponent};
 pub use assemblage::*;
 pub use components::*;
-use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
+use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder, SharedShape};
 pub use render_passes::*;
 pub use svg_lines::*;
 pub use systems::*;
@@ -332,46 +332,41 @@ pub fn parse_map_file_string<'a, 'b, P: Into<PathBuf>>(
         let map_data = MapData::from(geo_map);
 
         channel
-            .send_to::<Render>(assemble_map_meshes_message(map_data.clone()))
+            .send_to::<Render>(assemble_map_render_thread(map_data.clone()))
             .unwrap();
 
         channel
-            .send_to::<Game>(assemble_map_mesh_instances_message(map_data))
+            .send_to::<Game>(assemble_map_game_thread(map_data))
             .unwrap();
 
         Ok(ctx)
     }
 }
 
-fn assemble_map_meshes_message(
+fn assemble_map_render_thread(
     map_data: MapData,
 ) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
     move |mut ctx| {
         let (world, _) = &mut ctx;
 
-        let mut room_brushes = map_data.build_rooms(world, 1.0);
-        let bundles = room_brushes.iter_mut().map(EntityBuilder::build);
-        world.extend(bundles);
-
-        let mut brush_brushes = map_data.build_brushes(world, 1.0);
+        let mut brush_brushes = map_data.build_brush_meshes(world, 1.0);
         let bundles = brush_brushes.iter_mut().map(EntityBuilder::build);
-        world.extend(bundles);
-
-        let mut oscilloscope_meshes = map_data.build_oscilloscopes(world);
-        let bundles = oscilloscope_meshes.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
         Ok(ctx)
     }
 }
 
-fn assemble_map_mesh_instances_message(
+fn assemble_map_game_thread(
     map_data: MapData,
 ) -> impl for<'a, 'b> FnOnce(MessageContext<'a, 'b>) -> MessageResult<'a, 'b> {
     move |mut ctx| {
         let (world, _) = &mut ctx;
         println!("Assembling point entities on game thread");
-        let mut point_entities = map_data.build_point_entities();
+
+        map_data.build_brush_convex_hulls(world);
+
+        let mut point_entities = map_data.build_point_entities(world);
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
         Ok(ctx)
@@ -1120,39 +1115,6 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 fn assemble_test_geometry(world: &mut World) {
     let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
 
-    // Oscilloscopes
-    let mut builder = oscilloscope_mesh_builder(
-        world,
-        "sin_cos_sin",
-        RED,
-        Oscilloscope::new(3.33, 30.0, |f| (f.sin(), f.cos(), f.sin())),
-        2.0,
-        -1.0,
-    );
-    let bundle = builder.build();
-    world.spawn(bundle);
-
-    let mut builder = oscilloscope_mesh_builder(
-        world,
-        "sin_sin_cos",
-        GREEN,
-        Oscilloscope::new(2.22, 30.0, |f| (f.sin(), (f * 1.2).sin(), (f * 1.4).cos())),
-        2.0,
-        -2.0,
-    );
-    let bundle = builder.build();
-    world.spawn(bundle);
-
-    let mut builder = oscilloscope_mesh_builder(
-        world,
-        "cos_cos_cos",
-        BLUE,
-        Oscilloscope::new(3.33, 30.0, |f| (f.cos(), (f * 1.2).cos(), (f * 1.4).cos())),
-        2.0,
-        -4.0,
-    );
-    world.spawn(builder.build());
-
     // Equilateral triangle
     let line_mesh = world
         .query_one_mut::<&mut BufferLengthComponent>(line_mesh_entity)
@@ -1201,6 +1163,7 @@ struct MapData {
     brush_entities: antigen_shambler::shambler::brush::BrushEntities,
     face_brushes: antigen_shambler::shambler::face::FaceBrushes,
     entity_centers: antigen_shambler::shambler::entity::EntityCenters,
+    brush_centers: antigen_shambler::shambler::brush::BrushCenters,
     face_planes: antigen_shambler::shambler::face::FacePlanes,
     brush_hulls: antigen_shambler::shambler::brush::BrushHulls,
     face_vertices: antigen_shambler::shambler::face::FaceVertices,
@@ -1337,6 +1300,7 @@ impl From<GeoMap> for MapData {
             geo_map,
             lines,
             entity_centers,
+            brush_centers,
             face_planes,
             brush_hulls,
             face_vertices,
@@ -1354,6 +1318,10 @@ impl From<GeoMap> for MapData {
 }
 
 impl MapData {
+    fn default_entity_name(entity: &EntityId) -> String {
+        format!("entity_{entity:}")
+    }
+
     fn classname_brushes<'a>(
         &'a self,
         classname: &'a str,
@@ -1455,99 +1423,123 @@ impl MapData {
         })
     }
 
-    pub fn build_rooms(&self, world: &mut World, scale_factor: f32) -> Vec<EntityBuilder> {
-        let entity_brushes = self
-            .classname_brushes("room")
-            .chain(self.classname_brushes("portal"));
-
-        self.build_brush_entities(
-            world,
-            entity_brushes,
-            |_, face_id| {
-                self.face_duplicates.iter().any(|(a, _)| a == face_id)
-                    || self
-                        .face_face_containment
-                        .iter()
-                        .any(|(_, b)| b.contains(face_id))
-                    || self
-                        .brush_face_containment
-                        .iter()
-                        .any(|(_, b)| b.contains(face_id))
-                    || !self.interior_faces.contains(&face_id)
-            },
-            |entity_id| {
-                let properties = self.geo_map.entity_properties.get(entity_id).unwrap();
-                let classname = Self::property_string("classname", properties).unwrap();
-                format!("{}_{}", classname, entity_id)
-            },
-            |map_data, world, entity, key, vertices, triangle_indices, line_indices| {
-                let mut builders = Self::build_brush_entity_triangle_line_meshes(
-                    map_data,
-                    world,
-                    entity,
-                    key,
-                    vertices,
-                    triangle_indices,
-                    line_indices,
-                );
-
-                let entity_center = map_data.entity_centers[entity];
-
-                // Mesh instance entity
-                let mut builder = EntityBuilder::new();
-                builder.add(PositionComponent::construct(entity_center.xzy()));
-                builder.add(RotationComponent::construct(
-                    nalgebra::UnitQuaternion::identity().into(),
-                ));
-                builder.add(ScaleComponent::construct(
-                    nalgebra::vector![1.0, 1.0, 1.0].into(),
-                ));
-                builder.add(TriangleMeshInstanceComponent::construct(Cow::Owned(
-                    key.to_owned(),
-                )));
-                builder.add(LineMeshInstanceComponent::construct(Cow::Owned(
-                    key.to_owned(),
-                )));
-
-                builders.push(builder);
-                builders
-            },
-            scale_factor,
-        )
-    }
-
-    pub fn build_brushes(&self, world: &mut World, scale_factor: f32) -> Vec<EntityBuilder> {
+    pub fn build_brush_meshes(&self, world: &mut World, scale_factor: f32) -> Vec<EntityBuilder> {
         let entity_brushes = self.classname_brushes("brush");
-        self.build_brush_entities(
-            world,
-            entity_brushes,
-            |entity_id, face_id| {
-                let properties = self.geo_map.entity_properties.get(entity_id).unwrap();
-                Self::property_string("mesh", properties).is_err()
-                    || self.face_duplicates.iter().any(|(_, b)| b == face_id)
-                    || self
+        let ref this = self;
+        let mut builders = vec![];
+
+        for (entity, brushes) in entity_brushes.into_iter().filter(|(entity, _)| {
+            !(|entity| {
+                let properties = self.geo_map.entity_properties.get(entity).unwrap();
+                if !matches!(Self::property_bool("mesh", properties), Ok(true)) {
+                    return true;
+                }
+                false
+            })(entity)
+        }) {
+            let entity_mesh_name = (|entity| {
+                let properties = self.geo_map.entity_properties.get(entity).unwrap();
+                Self::property_string("mesh.name", properties)
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|_| Self::default_entity_name(entity))
+            })(entity);
+
+            let entity_faces = this.entity_faces(brushes);
+            let entity_center = this.entity_centers[entity];
+
+            // Generate mesh
+            let mut mesh_vertices: Vec<VertexData> = Default::default();
+            let mut triangle_indices: Vec<TriangleIndexData> = Default::default();
+            let mut line_indices: Vec<LineIndexData> = Default::default();
+
+            let mut local_vertex_head = 0u16;
+            let mut local_index_head = 0u32;
+
+            for face_id in entity_faces.filter(|face_id| {
+                !(|entity, face_id| {
+                    let properties = self.geo_map.entity_properties.get(entity).unwrap();
+                    if matches!(
+                        Self::property_bool("mesh.cull_duplicate_faces", properties),
+                        Ok(true),
+                    ) && self.face_duplicates.iter().any(|(_, b)| b == face_id)
+                    {
+                        return true;
+                    }
+
+                    if matches!(
+                        Self::property_bool("mesh.cull_face_face_containment", properties),
+                        Ok(true)
+                    ) && self
                         .face_face_containment
                         .iter()
                         .any(|(_, b)| b.contains(face_id))
-                    || self
+                    {
+                        return true;
+                    }
+
+                    if matches!(
+                        Self::property_bool("mesh.cull_brush_face_containment", properties),
+                        Ok(true)
+                    ) && self
                         .brush_face_containment
                         .iter()
                         .any(|(_, b)| b.contains(face_id))
-            },
-            |entity_id| {
-                let properties = self.geo_map.entity_properties.get(entity_id).unwrap();
-                Self::property_string("mesh.name", properties)
-                    .unwrap()
-                    .to_string()
-            },
-            |map_data, world, entity_id, key, vertices, triangle_indices, line_indices| {
-                let properties = self.geo_map.entity_properties.get(entity_id).unwrap();
-                let ty = Self::property_string("mesh.type", properties).unwrap();
+                    {
+                        return true;
+                    }
+
+                    if matches!(
+                        Self::property_bool("mesh.cull_interior_faces", properties),
+                        Ok(true)
+                    ) && !self.interior_faces.contains(&face_id)
+                    {
+                        return true;
+                    }
+
+                    false
+                })(entity, face_id)
+            }) {
+                // Fetch and interpret texture data
+                let texture_name = this.face_texture(&face_id);
+                let color = Self::face_color(texture_name);
+                let intensity = Self::face_intensity(texture_name);
+
+                let verts = this
+                    .face_vertices(face_id, color, intensity, scale_factor)
+                    .map(|vertex| VertexData {
+                        position: [
+                            vertex.position[0] - entity_center[0],
+                            vertex.position[1] - entity_center[2],
+                            vertex.position[2] - entity_center[1],
+                        ],
+                        ..vertex
+                    })
+                    .collect::<Vec<_>>();
+                let vertex_count = verts.len();
+                mesh_vertices.extend(verts);
+
+                triangle_indices.extend(this.face_triangle_indices(face_id, local_vertex_head));
+                line_indices.extend(this.face_line_indices(face_id, local_index_head));
+
+                local_vertex_head += vertex_count as u16;
+                local_index_head += vertex_count as u32;
+            }
+
+            builders.extend((|map_data,
+                              world,
+                              entity,
+                              key,
+                              vertices,
+                              triangle_indices,
+                              line_indices| {
+                let properties = self.geo_map.entity_properties.get(entity).unwrap();
+                let ty =
+                    Self::property_string("mesh.type", properties).expect("No mesh.type property");
                 match ty {
                     "triangles_and_lines" => Self::build_brush_entity_triangle_line_meshes(
                         map_data,
                         world,
-                        entity_id,
+                        entity,
                         key,
                         vertices,
                         triangle_indices,
@@ -1557,7 +1549,7 @@ impl MapData {
                     "triangles" => Self::build_brush_entity_triangle_meshes(
                         map_data,
                         world,
-                        entity_id,
+                        entity,
                         key,
                         vertices,
                         triangle_indices,
@@ -1565,16 +1557,176 @@ impl MapData {
                     "lines" => Self::build_brush_entity_line_meshes(
                         map_data,
                         world,
-                        entity_id,
+                        entity,
                         key,
                         vertices,
                         line_indices,
                     ),
                     _ => unimplemented!(),
                 }
-            },
-            scale_factor,
-        )
+            })(
+                this,
+                world,
+                entity,
+                &entity_mesh_name,
+                mesh_vertices,
+                triangle_indices,
+                line_indices,
+            ));
+        }
+
+        // Point entities
+        for entity in self.geo_map.point_entities.iter() {
+            let mut builder = EntityBuilder::new();
+
+            let properties = self.geo_map.entity_properties.get(entity).unwrap();
+
+            // Lines
+            if matches!(Self::property_bool("line", properties), Ok(true)) {
+                let properties = self.geo_map.entity_properties.get(entity).unwrap();
+                let name = Self::property_string("line.name", properties)
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|_| Self::default_entity_name(entity));
+
+                let line_count = Self::property_usize("line.segments", properties).unwrap_or(1);
+                let color = Self::property_f32_3("line.color", properties)
+                    .unwrap_or_else(|_| (1.0, 1.0, 1.0));
+                let intensity = Self::property_f32("line.intensity", properties).unwrap_or(1.0);
+                let delta_intensity =
+                    Self::property_f32("line.delta_intensity", properties).unwrap_or(1.0);
+
+                builder.add_bundle(
+                    line_builder(
+                        world,
+                        name.into(),
+                        line_count,
+                        color,
+                        intensity,
+                        delta_intensity,
+                    )
+                    .build(),
+                );
+            }
+
+            // Oscilloscopes
+            if matches!(Self::property_bool("oscilloscope", properties), Ok(true)) {
+                let speed = Self::property_f32("oscilloscope.speed", properties).unwrap_or(1.0);
+                let magnitude =
+                    Self::property_f32("oscilloscope.magnitude", properties).unwrap_or(1.0);
+
+                let x = Self::property_expression_f32("oscilloscope.x", properties)
+                    .unwrap_or(Expression::Val(0.0));
+                let y = Self::property_expression_f32("oscilloscope.y", properties)
+                    .unwrap_or(Expression::Val(0.0));
+                let z = Self::property_expression_f32("oscilloscope.z", properties)
+                    .unwrap_or(Expression::Val(0.0));
+
+                builder.add(Oscilloscope::new(speed, magnitude, move |f| {
+                    let vars = [("f", f)].into_iter().collect::<BTreeMap<_, _>>();
+                    (x.eval(&vars), y.eval(&vars), z.eval(&vars))
+                }));
+            }
+
+            builders.push(builder);
+        }
+
+        builders
+    }
+
+    pub fn build_brush_convex_hulls(&self, world: &mut World) {
+        let (_, shared_shapes) = world
+            .query_mut::<&mut SharedShapesComponent>()
+            .into_iter()
+            .next()
+            .expect("No SharedShapesComponent");
+
+        let entity_brushes = self.classname_brushes("brush").filter(|(entity, _)| {
+            let properties = &self.geo_map.entity_properties[entity];
+            Self::property_string("convex_hull", properties).is_ok()
+        });
+
+        for (entity, brushes) in entity_brushes {
+            let properties = &self.geo_map.entity_properties[entity];
+            if !matches!(Self::property_bool("convex_hull", properties), Ok(true)) {
+                continue;
+            }
+
+            let entity_center = self.entity_centers[entity];
+
+            let key = Self::property_string("convex_hull.name", properties)
+                .map(ToString::to_string)
+                .unwrap_or_else(|_| Self::default_entity_name(entity));
+
+            let shape = match Self::property_string("convex_hull.type", properties).unwrap() {
+                "single" => {
+                    let mut brush_vertices = vec![];
+                    for brush in brushes {
+                        for face in &self.geo_map.brush_faces[brush] {
+                            let face_vertices = &self.face_vertices[face];
+                            for vertex in face_vertices {
+                                if !brush_vertices.contains(vertex) {
+                                    brush_vertices.push(*vertex);
+                                }
+                            }
+                        }
+                    }
+
+                    let entity_center = self.entity_centers[entity];
+
+                    let brush_vertices = brush_vertices
+                        .into_iter()
+                        .map(|vertex| {
+                            rapier3d::prelude::nalgebra::Point3::new(
+                                vertex.x - entity_center.x,
+                                vertex.z - entity_center.z,
+                                vertex.y - entity_center.y,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+
+                    SharedShape::convex_hull(&brush_vertices[..]).unwrap()
+                }
+                "compound" => {
+                    let mut brush_hulls = vec![];
+                    for brush in brushes {
+                        let brush_center = self.brush_centers[brush];
+                        let mut brush_vertices = vec![];
+                        for face in &self.geo_map.brush_faces[brush] {
+                            let face_vertices = &self.face_vertices[face];
+                            for vertex in face_vertices {
+                                let point = rapier3d::prelude::nalgebra::Point3::new(
+                                    vertex.x - brush_center.x,
+                                    vertex.z - brush_center.z,
+                                    vertex.y - brush_center.y,
+                                );
+
+                                if !brush_vertices.contains(&point) {
+                                    brush_vertices.push(point);
+                                }
+                            }
+                        }
+
+                        let shape = SharedShape::convex_hull(&brush_vertices[..]).unwrap();
+                        brush_hulls.push((
+                            rapier3d::prelude::Isometry::new(
+                                rapier3d::prelude::nalgebra::Vector3::<f32>::new(
+                                    brush_center.x - entity_center.x,
+                                    brush_center.z - entity_center.z,
+                                    brush_center.y - entity_center.y,
+                                ),
+                                rapier3d::prelude::nalgebra::Vector3::<f32>::zeros(),
+                            ),
+                            shape,
+                        ));
+                    }
+
+                    SharedShape::compound(brush_hulls)
+                }
+                _ => unimplemented!(),
+            };
+
+            shared_shapes.insert(key.to_owned(), shape);
+        }
     }
 
     fn build_brush_entity_triangle_line_meshes(
@@ -1757,135 +1909,10 @@ impl MapData {
         builders
     }
 
-    pub fn build_brush_entities<'a, I, C, N, B>(
-        &self,
-        world: &mut World,
-        brushes: I,
-        cull_face: C,
-        mesh_name: N,
-        build_entities: B,
-        scale_factor: f32,
-    ) -> Vec<EntityBuilder>
-    where
-        I: Iterator<Item = (&'a EntityId, &'a Vec<BrushId>)>,
-        C: Fn(&EntityId, &FaceId) -> bool + Copy,
-        N: Fn(&EntityId) -> String,
-        B: Fn(
-            &MapData,
-            &mut World,
-            &EntityId,
-            &str,
-            Vec<VertexData>,
-            Vec<TriangleIndexData>,
-            Vec<LineIndexData>,
-        ) -> Vec<EntityBuilder>,
-    {
-        let mut builders = vec![];
-
-        for (entity_id, brushes) in brushes {
-            let properties = self.geo_map.entity_properties.get(entity_id).unwrap();
-            let entity_mesh_name = mesh_name(entity_id);
-
-            let entity_faces = self.entity_faces(brushes);
-            let entity_center = self.entity_centers[entity_id];
-
-            // Generate mesh
-            let mut mesh_vertices: Vec<VertexData> = Default::default();
-            let mut triangle_indices: Vec<TriangleIndexData> = Default::default();
-            let mut line_indices: Vec<LineIndexData> = Default::default();
-
-            let mut local_vertex_head = 0u16;
-            let mut local_index_head = 0u32;
-
-            for face_id in entity_faces.filter(|face_id| !cull_face(entity_id, face_id)) {
-                // Fetch and interpret texture data
-                let texture_name = self.face_texture(&face_id);
-                let color = Self::face_color(texture_name);
-                let intensity = Self::face_intensity(texture_name);
-
-                let verts = self
-                    .face_vertices(face_id, color, intensity, scale_factor)
-                    .map(|vertex| VertexData {
-                        position: [
-                            vertex.position[0] - entity_center[0],
-                            vertex.position[1] - entity_center[2],
-                            vertex.position[2] - entity_center[1],
-                        ],
-                        ..vertex
-                    })
-                    .collect::<Vec<_>>();
-                let vertex_count = verts.len();
-                mesh_vertices.extend(verts);
-
-                triangle_indices.extend(self.face_triangle_indices(face_id, local_vertex_head));
-                line_indices.extend(self.face_line_indices(face_id, local_index_head));
-
-                local_vertex_head += vertex_count as u16;
-                local_index_head += vertex_count as u32;
-            }
-
-            builders.extend(build_entities(
-                self,
-                world,
-                entity_id,
-                &entity_mesh_name,
-                mesh_vertices,
-                triangle_indices,
-                line_indices,
-            ));
-        }
-
-        builders
-    }
-
-    pub fn build_oscilloscopes(&self, world: &mut World) -> Vec<EntityBuilder> {
-        let mut builders = vec![];
-
-        // Load oscilloscope meshes
-        let oscilloscope_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
-            let properties = self.geo_map.entity_properties.get(point_entity)?;
-            if let Some(classname) = properties.0.iter().find(|p| p.key == "classname") {
-                if classname.value == "oscilloscope" {
-                    Some(properties)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        });
-
-        for oscilloscope in oscilloscope_entities.into_iter() {
-            let color = Self::property_f32_3("color", oscilloscope).unwrap();
-            let intensity = Self::property_f32("intensity", oscilloscope).unwrap();
-            let delta_intensity = Self::property_f32("delta_intensity", oscilloscope).unwrap();
-            let speed = Self::property_f32("speed", oscilloscope).unwrap();
-            let magnitude = Self::property_f32("magnitude", oscilloscope).unwrap();
-            let targetname = Self::property_targetname(oscilloscope);
-
-            let x = Self::property_expression_f32("x", oscilloscope).unwrap();
-            let y = Self::property_expression_f32("y", oscilloscope).unwrap();
-            let z = Self::property_expression_f32("z", oscilloscope).unwrap();
-
-            builders.push(oscilloscope_mesh_builder(
-                world,
-                targetname,
-                color,
-                Oscilloscope::new(speed, magnitude, move |f| {
-                    let vars = [("f", f)].into_iter().collect::<BTreeMap<_, _>>();
-                    (x.eval(&vars), y.eval(&vars), z.eval(&vars))
-                }),
-                intensity,
-                delta_intensity,
-            ));
-        }
-
-        builders
-    }
-
-    fn property_origin(properties: &Properties) -> nalgebra::Vector3<f32> {
-        let (x, z, y) = Self::property_f32_3("origin", properties).unwrap();
-        nalgebra::vector![x, y, z]
+    fn property_origin(properties: &Properties) -> Option<nalgebra::Vector3<f32>> {
+        Self::property_f32_3("origin", properties)
+            .ok()
+            .map(|(x, z, y)| nalgebra::vector![x, y, z])
     }
 
     fn property_rotation(properties: &Properties, convert: bool) -> nalgebra::UnitQuaternion<f32> {
@@ -1942,6 +1969,16 @@ impl MapData {
             .parse::<f32>()?)
     }
 
+    fn property_usize(key: &str, properties: &Properties) -> Result<usize, Box<dyn Error>> {
+        Ok(properties
+            .0
+            .iter()
+            .find(|p| p.key == key)
+            .ok_or("Key not found")?
+            .value
+            .parse::<usize>()?)
+    }
+
     fn property_expression_f32(
         key: &str,
         properties: &Properties,
@@ -1969,7 +2006,24 @@ impl MapData {
             .as_str())
     }
 
-    pub fn build_point_entities(&self) -> Vec<EntityBuilder> {
+    fn property_bool<'a>(key: &str, properties: &'a Properties) -> Result<bool, Box<dyn Error>> {
+        Ok(
+            match properties
+                .0
+                .iter()
+                .find(|p| p.key == key)
+                .ok_or("Key not found")?
+                .value
+                .as_str()
+            {
+                "true" => true,
+                "false" => false,
+                _ => panic!("Incorrect variant for property {key:}"),
+            },
+        )
+    }
+
+    pub fn build_point_entities(&self, world: &mut World) -> Vec<EntityBuilder> {
         let mut builders: Vec<EntityBuilder> = vec![];
 
         // Spawn player start entities
@@ -1987,7 +2041,7 @@ impl MapData {
         });
 
         for player_start in player_start_entities.into_iter() {
-            let origin = Self::property_origin(player_start);
+            let origin = Self::property_origin(player_start).unwrap();
             let rotation = Self::property_rotation(player_start, true);
             let scale = Self::property_scale(player_start);
 
@@ -2004,43 +2058,12 @@ impl MapData {
             builders.push(builder);
         }
 
-        // Spawn oscilloscope entities
-        let oscilloscope_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
-            let properties = self.geo_map.entity_properties.get(point_entity)?;
-            if let Some(classname) = properties.0.iter().find(|p| p.key == "classname") {
-                if classname.value == "oscilloscope" {
-                    Some(properties)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        });
-
-        for oscilloscope in oscilloscope_entities.into_iter() {
-            let origin = Self::property_origin(oscilloscope);
-            let targetname = Self::property_targetname(oscilloscope);
-
-            let mut builder = EntityBuilder::new();
-            builder.add(PositionComponent::construct(origin));
-            builder.add(RotationComponent::construct(
-                nalgebra::UnitQuaternion::identity(),
-            ));
-            builder.add(ScaleComponent::construct(nalgebra::vector![1.0, 1.0, 1.0]));
-            builder.add(LineMeshInstanceComponent::construct(Cow::Owned(format!(
-                "oscilloscope_{}",
-                targetname
-            ))));
-            builders.push(builder);
-        }
-
         // Spawn generic point entities
-        let point_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
-            let properties = self.geo_map.entity_properties.get(point_entity)?;
+        let point_entities = self.geo_map.entities.iter().flat_map(|entity| {
+            let properties = self.geo_map.entity_properties.get(entity)?;
             if let Some(classname) = properties.0.iter().find(|p| p.key == "classname") {
-                if classname.value == "point" {
-                    Some(properties)
+                if classname.value == "point" || classname.value == "brush" {
+                    Some((entity, properties))
                 } else {
                     None
                 }
@@ -2049,8 +2072,13 @@ impl MapData {
             }
         });
 
-        for properties in point_entities.into_iter() {
-            let origin = Self::property_origin(properties);
+        for (entity, properties) in point_entities.into_iter() {
+            let origin = Self::property_origin(properties).unwrap_or_else(|| {
+                self.entity_centers
+                    .get(entity)
+                    .map(nalgebra::Vector3::xzy)
+                    .unwrap_or(nalgebra::Vector3::zeros())
+            });
             let rotation = Self::property_rotation(properties, false);
             let scale = Self::property_scale(properties);
 
@@ -2059,23 +2087,29 @@ impl MapData {
             builder.add(RotationComponent::construct(rotation));
             builder.add(ScaleComponent::construct(scale));
 
-            if let Ok(_) = Self::property_string("line_mesh_instance", properties) {
-                if let Ok(mesh) = Self::property_string("line_mesh_instance.mesh", properties) {
-                    builder.add(LineMeshInstanceComponent::construct(Cow::Owned(
-                        mesh.to_owned(),
-                    )));
-                }
+            if let Ok(true) = Self::property_bool("line_mesh_instance", properties) {
+                let mesh = if let Ok(mesh) =
+                    Self::property_string("line_mesh_instance.mesh", properties)
+                {
+                    mesh.to_owned()
+                } else {
+                    Self::default_entity_name(entity)
+                };
+                builder.add(LineMeshInstanceComponent::construct(Cow::Owned(mesh)));
             }
 
-            if let Ok(_) = Self::property_string("triangle_mesh_instance", properties) {
-                if let Ok(mesh) = Self::property_string("triangle_mesh_instance.mesh", properties) {
-                    builder.add(TriangleMeshInstanceComponent::construct(Cow::Owned(
-                        mesh.to_owned(),
-                    )));
-                }
+            if let Ok(true) = Self::property_bool("triangle_mesh_instance", properties) {
+                let mesh = if let Ok(mesh) =
+                    Self::property_string("triangle_mesh_instance.mesh", properties)
+                {
+                    mesh.to_owned()
+                } else {
+                    Self::default_entity_name(entity)
+                };
+                builder.add(TriangleMeshInstanceComponent::construct(Cow::Owned(mesh)));
             }
 
-            if let Ok(_) = Self::property_string("rigid_body", properties) {
+            if let Ok(true) = Self::property_bool("rigid_body", properties) {
                 if let Ok(ty) = Self::property_string("rigid_body.type", properties) {
                     let rigid_body_builder = match ty {
                         "dynamic" => RigidBodyBuilder::new_dynamic(),
@@ -2086,13 +2120,13 @@ impl MapData {
                             RigidBodyBuilder::new_kinematic_velocity_based()
                         }
                         "static" => RigidBodyBuilder::new_static(),
-                        _ => unimplemented!(),
+                        _ => panic!("Incorrect variant for rigid_body.type"),
                     };
                     builder.add(RigidBodyComponent::construct(rigid_body_builder.build()));
                 }
             }
 
-            if let Ok(_) = Self::property_string("collider", properties) {
+            if let Ok(true) = Self::property_bool("collider", properties) {
                 if let Ok(ty) = Self::property_string("collider.type", properties) {
                     let collider_builder = match ty {
                         "ball" => {
@@ -2106,7 +2140,26 @@ impl MapData {
                                     .unwrap();
                             ColliderBuilder::cuboid(extents.0, extents.1, extents.2)
                         }
-                        _ => unimplemented!(),
+                        "convex_hull" => {
+                            let mesh = if let Ok(mesh) =
+                                Self::property_string("collider.convex_hull.mesh", properties)
+                            {
+                                mesh.to_owned()
+                            } else {
+                                Self::default_entity_name(entity)
+                            };
+
+                            let (_, shared_shapes) = world
+                                .query_mut::<&SharedShapesComponent>()
+                                .into_iter()
+                                .next()
+                                .expect("No SharedShapesComponent");
+
+                            let shape = shared_shapes[&mesh].clone();
+
+                            ColliderBuilder::new(shape)
+                        }
+                        _ => panic!("Incorrect variant for collider.type"),
                     };
                     let collider_builder = if let Ok(restitution) =
                         Self::property_f32("collider.restitution", properties)
@@ -2138,7 +2191,7 @@ impl MapData {
         });
 
         for properties in text_entities.into_iter() {
-            let origin = Self::property_origin(properties);
+            let origin = Self::property_origin(properties).unwrap();
             let rotation = Self::property_rotation(properties, true);
             let scale = Self::property_scale(properties);
 

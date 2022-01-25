@@ -11,13 +11,12 @@ use antigen_wgpu::{
 use hecs::{EntityBuilder, World};
 
 use super::{
-    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, LineIndices,
-    LineInstanceData, LineInstances, LineMeshData, LineMeshIdComponent, LineMeshIds,
-    LineMeshIdsComponent, LineMeshInstanceData, LineMeshInstances, LineMeshes, Oscilloscope,
-    PhosphorRenderer, StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshIds,
-    TriangleMeshIdsComponent, TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes,
-    Uniform, VertexData, Vertices, BLACK, BLUE, CLEAR_COLOR, GREEN, MAX_TRIANGLE_MESH_INSTANCES,
-    RED, WHITE,
+    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, LineIndices, LineInstanceData,
+    LineInstances, LineMeshData, LineMeshIdComponent, LineMeshIds, LineMeshIdsComponent,
+    LineMeshInstanceData, LineMeshInstances, LineMeshes, Oscilloscope, PhosphorRenderer,
+    StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshIds, TriangleMeshIdsComponent,
+    TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes, Uniform, VertexData, Vertices,
+    BLACK, BLUE, CLEAR_COLOR, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -239,25 +238,20 @@ pub fn line_strip_mesh_builder(world: &mut World, vertices: Vec<VertexData>) -> 
         .chain(std::iter::once(last))
         .collect();
 
-    println!("Line strip indices: {:#?}", indices);
-
     line_mesh_builder(world, vertices, indices)
 }
 
-/// Assembles an oscilloscope entity
-pub fn oscilloscope_mesh_builder(
+pub fn line_builder(
     world: &mut World,
-    name: &str,
+    mesh: Cow<'static, str>,
+    line_count: usize,
     color: (f32, f32, f32),
-    oscilloscope: Oscilloscope,
     intensity: f32,
     delta_intensity: f32,
 ) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
 
     let line_mesh_entity = get_tagged_entity::<LineMeshes>(world).unwrap();
-
-    builder.add(oscilloscope);
 
     let vertices = vec![
         VertexData {
@@ -267,28 +261,17 @@ pub fn oscilloscope_mesh_builder(
             intensity,
             delta_intensity,
             ..Default::default()
-        },
-        VertexData {
-            position: [0.0, 0.0, 0.0],
-            surface_color: [color.0, color.1, color.2],
-            line_color: [color.0, color.1, color.2],
-            intensity,
-            delta_intensity,
-            ..Default::default()
-        },
+        };
+        line_count + 1
     ];
 
-    let indices = vec![0u32, 1u32];
+    let indices = (0..line_count as u32 + 1).collect::<Vec<_>>();
     let line_mesh = world
         .query_one_mut::<&mut antigen_wgpu::BufferLengthComponent>(line_mesh_entity)
         .unwrap()
         .load(Ordering::Relaxed) as u32;
 
-    register_line_mesh_id(
-        world,
-        Cow::Owned(format!("oscilloscope_{}", name)),
-        (line_mesh, 1),
-    );
+    register_line_mesh_id(world, mesh, (line_mesh, line_count as u32));
 
     builder.add_bundle(line_mesh_builder(world, vertices, indices).build());
 

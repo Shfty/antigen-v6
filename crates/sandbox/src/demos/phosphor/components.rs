@@ -238,5 +238,6 @@ pub enum LineMeshInstance {}
 pub type LineMeshInstanceComponent<'a> =
     Usage<LineMeshInstance, LazyComponent<(), Cow<'static, str>>>;
 
-pub enum ConvexHull {}
-pub type ConvexHullComponent = Usage<ConvexHull, Vec<[f32; 3]>>;
+pub struct SharedShapes;
+pub type SharedShapesComponent =
+    Usage<SharedShapes, BTreeMap<String, rapier3d::geometry::SharedShape>>;
