@@ -373,10 +373,6 @@ fn assemble_map_game_thread(
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
-        let mut text_entities = map_data.assemble_text_entities_game_thread();
-        let bundles = text_entities.iter_mut().map(EntityBuilder::build);
-        world.extend(bundles);
-
         Ok(ctx)
     }
 }
@@ -2123,66 +2119,43 @@ impl MapData {
                 }
             }
 
-            builders.push(builder);
-        }
+            if let Ok(true) = Self::property_bool("text", properties) {
+                let string = Self::property_string("text.string", properties).unwrap();
+                let rotation = Self::property_rotation(properties, true);
 
-        builders
-    }
+                let lines = string
+                    .split("\\n")
+                    .map(|line| line.chars().collect::<Vec<_>>())
+                    .collect::<Vec<_>>();
 
-    pub fn assemble_text_entities_game_thread(&self) -> Vec<EntityBuilder> {
-        let mut builders: Vec<EntityBuilder> = vec![];
+                let step = 20.0;
+                for (iy, chars) in lines.iter().enumerate() {
+                    for (ix, c) in chars.iter().enumerate() {
+                        if *c == ' ' {
+                            continue;
+                        }
 
-        // Spawn text entities
-        let text_entities = self.geo_map.point_entities.iter().flat_map(|point_entity| {
-            let properties = self.geo_map.entity_properties.get(point_entity)?;
-            if let Some(classname) = properties.0.iter().find(|p| p.key == "classname") {
-                if classname.value == "text" {
-                    Some(properties)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        });
+                        let ofs = nalgebra::vector![
+                            (-step * 13.0) + ix as f32 * 20.0,
+                            (iy as f32 * -30.0),
+                            0.0
+                        ];
+                        let ofs = ofs.component_mul(&scale);
+                        let ofs = rotation * ofs;
 
-        for properties in text_entities.into_iter() {
-            let origin = Self::property_origin(properties).unwrap();
-            let rotation = Self::property_rotation(properties, true);
-            let scale = Self::property_scale(properties);
+                        let key = format!("char_{}", c.to_string().as_str());
 
-            let text = Self::property_string("text", properties).unwrap();
-
-            let lines = text
-                .split("\\n")
-                .map(|line| line.chars().collect::<Vec<_>>())
-                .collect::<Vec<_>>();
-
-            let step = 20.0;
-            for (iy, chars) in lines.iter().enumerate() {
-                for (ix, c) in chars.iter().enumerate() {
-                    if *c == ' ' {
-                        continue;
+                        let mut builder = EntityBuilder::new();
+                        builder.add(PositionComponent::construct(origin + ofs));
+                        builder.add(RotationComponent::construct(rotation));
+                        builder.add(ScaleComponent::construct(scale));
+                        builder.add(LineMeshInstanceComponent::construct(Cow::Owned(key)));
+                        builders.push(builder);
                     }
-
-                    let ofs = nalgebra::vector![
-                        (-step * 13.0) + ix as f32 * 20.0,
-                        (iy as f32 * -30.0),
-                        0.0
-                    ];
-                    let ofs = ofs.component_mul(&scale);
-                    let ofs = rotation * ofs;
-
-                    let key = format!("char_{}", c.to_string().as_str());
-
-                    let mut builder = EntityBuilder::new();
-                    builder.add(PositionComponent::construct(origin + ofs));
-                    builder.add(RotationComponent::construct(rotation));
-                    builder.add(ScaleComponent::construct(scale));
-                    builder.add(LineMeshInstanceComponent::construct(Cow::Owned(key)));
-                    builders.push(builder);
                 }
             }
+
+            builders.push(builder);
         }
 
         builders

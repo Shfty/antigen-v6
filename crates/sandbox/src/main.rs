@@ -116,8 +116,10 @@
 //           * Semantically, oscilloscope is an animation over a line segment
 //             * Should be able to split off into an animation component
 //             * Leave line mesh creation and instancing to their respective properties
+// 
+// TODO: [✓] Refactor TB text handling
 //
-// TODO: [ ] Refactor TB text handling
+// TODO: [ ] Text entity refactor
 //           * Needs to work as a component that controls a set of text mesh instance entities
 //           * Should be able to update mesh instances when the underlying string changes 
 //           * Take inspiration from terminal emulators
