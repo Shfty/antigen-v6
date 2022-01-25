@@ -98,6 +98,10 @@
 //               * Treat entity center as transform origin
 //           [✓] Generalize face culling via special properties
 //
+// TODO: [✓] Separate box bot from player start
+//           * Player start should represent the camera for now
+//           * Implement as a box_bot point entity
+//
 // TODO: [>] Integrate rapier physics
 //           [✓] Create collision from brush hulls
 //           [ ] Scale support for colliders
@@ -108,18 +112,24 @@
 //                 * Scale vertices for convex hulls and trimeshes
 //           [ ] Trimesh brush collision
 //
-// TODO: [ ] Refactor TB oscilloscope handling
+// TODO: [✓] Refactor TB oscilloscope handling
 //           * Semantically, oscilloscope is an animation over a line segment
 //             * Should be able to split off into an animation component
 //             * Leave line mesh creation and instancing to their respective properties
 //
+// TODO: [ ] Refactor TB text handling
+//           * Needs to work as a component that controls a set of text mesh instance entities
+//           * Should be able to update mesh instances when the underlying string changes 
+//           * Take inspiration from terminal emulators
+//             * Use control characters for color, blink, etc
+//               * Could extend if unused control characters exist
+//                 * Fading, text animations, etc
+//             * Damage system for reusing untouched text mesh instances
+//           * Use-case for parent/child relation - transforms
+//
 // TODO: [ ] Fix lines projecting from behind the camera
 //
 // TODO: [ ] Figure out why lower-case z is missing from text test
-//
-// TODO: [ ] Separate box bot from player start
-//           * Player start should represent the camera for now
-//           * Implement as a box_bot point entity
 //
 // TODO: [ ] Implement camera abstraction
 //           [ ] Spawn at first player start
