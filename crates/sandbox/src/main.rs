@@ -102,6 +102,14 @@
 //           * Player start should represent the camera for now
 //           * Implement as a box_bot point entity
 //
+// TODO: [✓] Refactor TB oscilloscope handling
+//           * Semantically, oscilloscope is an animation over a line segment
+//             * Should be able to split off into an animation component
+//             * Leave line mesh creation and instancing to their respective properties
+// 
+// TODO: [✓] Refactor TB text handling
+//
+//
 // TODO: [>] Integrate rapier physics
 //           [✓] Create collision from brush hulls
 //           [✓] Scale support for colliders
@@ -111,13 +119,35 @@
 //                 * Multiply cuboid extents by scale
 //                 * Scale vertices for convex hulls and trimeshes
 //           [✓] Trimesh brush collision
-//
-// TODO: [✓] Refactor TB oscilloscope handling
-//           * Semantically, oscilloscope is an animation over a line segment
-//             * Should be able to split off into an animation component
-//             * Leave line mesh creation and instancing to their respective properties
+//           [>] Sensors
+//           [ ] Contact / intersection event handling
+//               * Receiver component queues up events during collision tick
+//                 * Use custom EventHandler to queue
+//                 * Better than querying NarrowPhase
+//                   * May miss certain CCD events that begin and end within one frame
+//               * Systems read events after collision tick
+//               * Queues are cleared before next frame
+//               * Would be useful to have a TB-side wiring solution for this
+//                 * Ex. triggers -> doors, timers, etc
+//           [ ] Kinematic Controller
 // 
-// TODO: [✓] Refactor TB text handling
+// [ ] Consistent use_target_targetname overrides for all name-identified properties
+//     * Visual meshes, convex hulls, trimeshes, etc.
+//     * Allows for nice TrenchBroom visualization
+//     * Nice to have enabled by default for subclass entities
+//
+// [ ] 'component' point entity class
+//     * Inherit from base entity class
+//     * Use target / targetname to remotely add components to a 'point' entity
+//       * Can use attach / detach events to spawn and despawn component
+//     [ ] Need to allow spawning entities without components
+//         * Each point / brush entity should map to a hecs entity regardless
+//
+// [ ] 'inherit' point entity class
+//     * Use target / targetname to identify parent
+//     * Re-instance parent with optional extra / overridden components
+//     * Allows for composition in TB
+//     * Need to think of a better name - too associated with OOP semantics
 //
 // TODO: [ ] Text entity refactor
 //           * Needs to work as a component that controls a set of text mesh instance entities

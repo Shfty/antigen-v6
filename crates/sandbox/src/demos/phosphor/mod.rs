@@ -104,7 +104,9 @@ mod svg_lines;
 mod systems;
 
 use antigen_fs::{load_file_string, FilePathComponent, FileStringQuery};
-use antigen_rapier3d::{ColliderComponent, RigidBodyComponent};
+use antigen_rapier3d::{
+    AngularVelocityComponent, ColliderComponent, LinearVelocityComponent, RigidBodyComponent,
+};
 pub use assemblage::*;
 pub use components::*;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder, SharedShape};
@@ -172,6 +174,7 @@ const CLEAR_COLOR: antigen_wgpu::wgpu::Color = antigen_wgpu::wgpu::Color {
     b: 0.0,
     a: -200.0,
 };
+const NEAR_PLANE: f32 = 5.0;
 
 pub const BLACK: (f32, f32, f32) = (0.0, 0.0, 0.0);
 pub const RED: (f32, f32, f32) = (1.0, 0.0, 0.0);
@@ -179,35 +182,36 @@ pub const GREEN: (f32, f32, f32) = (0.0, 1.0, 0.0);
 pub const BLUE: (f32, f32, f32) = (0.0, 0.0, 1.0);
 pub const WHITE: (f32, f32, f32) = (1.0, 1.0, 1.0);
 
-pub fn orthographic_matrix(aspect: f32, zoom: f32, near: f32, far: f32) -> [[f32; 4]; 4] {
-    let projection = nalgebra_glm::ortho_lh_zo(
+pub fn orthographic_matrix(aspect: f32, zoom: f32) -> nalgebra::Matrix4<f32> {
+    let mut ortho = nalgebra_glm::ortho_rh_zo(
         -zoom * aspect,
         zoom * aspect,
         -zoom,
         zoom,
         0.0,
-        zoom * (far - near) * 2.0,
+        zoom * 50.0,
     );
-    projection.into()
+    ortho.append_nonuniform_scaling_mut(&nalgebra::vector![1.0, 1.0, -1.0]);
+    ortho
 }
 
-pub fn perspective_matrix(aspect: f32, (ofs_x, ofs_y): (f32, f32), near: f32) -> [[f32; 4]; 4] {
-    let x = ofs_x * std::f32::consts::PI;
-    let view = nalgebra_glm::look_at_rh(
+pub fn perspective_matrix(aspect: f32, near: f32) -> nalgebra::Matrix4<f32> {
+    let mut projection =
+        nalgebra_glm::reversed_infinite_perspective_rh_zo(aspect, (45.0f32).to_radians(), near);
+    projection.append_nonuniform_scaling_mut(&nalgebra::vector![-1.0, 1.0, 1.0]);
+    projection
+}
+
+pub fn view_matrix((ofs_x, ofs_y): (f32, f32)) -> nalgebra::Matrix4<f32> {
+    let x = -ofs_x * std::f32::consts::PI;
+    nalgebra_glm::look_at_rh(
         &nalgebra::vector![x.sin() * 300.0, ofs_y * 150.0, -x.cos() * 300.0],
         &nalgebra::vector![0.0, 0.0, 0.0],
         &nalgebra::Vector3::y_axis(),
-    );
-    let mut projection =
-        nalgebra_glm::infinite_perspective_rh_zo(aspect, (45.0f32).to_radians(), near);
-    projection.append_nonuniform_scaling_mut(&nalgebra::vector![-1.0, 1.0, 1.0]);
-
-    let matrix = projection * view;
-
-    matrix.into()
+    )
 }
 
-fn circle_strip(subdiv: usize) -> Vec<LineVertexData> {
+fn circle_strip(subdiv: usize, z_ofs: f32) -> Vec<LineVertexData> {
     let subdiv = subdiv as isize;
     let half = 1 + subdiv;
 
@@ -243,7 +247,7 @@ fn circle_strip(subdiv: usize) -> Vec<LineVertexData> {
         .chain(inter)
         .chain(std::iter::once(last))
         .map(|(x, y, s)| LineVertexData {
-            position: [x, y, -1.0],
+            position: [x, y, z_ofs],
             end: s,
             ..Default::default()
         })
@@ -536,7 +540,7 @@ fn total_time_builder(uniform_entity: Entity) -> EntityBuilder {
         .add(StartTimeComponent::construct(Instant::now()))
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             TotalTimeComponent::construct(0.0),
-            buffer_size_of::<[[f32; 4]; 4]>() * 2,
+            buffer_size_of::<nalgebra::Matrix4<f32>>() * 3,
             uniform_entity,
         ));
     builder
@@ -548,7 +552,7 @@ fn delta_time_bundle(uniform_entity: Entity) -> EntityBuilder {
         .add(TimestampComponent::construct(Instant::now()))
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             DeltaTimeComponent::construct(1.0 / 60.0),
-            (buffer_size_of::<[[f32; 4]; 4]>() * 2) + buffer_size_of::<f32>(),
+            (buffer_size_of::<nalgebra::Matrix4<f32>>() * 3) + buffer_size_of::<f32>(),
             uniform_entity,
         ));
     builder
@@ -556,32 +560,37 @@ fn delta_time_bundle(uniform_entity: Entity) -> EntityBuilder {
 
 fn perspective_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
-    builder
-        .add(Perspective)
-        .add_bundle(antigen_wgpu::BufferDataBundle::new(
-            PerspectiveMatrixComponent::construct(perspective_matrix(
-                640.0 / 480.0,
-                (0.0, 0.0),
-                1.0,
-            )),
-            0,
-            uniform_entity,
-        ));
+    builder.add(PerspectiveMatrix);
+    builder.add_bundle(antigen_wgpu::BufferDataBundle::new(
+        PerspectiveMatrixComponent::construct(perspective_matrix(640.0 / 480.0, NEAR_PLANE)),
+        0,
+        uniform_entity,
+    ));
     builder
 }
 
 fn orthographic_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
     builder
-        .add(Orthographic)
+        .add(OrthographicMatrix)
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             OrthographicMatrixComponent::construct(orthographic_matrix(
                 640.0 / 480.0,
                 200.0,
-                1.0,
-                500.0,
             )),
-            buffer_size_of::<[[f32; 4]; 4]>(),
+            buffer_size_of::<nalgebra::Matrix4<f32>>(),
+            uniform_entity,
+        ));
+    builder
+}
+
+fn view_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
+    let mut builder = EntityBuilder::new();
+    builder
+        .add(ViewMatrix)
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(
+            ViewMatrixComponent::construct(view_matrix((0.0, 0.0))),
+            buffer_size_of::<nalgebra::Matrix4<f32>>() * 2,
             uniform_entity,
         ));
     builder
@@ -758,7 +767,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     world
         .insert(
             line_vertex_entity,
-            line_vertex_buffer_bundle(line_vertex_entity, circle_strip(2)).build(),
+            line_vertex_buffer_bundle(line_vertex_entity, circle_strip(2, 0.5)).build(),
         )
         .unwrap();
 
@@ -795,6 +804,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     // Projection matrix entities
     world.spawn(perspective_matrix_bundle(uniform_entity).build());
     world.spawn(orthographic_matrix_bundle(uniform_entity).build());
+    world.spawn(view_matrix_bundle(uniform_entity).build());
 
     // Texture entities
     let beam_buffer_entity = world.spawn(beam_buffer_bundle().build());
@@ -1395,7 +1405,8 @@ impl MapData {
         let face_vertices = &self.face_vertices[&face_id];
         face_vertices.iter().map(move |v| VertexData {
             position: [v.x * scale_factor, v.z * scale_factor, v.y * scale_factor],
-            surface_color: [color.0 * 0.015, color.1 * 0.015, color.2 * 0.015],
+            //surface_color: [color.0 * 0.015, color.1 * 0.015, color.2 * 0.015],
+            surface_color: [color.0, color.1, color.2],
             line_color: [color.0, color.1, color.2],
             intensity,
             delta_intensity: -30.0,
@@ -1485,11 +1496,15 @@ impl MapData {
                 .unwrap_or_else(|_| Self::default_entity_name(entity));
 
             // Generate mesh
-            let (mesh_vertices, triangle_indices, line_indices) =
-                self.assemble_brush_entity_triangle_mesh(entity, self.brush_cull_predicate(entity, "visual_mesh"));
+            let (mesh_vertices, triangle_indices, line_indices) = self
+                .assemble_brush_entity_triangle_mesh(
+                    entity,
+                    self.face_cull_predicate(entity, "visual_mesh"),
+                );
 
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            let ty = Self::property_string("visual_mesh.type", properties).expect("No mesh.type property");
+            let ty = Self::property_string("visual_mesh.type", properties)
+                .expect("No mesh.type property");
             builders.extend(match ty {
                 "triangles_and_lines" => Self::build_brush_entity_triangle_line_meshes(
                     self,
@@ -1584,12 +1599,19 @@ impl MapData {
         builders
     }
 
-    pub fn brush_cull_predicate(&self, entity: &EntityId, component_property: &str) -> impl Fn(&FaceId) -> bool + '_ {
+    pub fn face_cull_predicate(
+        &self,
+        entity: &EntityId,
+        component_property: &str,
+    ) -> impl Fn(&FaceId) -> bool + '_ {
         let properties = &self.geo_map.entity_properties[entity];
         let component_property = component_property.to_string();
-move |face_id| {
+        move |face_id| {
             if matches!(
-                Self::property_bool(&(component_property.clone() + ".cull_duplicate_faces"), properties),
+                Self::property_bool(
+                    &(component_property.clone() + ".cull_duplicate_faces"),
+                    properties
+                ),
                 Ok(true),
             ) && self.face_duplicates.iter().any(|(_, b)| b == face_id)
             {
@@ -1597,7 +1619,10 @@ move |face_id| {
             }
 
             if matches!(
-                Self::property_bool(&(component_property.clone() + ".cull_face_face_containment"), properties),
+                Self::property_bool(
+                    &(component_property.clone() + ".cull_face_face_containment"),
+                    properties
+                ),
                 Ok(true)
             ) && self
                 .face_face_containment
@@ -1608,7 +1633,10 @@ move |face_id| {
             }
 
             if matches!(
-                Self::property_bool(&(component_property.clone() + ".cull_brush_face_containment"), properties),
+                Self::property_bool(
+                    &(component_property.clone() + ".cull_brush_face_containment"),
+                    properties
+                ),
                 Ok(true)
             ) && self
                 .brush_face_containment
@@ -1619,7 +1647,10 @@ move |face_id| {
             }
 
             if matches!(
-                Self::property_bool(&(component_property.clone() + ".cull_interior_faces"), properties),
+                Self::property_bool(
+                    &(component_property.clone() + ".cull_interior_faces"),
+                    properties
+                ),
                 Ok(true)
             ) && !self.interior_faces.contains(&face_id)
             {
@@ -1736,8 +1767,11 @@ move |face_id| {
                     .map(ToString::to_string)
                     .unwrap_or_else(|_| Self::default_entity_name(entity));
 
-                let (mesh_vertices, triangle_indices, _) =
-                    self.assemble_brush_entity_triangle_mesh(entity, self.brush_cull_predicate(entity, "trimesh"));
+                let (mesh_vertices, triangle_indices, _) = self
+                    .assemble_brush_entity_triangle_mesh(
+                        entity,
+                        self.face_cull_predicate(entity, "trimesh"),
+                    );
 
                 let mesh_vertices = mesh_vertices
                     .into_iter()
@@ -1755,10 +1789,8 @@ move |face_id| {
                     .map(|inds| [inds[0] as u32, inds[1] as u32, inds[2] as u32])
                     .collect::<Vec<_>>();
 
-
-                let shape_fn = move |_| 
-                SharedShape::trimesh(mesh_vertices.clone(), triangle_indices.clone());
-
+                let shape_fn =
+                    move |_| SharedShape::trimesh(mesh_vertices.clone(), triangle_indices.clone());
 
                 shared_shapes.insert(key, Box::new(shape_fn));
             }
@@ -2124,11 +2156,23 @@ move |face_id| {
                     };
                     builder.add(RigidBodyComponent::construct(rigid_body_builder.build()));
                 }
+
+                if let Ok(vel) = Self::property_f32_3("rigid_body.linear_velocity", properties) {
+                    builder.add(LinearVelocityComponent::construct(nalgebra::vector![
+                        vel.0, vel.1, vel.2
+                    ]));
+                }
+
+                if let Ok(vel) = Self::property_f32_3("rigid_body.angular_velocity", properties) {
+                    builder.add(AngularVelocityComponent::construct(nalgebra::vector![
+                        vel.0, vel.1, vel.2
+                    ]));
+                }
             }
 
             if let Ok(true) = Self::property_bool("collider", properties) {
-                if let Ok(ty) = Self::property_string("collider.type", properties) {
-                    let collider_builder = match ty {
+                if let Ok(shape) = Self::property_string("collider.shape", properties) {
+                    let collider_builder = match shape {
                         "ball" => {
                             let radius =
                                 Self::property_f32("collider.ball.radius", properties).unwrap();
@@ -2182,8 +2226,9 @@ move |face_id| {
 
                             ColliderBuilder::new(shape)
                         }
-                        _ => panic!("Incorrect variant for collider.type"),
+                        _ => panic!("Incorrect variant for collider.shape"),
                     };
+
                     let collider_builder = if let Ok(restitution) =
                         Self::property_f32("collider.restitution", properties)
                     {
@@ -2191,6 +2236,17 @@ move |face_id| {
                     } else {
                         collider_builder
                     };
+
+                    let collider_builder =
+                        if let Ok(ty) = Self::property_string("collider.type", properties) {
+                            match ty {
+                                "solid" => collider_builder,
+                                "sensor" => collider_builder.sensor(true),
+                                _ => unimplemented!(),
+                            }
+                        } else {
+                            collider_builder
+                        };
 
                     builder.add(ColliderComponent::construct(collider_builder.build()));
                 }
@@ -2259,6 +2315,7 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::buffer_write_system::<DeltaTimeComponent>(world);
             antigen_wgpu::buffer_write_system::<PerspectiveMatrixComponent>(world);
             antigen_wgpu::buffer_write_system::<OrthographicMatrixComponent>(world);
+            antigen_wgpu::buffer_write_system::<ViewMatrixComponent>(world);
             antigen_wgpu::buffer_write_slice_system::<VertexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<TriangleIndexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<TriangleMeshDataComponent, _>(world);

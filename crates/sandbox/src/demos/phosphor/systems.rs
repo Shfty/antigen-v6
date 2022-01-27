@@ -51,7 +51,7 @@ pub fn phosphor_prepare_uniform_bind_group(
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: BufferSize::new(144),
+                    min_binding_size: BufferSize::new(208),
                 },
                 count: None,
             }],
@@ -502,12 +502,12 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
 
     let mut query = world
         .query::<(&mut Changed<PerspectiveMatrixComponent>,)>()
-        .with::<Perspective>();
+        .with::<PerspectiveMatrix>();
     let (_, (perspective_matrix,)) = query.into_iter().next().unwrap();
 
     let mut query = world
         .query::<(&mut Changed<OrthographicMatrixComponent>,)>()
-        .with::<Orthographic>();
+        .with::<OrthographicMatrix>();
     let (_, (orthographic_matrix,)) = query.into_iter().next().unwrap();
 
     let mut query = world
@@ -574,10 +574,10 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
 
     let aspect = surface_config.width as f32 / surface_config.height as f32;
 
-    ***perspective_matrix = super::perspective_matrix(aspect, (0.0, 0.0), 1.0);
+    ***perspective_matrix = super::perspective_matrix(aspect, NEAR_PLANE);
     perspective_matrix.set_changed(true);
 
-    ***orthographic_matrix = super::orthographic_matrix(aspect, 200.0, 1.0, 500.0);
+    ***orthographic_matrix = super::orthographic_matrix(aspect, 200.0);
     orthographic_matrix.set_changed(true);
 }
 
@@ -591,9 +591,9 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
         .into_iter()
     {
         let mut query = world
-            .query::<(&mut Changed<PerspectiveMatrixComponent>,)>()
-            .with::<Perspective>();
-        let (_, (perspective_matrix,)) = query.into_iter().next().unwrap();
+            .query::<(&mut Changed<ViewMatrixComponent>,)>()
+            .with::<ViewMatrix>();
+        let (_, (view_matrix,)) = query.into_iter().next().unwrap();
 
         let mut query = window.get(world);
         let window = query.get().expect("No indirect WindowComponent");
@@ -627,12 +627,8 @@ pub fn phosphor_cursor_moved_system(world: &mut World) {
         let norm_x = ((position.x as f32 / surface_config.width as f32) * 2.0) - 1.0;
         let norm_y = ((position.y as f32 / surface_config.height as f32) * 2.0) - 1.0;
 
-        ***perspective_matrix = super::perspective_matrix(
-            surface_config.width as f32 / surface_config.height as f32,
-            (-norm_x, norm_y),
-            1.0,
-        );
-        perspective_matrix.set_changed(true);
+        ***view_matrix = super::view_matrix((norm_x, norm_y));
+        view_matrix.set_changed(true);
     }
 }
 

@@ -10,9 +10,17 @@ use rapier3d::prelude::{
     RigidBodySet,
 };
 
+// Gravity
 pub enum Gravity {}
-
 pub type GravityComponent = Usage<Gravity, rapier3d::prelude::nalgebra::Vector3<f32>>;
+
+// Linear Velocity
+pub enum LinearVelocity {}
+pub type LinearVelocityComponent = Usage<LinearVelocity, nalgebra::Vector3<f32>>;
+
+// Angular Velocity
+pub enum AngularVelocity {}
+pub type AngularVelocityComponent = Usage<AngularVelocity, nalgebra::Vector3<f32>>;
 
 #[derive(Query)]
 pub struct PhysicsQuery<'a> {
@@ -160,11 +168,13 @@ pub fn insert_rigid_bodies_system(world: &mut World) {
     let mut query = world.query::<&mut RigidBodySet>();
     let (_, rigid_body_set) = query.into_iter().next().unwrap();
 
-    for (_, (rigid_body, position, rotation)) in world
+    for (_, (rigid_body, position, rotation, linear_velocity, angular_velocity)) in world
         .query::<(
             &mut RigidBodyComponent,
             Option<&PositionComponent>,
             Option<&RotationComponent>,
+            Option<&LinearVelocityComponent>,
+            Option<&AngularVelocityComponent>,
         )>()
         .into_iter()
     {
@@ -180,10 +190,30 @@ pub fn insert_rigid_bodies_system(world: &mut World) {
                     rapier3d::prelude::nalgebra::Vector3::new(position.x, position.y, position.z);
                 rb.set_translation(pos, false);
             }
+
             if let Some(rotation) = rotation {
                 let (x, y, z) = rotation.euler_angles();
                 rb.set_rotation(rapier3d::prelude::AngVector::new(x, y, z), false);
             }
+
+            if let Some(linear_velocity) = linear_velocity {
+                let vel = rapier3d::prelude::nalgebra::Vector3::new(
+                    linear_velocity.x,
+                    linear_velocity.y,
+                    linear_velocity.z,
+                );
+                rb.set_linvel(vel, false);
+            }
+
+            if let Some(angular_velocity) = angular_velocity {
+                let vel = rapier3d::prelude::nalgebra::Vector3::new(
+                    angular_velocity.x,
+                    angular_velocity.y,
+                    angular_velocity.z,
+                );
+                rb.set_angvel(vel, false);
+            }
+
             let handle = rigid_body_set.insert(rb);
             **rigid_body = LazyComponent::Ready(handle);
         }
@@ -194,11 +224,13 @@ pub fn read_back_rigid_body_isometries_system(world: &mut World) {
     let mut query = world.query::<&mut RigidBodySet>();
     let (_, rigid_body_set) = query.into_iter().next().unwrap();
 
-    for (_, (rigid_body, position, rotation)) in world
+    for (_, (rigid_body, position, rotation, linear_velocity, angular_velocity)) in world
         .query::<(
             &RigidBodyComponent,
             Option<&mut PositionComponent>,
             Option<&mut RotationComponent>,
+            Option<&mut LinearVelocityComponent>,
+            Option<&mut AngularVelocityComponent>,
         )>()
         .into_iter()
     {
@@ -214,6 +246,16 @@ pub fn read_back_rigid_body_isometries_system(world: &mut World) {
                 let rot = rb.rotation();
                 let (x, y, z) = rot.euler_angles();
                 **rotation = nalgebra::UnitQuaternion::from_euler_angles(x, y, z);
+            }
+
+            if let Some(linear_velocity) = linear_velocity {
+                let vel = rb.linvel();
+                **linear_velocity = nalgebra::vector![vel.x, vel.y, vel.z];
+            }
+
+            if let Some(angular_velocity) = angular_velocity {
+                let vel = rb.angvel();
+                **angular_velocity = nalgebra::vector![vel.x, vel.y, vel.z];
             }
         }
     }

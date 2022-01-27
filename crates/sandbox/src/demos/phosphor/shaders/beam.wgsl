@@ -52,6 +52,7 @@ fn rotate(v: vec3<f32>, angle: f32) -> vec3<f32> {
 struct Uniforms {
     perspective: mat4x4<f32>;
     orthographic: mat4x4<f32>;
+    view: mat4x4<f32>;
     total_time: f32;
     delta_time: f32;
 };
@@ -129,9 +130,9 @@ struct LineVertexInput {
 
 struct VertexOutput {
     [[builtin(position)]] position: vec4<f32>;
-    [[location(0)]] color: vec3<f32>;
-    [[location(1)]] intensity: f32;
-    [[location(2)]] delta_intensity: f32;
+    [[location(1)]] color: vec3<f32>;
+    [[location(2)]] intensity: f32;
+    [[location(3)]] delta_intensity: f32;
 };
 
 struct FragmentOutput {
@@ -172,15 +173,25 @@ fn vs_triangle(
     let instance_scale = instance.scale.xyz;
 
     let pos = instance_pos + (quat_mul(instance_rot, in.position) * instance_scale);
+    let pos = vec4<f32>(pos, 1.0);
+    let pos = r_uniforms.view * pos;
+    let pos = r_uniforms.perspective * pos;
 
     var output: VertexOutput;
-    output.position = r_uniforms.perspective * vec4<f32>(pos, 1.0);
+    output.position = pos;
     output.color = in.surface_color;
     output.intensity = in.intensity;
     output.delta_intensity = in.delta_intensity;
     return output;
 }
 
+fn clip_line(v0: vec3<f32>, v1: vec3<f32>) -> vec3<f32> {
+    let dir = normalize(v1 - v0);
+    // TODO: This should be calculated by projecting delta onto the near plane
+    //       but seems non-trivial due to perspective projection
+    let mag = 1000.0;
+    return v1 + (dir * mag);
+}
 
 // Line vertex shader
 [[stage(vertex)]]
@@ -222,11 +233,23 @@ fn vs_line(
     let v1_intensity = v1.m2.y;
     let v1_delta_intensity = v1.m2.z;
 
-    let v0 = r_uniforms.perspective * vec4<f32>(v0_pos, 1.0);
-    let v1 = r_uniforms.perspective * vec4<f32>(v1_pos, 1.0);
+    let v0 = vec4<f32>(v0_pos, 1.0);
+    let v0 = r_uniforms.view * v0;
+    let v0 = r_uniforms.perspective * v0;
+    var v0 = vec4<f32>(v0.xyz / v0.w, v0.w);
 
-    let v0 = v0.xyz / v0.w;
-    let v1 = v1.xyz / v1.w;
+    let v1 = vec4<f32>(v1_pos, 1.0);
+    let v1 = r_uniforms.view * v1;
+    let v1 = r_uniforms.perspective * v1;
+    var v1 = vec4<f32>(v1.xyz / v1.w, v1.w);
+
+    if(v0.w < 0.0 && v1.w >= 0.0) {
+        v0 = vec4<f32>(clip_line(v0.xyz, v1.xyz), 1.0);
+    }
+
+    if(v1.w < 0.0 & v0.w >= 0.0) {
+        v1 = vec4<f32>(clip_line(v1.xyz, v0.xyz), 1.0);
+    }
 
     var delta = v1 - v0;
 
@@ -239,15 +262,19 @@ fn vs_line(
 
     let vert = in.position.xyz;
     let vert = rotate(vert, angle);
-    let vert = (r_uniforms.orthographic * vec4<f32>(vert, 1.0)).xyz;
+    let vert = (r_uniforms.orthographic * vec4<f32>(vert, 1.0));
 
-    let pos = vert + mix(v0, v1, in.end);
+    let pos_interp = mix(v0, v1, in.end);
+    let pos = vert + pos_interp;
 
     var output: VertexOutput;
-    output.position = vec4<f32>(pos, 1.0);
+
+    output.position = vec4<f32>(pos.xyz, 1.0);
+
     output.color = mix(v0_line_color, v1_line_color, in.end);
     output.intensity = mix(v0_intensity, v1_intensity, in.end);
     output.delta_intensity = mix(v0_delta_intensity, v1_delta_intensity, in.end);
+
     return output;
 }
 
@@ -258,5 +285,6 @@ fn fs_main(
 ) -> FragmentOutput {
     var out: FragmentOutput;
     out.color = vec4<f32>(in.color * in.intensity, in.delta_intensity);
+    //out.depth = in.depth;
     return out;
 }

@@ -1,6 +1,7 @@
 struct Uniforms {
     perspective: mat4x4<f32>;
     orthographic: mat4x4<f32>;
+    view: mat4x4<f32>;
     total: f32;
     delta: f32;
 };

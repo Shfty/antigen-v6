@@ -403,7 +403,7 @@ fn triangle_indexed_indirect_builder(world: &mut World, offset: u64) -> EntityBu
                 beam_depth_buffer_entity,
                 Some(Operations {
                     load: if offset == 0 {
-                        LoadOp::Clear(1.0)
+                        LoadOp::Clear(0.0)
                     } else {
                         LoadOp::Load
                     },

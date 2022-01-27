@@ -6,8 +6,6 @@
 "classname" "worldspawn"
 "_tb_textures" "textures;textures/prototype_1_3"
 "_tb_def" "builtin:Antigen.fgd"
-"_tb_layer_locked" "1"
-"_tb_layer_hidden" "1"
 }
 // entity 1
 {
@@ -199,7 +197,16 @@
 }
 // entity 18
 {
-"classname" "room"
+"classname" "brush"
+"line_mesh_instance" "true"
+"room" "true"
+"triangle_mesh_instance" "true"
+"visual_mesh" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_duplicate_faces" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -485,7 +492,16 @@
 }
 // entity 19
 {
-"classname" "portal"
+"classname" "brush"
+"portal" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"line_mesh_instance" "true"
+"triangle_mesh_instance" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -499,7 +515,16 @@
 }
 // entity 20
 {
-"classname" "portal"
+"classname" "brush"
+"portal" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"line_mesh_instance" "true"
+"triangle_mesh_instance" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -513,7 +538,16 @@
 }
 // entity 21
 {
-"classname" "portal"
+"classname" "brush"
+"portal" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"line_mesh_instance" "true"
+"triangle_mesh_instance" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -527,7 +561,16 @@
 }
 // entity 22
 {
-"classname" "portal"
+"classname" "brush"
+"portal" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"line_mesh_instance" "true"
+"triangle_mesh_instance" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -541,7 +584,16 @@
 }
 // entity 23
 {
-"classname" "portal"
+"classname" "brush"
+"portal" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"line_mesh_instance" "true"
+"triangle_mesh_instance" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -555,7 +607,16 @@
 }
 // entity 24
 {
-"classname" "portal"
+"classname" "brush"
+"portal" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"line_mesh_instance" "true"
+"triangle_mesh_instance" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -569,7 +630,16 @@
 }
 // entity 25
 {
-"classname" "portal"
+"classname" "brush"
+"portal" "true"
+"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull_brush_face_containment" "true"
+"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull_interior_faces" "true"
+"visual_mesh" "true"
+"line_mesh_instance" "true"
+"triangle_mesh_instance" "true"
 "_tb_layer" "2"
 // brush 0
 {
@@ -596,12 +666,11 @@
 "_tb_name" "Box Bots"
 "_tb_id" "3"
 "_tb_layer_sort_index" "2"
-"_tb_layer_hidden" "1"
 }
 // entity 27
 {
 "classname" "point"
-"origin" "176 0 -4"
+"origin" "176 288 -4"
 "angle" "180"
 "line_mesh_instance" "true"
 "line_mesh_instance.mesh" "box_bot"
@@ -612,7 +681,7 @@
 // entity 28
 {
 "classname" "point"
-"origin" "88 64 -4"
+"origin" "88 288 -4"
 "angle" "-135"
 "line_mesh_instance" "true"
 "line_mesh_instance.mesh" "box_bot"
@@ -623,7 +692,7 @@
 // entity 29
 {
 "classname" "point"
-"origin" "0 128 -4"
+"origin" "0 288 -4"
 "angle" "-90"
 "triangle_mesh_instance" "true"
 "triangle_mesh_instance.mesh" "box_bot"
@@ -634,7 +703,7 @@
 // entity 30
 {
 "classname" "point"
-"origin" "-88 64 -4"
+"origin" "-88 288 -4"
 "angle" "-45"
 "line_mesh_instance" "true"
 "line_mesh_instance.mesh" "box_bot"
@@ -645,7 +714,7 @@
 // entity 31
 {
 "classname" "point"
-"origin" "-176 0 -4"
+"origin" "-176 288 -4"
 "angle" "0"
 "line_mesh_instance" "true"
 "line_mesh_instance.mesh" "box_bot"
@@ -678,21 +747,21 @@
 "_tb_layer" "3"
 // brush 0
 {
-( -24 193 -29 ) ( -24 194 -29 ) ( -24 193 -28 ) prototype_1_3/128_grey_1 [ 0 -1 0 17 ] [ 0 0 -1 -1 ] 0 1 1
-( -31 200 -29 ) ( -31 200 -28 ) ( -30 200 -29 ) prototype_1_3/128_grey_1 [ 1 0 0 -1 ] [ 0 0 -1 -1 ] 0 1 1
-( -31 193 -26 ) ( -30 193 -26 ) ( -31 194 -26 ) prototype_1_3/128_grey_1 [ -1 0 0 1 ] [ 0 -1 0 17 ] 0 1 1
-( 33 257 24 ) ( 33 258 24 ) ( 34 257 24 ) prototype_1_3/128_grey_1 [ 1 0 0 -1 ] [ 0 -1 0 17 ] 0 1 1
-( 33 250 27 ) ( 34 250 27 ) ( 33 250 28 ) prototype_1_3/128_grey_1 [ -1 0 0 1 ] [ 0 0 -1 -1 ] 0 1 1
-( 26 257 27 ) ( 26 257 28 ) ( 26 258 27 ) prototype_1_3/128_grey_1 [ 0 1 0 -17 ] [ 0 0 -1 -1 ] 0 1 1
+( -24 353 -29 ) ( -24 354 -29 ) ( -24 353 -28 ) prototype_1_3/128_grey_1 [ 0 -1 0 -79 ] [ 0 0 -1 -1 ] 0 1 1
+( -31 360 -29 ) ( -31 360 -28 ) ( -30 360 -29 ) prototype_1_3/128_grey_1 [ 1 0 0 -1 ] [ 0 0 -1 -1 ] 0 1 1
+( -31 353 -26 ) ( -30 353 -26 ) ( -31 354 -26 ) prototype_1_3/128_grey_1 [ -1 0 0 1 ] [ 0 -1 0 -79 ] 0 1 1
+( 33 417 24 ) ( 33 418 24 ) ( 34 417 24 ) prototype_1_3/128_grey_1 [ 1 0 0 -1 ] [ 0 -1 0 -79 ] 0 1 1
+( 33 410 27 ) ( 34 410 27 ) ( 33 410 28 ) prototype_1_3/128_grey_1 [ -1 0 0 1 ] [ 0 0 -1 -1 ] 0 1 1
+( 26 417 27 ) ( 26 417 28 ) ( 26 418 27 ) prototype_1_3/128_grey_1 [ 0 1 0 79 ] [ 0 0 -1 -1 ] 0 1 1
 }
 // brush 1
 {
-( 24 217 -33 ) ( 24 218 -33 ) ( 24 217 -32 ) prototype_1_3/128_blood_1 [ 0 -1 0 25 ] [ 0 0 -1 -1 ] 0 1 1
-( 10 213 -33 ) ( 10 213 -32 ) ( 11 213 -33 ) prototype_1_3/128_blood_1 [ 1 0 0 -26 ] [ 0 0 -1 -1 ] 0 1 1
-( 10 217 -5 ) ( 11 217 -5 ) ( 10 218 -5 ) prototype_1_3/128_blood_1 [ -1 0 0 26 ] [ 0 -1 0 25 ] 0 1 1
-( 42 225 3 ) ( 42 226 3 ) ( 43 225 3 ) prototype_1_3/128_blood_1 [ 1 0 0 -26 ] [ 0 -1 0 25 ] 0 1 1
-( 42 237 31 ) ( 43 237 31 ) ( 42 237 32 ) prototype_1_3/128_blood_1 [ -1 0 0 26 ] [ 0 0 -1 -1 ] 0 1 1
-( 28 225 31 ) ( 28 225 32 ) ( 28 226 31 ) prototype_1_3/128_blood_1 [ 0 1 0 -25 ] [ 0 0 -1 -1 ] 0 1 1
+( 24 377 -33 ) ( 24 378 -33 ) ( 24 377 -32 ) prototype_1_3/128_blood_1 [ 0 -1 0 -71 ] [ 0 0 -1 -1 ] 0 1 1
+( 10 373 -33 ) ( 10 373 -32 ) ( 11 373 -33 ) prototype_1_3/128_blood_1 [ 1 0 0 -26 ] [ 0 0 -1 -1 ] 0 1 1
+( 10 377 -5 ) ( 11 377 -5 ) ( 10 378 -5 ) prototype_1_3/128_blood_1 [ -1 0 0 26 ] [ 0 -1 0 -71 ] 0 1 1
+( 42 385 3 ) ( 42 386 3 ) ( 43 385 3 ) prototype_1_3/128_blood_1 [ 1 0 0 -26 ] [ 0 -1 0 -71 ] 0 1 1
+( 42 397 31 ) ( 43 397 31 ) ( 42 397 32 ) prototype_1_3/128_blood_1 [ -1 0 0 26 ] [ 0 0 -1 -1 ] 0 1 1
+( 28 385 31 ) ( 28 385 32 ) ( 28 386 31 ) prototype_1_3/128_blood_1 [ 0 1 0 71 ] [ 0 0 -1 -1 ] 0 1 1
 }
 }
 // entity 34
@@ -867,6 +936,7 @@
 "_tb_name" "Room and Portal Test"
 "_tb_id" "6"
 "_tb_layer_sort_index" "5"
+"_tb_layer_hidden" "1"
 }
 // entity 47
 {
@@ -880,7 +950,7 @@
 "visual_mesh.cull_face_face_containment" "true"
 "visual_mesh.cull_duplicate_faces" "true"
 "visual_mesh.cull_brush_face_containment" "true"
-"collider.type" "trimesh"
+"collider.shape" "trimesh"
 "visual_mesh" "true"
 "trimesh" "true"
 "trimesh.cull_brush_face_containment" "true"
@@ -1235,7 +1305,7 @@
 "visual_mesh.cull_face_face_containment" "true"
 "visual_mesh.cull_brush_face_containment" "true"
 "visual_mesh" "true"
-"collider.type" "trimesh"
+"collider.shape" "trimesh"
 "line_mesh_instance" "true"
 "visual_mesh.type" "triangles_and_lines"
 "triangle_mesh_instance" "true"
@@ -1494,13 +1564,33 @@
 }
 // entity 53
 {
+"classname" "brush"
+"collider" "true"
+"collider.shape" "convex_hull"
+"collider.type" "sensor"
+"convex_hull.type" "single"
+"convex_hull" "true"
+"_tb_layer" "6"
+// brush 0
+{
+( 32 -32 -128 ) ( 32 -96 -128 ) ( 32 -96 -144 ) prototype_1_3/clip [ 0 1 0 0 ] [ 0 0 -1 0 ] 180 1 1
+( 32 -96 -128 ) ( 56 -96 -128 ) ( 56 -96 -144 ) prototype_1_3/clip [ -1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( 40 -32 -128 ) ( 32 -96 -128 ) ( 56 -96 -128 ) prototype_1_3/clip [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( 40 -32 -64 ) ( 56 -96 -64 ) ( 32 -96 -64 ) prototype_1_3/clip [ 1 0 0 0 ] [ 0 1 0 0 ] 0 1 1
+( 40 -32 -144 ) ( 40 -32 -128 ) ( 32 -32 -128 ) prototype_1_3/clip [ -1 0 0 0 ] [ 0 0 -1 0 ] 0 1 1
+( 40 -32 -128 ) ( 40 -32 -144 ) ( 56 -96 -144 ) prototype_1_3/clip [ 0.242536 -0.970143 0 -0.7611313 ] [ 0 0 -1 0 ] 180 1 1
+}
+}
+// entity 54
+{
 "classname" "func_group"
 "_tb_type" "_tb_layer"
 "_tb_name" "Polyhedrons"
 "_tb_id" "7"
 "_tb_layer_sort_index" "6"
+"_tb_layer_hidden" "1"
 }
-// entity 54
+// entity 55
 {
 "classname" "brush"
 "visual_mesh" "true"
@@ -1545,24 +1635,25 @@
 ( -184 -8 -112 ) ( -184 8 -112 ) ( -192 0 -120 ) prototype_1_3/128_blue_1 [ 0 1 0 0 ] [ 2.7755575615628914e-16 0 1 -8 ] 0 1 1
 }
 }
-// entity 55
+// entity 56
 {
 "classname" "point"
 "origin" "-64 -64 -96"
 "rigid_body.type" "dynamic"
 "rigid_body" "true"
 "collider" "true"
-"collider.restitution" "0.7"
-"collider.type" "convex_hull"
+"collider.shape" "convex_hull"
 "triangle_mesh_instance" "true"
 "triangle_mesh_instance.mesh" "polyhedron"
 "line_mesh_instance.mesh" "polyhedron"
 "line_mesh_instance" "true"
 "collider.convex_hull.mesh" "polyhedron"
 "scale" "0.5 0.5 0.5"
+"rigid_body.linear_velocity" "100 50 0"
+"rigid_body.angular_velocity" "0.0 -10.0 0.0"
 "_tb_layer" "7"
 }
-// entity 56
+// entity 57
 {
 "classname" "point"
 "origin" "-96 0 -96"
@@ -1570,16 +1661,17 @@
 "rigid_body" "true"
 "collider" "true"
 "collider.restitution" "0.7"
-"collider.type" "convex_hull"
+"collider.shape" "convex_hull"
 "triangle_mesh_instance" "true"
 "triangle_mesh_instance.mesh" "polyhedron"
 "line_mesh_instance.mesh" "polyhedron"
 "line_mesh_instance" "true"
 "collider.convex_hull.mesh" "polyhedron"
 "scale" "1.0 1.0 1.0"
+"rigid_body.angular_velocity" "0 5 0"
 "_tb_layer" "7"
 }
-// entity 57
+// entity 58
 {
 "classname" "point"
 "origin" "0 136 -96"
@@ -1588,7 +1680,7 @@
 "line_mesh_instance.mesh" "triangle_equilateral"
 "_tb_layer" "7"
 }
-// entity 58
+// entity 59
 {
 "classname" "point"
 "origin" "94 -2 -30"
@@ -1596,7 +1688,7 @@
 "rigid_body" "true"
 "collider" "true"
 "collider.restitution" "0.7"
-"collider.type" "convex_hull"
+"collider.shape" "convex_hull"
 "triangle_mesh_instance" "true"
 "triangle_mesh_instance.mesh" "polyhedron"
 "line_mesh_instance.mesh" "polyhedron"
@@ -1604,7 +1696,7 @@
 "collider.convex_hull.mesh" "polyhedron"
 "_tb_layer" "7"
 }
-// entity 59
+// entity 60
 {
 "classname" "point"
 "origin" "98 2 20"
@@ -1612,7 +1704,7 @@
 "rigid_body" "true"
 "collider" "true"
 "collider.restitution" "0.7"
-"collider.type" "convex_hull"
+"collider.shape" "convex_hull"
 "triangle_mesh_instance" "true"
 "triangle_mesh_instance.mesh" "polyhedron"
 "line_mesh_instance" "true"
@@ -1620,7 +1712,7 @@
 "collider.convex_hull.mesh" "polyhedron"
 "_tb_layer" "7"
 }
-// entity 60
+// entity 61
 {
 "classname" "point"
 "origin" "-64 56 -96"
@@ -1628,7 +1720,7 @@
 "rigid_body" "true"
 "collider" "true"
 "collider.restitution" "0.7"
-"collider.type" "convex_hull"
+"collider.shape" "convex_hull"
 "triangle_mesh_instance" "true"
 "triangle_mesh_instance.mesh" "polyhedron"
 "line_mesh_instance.mesh" "polyhedron"
@@ -1637,7 +1729,7 @@
 "scale" "1.5 1.5 1.5"
 "_tb_layer" "7"
 }
-// entity 61
+// entity 62
 {
 "classname" "point"
 "origin" "-136 0 118"
@@ -1645,7 +1737,7 @@
 "rigid_body" "true"
 "collider" "true"
 "collider.restitution" "0.7"
-"collider.type" "convex_hull"
+"collider.shape" "convex_hull"
 "triangle_mesh_instance.mesh" "polyhedron"
 "triangle_mesh_instance" "true"
 "line_mesh_instance.mesh" "polyhedron"
@@ -1653,7 +1745,7 @@
 "collider.convex_hull.mesh" "polyhedron"
 "_tb_layer" "7"
 }
-// entity 62
+// entity 63
 {
 "classname" "point"
 "origin" "96 0 70"
@@ -1661,7 +1753,7 @@
 "rigid_body" "true"
 "collider" "true"
 "collider.restitution" "0.7"
-"collider.type" "convex_hull"
+"collider.shape" "convex_hull"
 "triangle_mesh_instance.mesh" "polyhedron"
 "triangle_mesh_instance" "true"
 "line_mesh_instance.mesh" "polyhedron"

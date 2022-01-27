@@ -44,9 +44,6 @@ pub struct LineMeshInstances;
 #[derive(Debug, Copy, Clone)]
 pub struct LineInstances;
 
-pub struct Perspective;
-pub struct Orthographic;
-
 pub struct Uniform;
 pub struct StorageBuffers;
 pub struct PhosphorDecay;
@@ -64,8 +61,15 @@ pub type StartTimeComponent = Usage<StartTime, Instant>;
 pub type TimestampComponent = Usage<Timestamp, Instant>;
 pub type TotalTimeComponent = Usage<TotalTime, f32>;
 pub type DeltaTimeComponent = Usage<DeltaTime, f32>;
-pub type PerspectiveMatrixComponent = Usage<Perspective, [[f32; 4]; 4]>;
-pub type OrthographicMatrixComponent = Usage<Orthographic, [[f32; 4]; 4]>;
+
+pub struct PerspectiveMatrix;
+pub type PerspectiveMatrixComponent = Usage<PerspectiveMatrix, nalgebra::Matrix4<f32>>;
+
+pub struct OrthographicMatrix;
+pub type OrthographicMatrixComponent = Usage<OrthographicMatrix, nalgebra::Matrix4<f32>>;
+
+pub struct ViewMatrix;
+pub type ViewMatrixComponent = Usage<ViewMatrix, nalgebra::Matrix4<f32>>;
 
 /// Mesh ID map
 #[derive(Copy, Clone)]
@@ -87,6 +91,7 @@ pub type LineMeshIdComponent = Usage<LineMeshId, u32>;
 pub struct UniformData {
     perspective: [[f32; 4]; 4],
     orthographic: [[f32; 4]; 4],
+    view: [[f32; 4]; 4],
     total_time: f32,
     delta_time: f32,
     _pad_0: [f32; 2],

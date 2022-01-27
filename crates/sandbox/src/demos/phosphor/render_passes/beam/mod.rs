@@ -82,7 +82,7 @@ pub fn phosphor_prepare_beam_mesh(
             depth_stencil: Some(DepthStencilState {
                 format: TextureFormat::Depth32Float,
                 depth_write_enabled: true,
-                depth_compare: CompareFunction::Less,
+                depth_compare: CompareFunction::Greater,
                 stencil: StencilState::default(),
                 bias: DepthBiasState::default(),
             }),
@@ -165,7 +165,7 @@ pub fn phosphor_prepare_beam_line(
             depth_stencil: Some(DepthStencilState {
                 format: TextureFormat::Depth32Float,
                 depth_write_enabled: false,
-                depth_compare: CompareFunction::Less,
+                depth_compare: CompareFunction::Greater,
                 stencil: StencilState::default(),
                 bias: DepthBiasState::default(),
             }),
