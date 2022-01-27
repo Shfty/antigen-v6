@@ -9,15 +9,6 @@ struct Quaternion {
     w: f32;
 };
 
-fn quat_from_vec4(v: vec4<f32>) -> Quaternion {
-    return Quaternion(
-        v.x,
-        v.y,
-        v.z,
-        v.w,
-    );
-}
-
 fn quat_inv(q: Quaternion) -> Quaternion {
     return Quaternion(-q.x, -q.y, -q.z, q.w);
 }
@@ -52,7 +43,8 @@ fn rotate(v: vec3<f32>, angle: f32) -> vec3<f32> {
 struct Uniforms {
     perspective: mat4x4<f32>;
     orthographic: mat4x4<f32>;
-    view: mat4x4<f32>;
+    cam_pos: vec4<f32>;
+    cam_rot: Quaternion;
     total_time: f32;
     delta_time: f32;
 };
@@ -173,8 +165,9 @@ fn vs_triangle(
     let instance_scale = instance.scale.xyz;
 
     let pos = instance_pos + (quat_mul(instance_rot, in.position) * instance_scale);
+    let pos = pos - r_uniforms.cam_pos.xyz;
+    let pos = quat_mul(r_uniforms.cam_rot, pos);
     let pos = vec4<f32>(pos, 1.0);
-    let pos = r_uniforms.view * pos;
     let pos = r_uniforms.perspective * pos;
 
     var output: VertexOutput;
@@ -233,13 +226,15 @@ fn vs_line(
     let v1_intensity = v1.m2.y;
     let v1_delta_intensity = v1.m2.z;
 
-    let v0 = vec4<f32>(v0_pos, 1.0);
-    let v0 = r_uniforms.view * v0;
+    let v0 = v0_pos - r_uniforms.cam_pos.xyz;
+    let v0 = quat_mul(r_uniforms.cam_rot, v0);
+    let v0 = vec4<f32>(v0, 1.0);
     let v0 = r_uniforms.perspective * v0;
     var v0 = vec4<f32>(v0.xyz / v0.w, v0.w);
 
-    let v1 = vec4<f32>(v1_pos, 1.0);
-    let v1 = r_uniforms.view * v1;
+    let v1 = v1_pos - r_uniforms.cam_pos.xyz;
+    let v1 = quat_mul(r_uniforms.cam_rot, v1);
+    let v1 = vec4<f32>(v1, 1.0);
     let v1 = r_uniforms.perspective * v1;
     var v1 = vec4<f32>(v1.xyz / v1.w, v1.w);
 

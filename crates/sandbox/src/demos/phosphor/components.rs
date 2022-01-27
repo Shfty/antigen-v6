@@ -68,8 +68,17 @@ pub type PerspectiveMatrixComponent = Usage<PerspectiveMatrix, nalgebra::Matrix4
 pub struct OrthographicMatrix;
 pub type OrthographicMatrixComponent = Usage<OrthographicMatrix, nalgebra::Matrix4<f32>>;
 
-pub struct ViewMatrix;
-pub type ViewMatrixComponent = Usage<ViewMatrix, nalgebra::Matrix4<f32>>;
+pub struct Camera;
+
+#[derive(Debug, Default, Copy, Clone)]
+pub struct PlayerInputComponent {
+    pub forward: f32,
+    pub back: f32,
+    pub left: f32,
+    pub right: f32,
+    pub up: f32,
+    pub down: f32,
+}
 
 /// Mesh ID map
 #[derive(Copy, Clone)]
@@ -91,7 +100,8 @@ pub type LineMeshIdComponent = Usage<LineMeshId, u32>;
 pub struct UniformData {
     perspective: [[f32; 4]; 4],
     orthographic: [[f32; 4]; 4],
-    view: [[f32; 4]; 4],
+    cam_pos: [f32; 4],
+    cam_rot: [f32; 4],
     total_time: f32,
     delta_time: f32,
     _pad_0: [f32; 2],
@@ -246,5 +256,16 @@ pub type LineMeshInstanceComponent<'a> =
 pub struct SharedShapes;
 pub type SharedShapesComponent = Usage<
     SharedShapes,
-    BTreeMap<String, Box<dyn Fn(nalgebra::Vector3<f32>) -> rapier3d::geometry::SharedShape + Send + Sync + 'static>>,
+    BTreeMap<
+        String,
+        Box<
+            dyn Fn(nalgebra::Vector3<f32>) -> rapier3d::geometry::SharedShape
+                + Send
+                + Sync
+                + 'static,
+        >,
+    >,
 >;
+
+pub struct EulerAngles;
+pub type EulerAnglesComponent = Usage<EulerAngles, nalgebra::Vector3<f32>>;

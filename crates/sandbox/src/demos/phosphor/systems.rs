@@ -14,8 +14,8 @@ use antigen_wgpu::{
     TextureDescriptorComponent, TextureViewComponent, TextureViewDescriptorComponent,
 };
 
-use antigen_winit::{winit::event::WindowEvent, WindowComponent, WindowEventComponent};
 use hecs::World;
+use winit::event::{ElementState, KeyboardInput};
 
 // Initialize the hello triangle render pipeline
 pub fn phosphor_prepare_system(world: &mut World) {
@@ -51,7 +51,7 @@ pub fn phosphor_prepare_uniform_bind_group(
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: BufferSize::new(208),
+                    min_binding_size: BufferSize::new(176),
                 },
                 count: None,
             }],
@@ -467,17 +467,12 @@ pub fn phosphor_update_oscilloscopes_system(world: &mut World) {
 }
 
 pub fn phosphor_resize_system(world: &mut World) {
-    let mut query = world.query::<&PhosphorRenderer>();
-    for (entity, _) in query.into_iter() {
-        phosphor_resize(world, entity);
-    }
-}
-
-pub fn phosphor_resize(world: &World, entity: Entity) {
     let mut query = world
-        .query_one::<&Indirect<&SurfaceConfigurationComponent>>(entity)
-        .unwrap();
-    let mut query = query.get().unwrap().get(world);
+        .query::<&Indirect<&SurfaceConfigurationComponent>>()
+        .with::<PhosphorRenderer>();
+    let (_, indirect) = query.into_iter().next().unwrap();
+
+    let mut query = indirect.get(world);
     let surface_config = query.get().unwrap();
 
     if !surface_config.get_changed() {
@@ -581,55 +576,66 @@ pub fn phosphor_resize(world: &World, entity: Entity) {
     orthographic_matrix.set_changed(true);
 }
 
-pub fn phosphor_cursor_moved_system(world: &mut World) {
-    for (_, (_, window, surface_config)) in world
-        .query::<(
-            &PhosphorRenderer,
-            &Indirect<&WindowComponent>,
-            &Indirect<&SurfaceConfigurationComponent>,
-        )>()
+pub fn phosphor_mouse_moved_system(world: &mut World, (delta_x, delta_y): (f64, f64)) {
+    let mut query = world
+        .query::<(&mut EulerAnglesComponent, &mut Changed<RotationComponent>)>()
+        .with::<Camera>();
+    let (_, (euler_angles, rotation)) = query.into_iter().next().unwrap();
+
+    euler_angles.y += delta_x as f32 * 0.004;
+    euler_angles.x += delta_y as f32 * 0.004;
+
+    let pitch = nalgebra::UnitQuaternion::from_euler_angles(euler_angles.x, 0.0, 0.0);
+    let yaw = nalgebra::UnitQuaternion::from_euler_angles(0.0, euler_angles.y, 0.0);
+    let quat = pitch * yaw;
+
+    ***rotation = quat.into();
+    rotation.set_changed(true);
+}
+
+pub fn phosphor_key_event_system(world: &mut World, key_event: KeyboardInput) {
+    let (_, player_input) = world
+        .query_mut::<&mut PlayerInputComponent>()
         .into_iter()
-    {
-        let mut query = world
-            .query::<(&mut Changed<ViewMatrixComponent>,)>()
-            .with::<ViewMatrix>();
-        let (_, (view_matrix,)) = query.into_iter().next().unwrap();
+        .next()
+        .unwrap();
 
-        let mut query = window.get(world);
-        let window = query.get().expect("No indirect WindowComponent");
-        let window = if let Some(window) = window.get() {
-            window
-        } else {
-            continue;
-        };
+    let key_value = || match key_event.state {
+        ElementState::Pressed => 1.0,
+        ElementState::Released => 0.0,
+    };
 
-        let mut query = surface_config.get(world);
-        let surface_config = query
-            .get()
-            .expect("No indirect SurfaceConfigurationComponent");
-
-        let mut query = world.query::<&WindowEventComponent>();
-        let (_, window_event) = query.into_iter().next().expect("No WindowEventComponent");
-
-        let (window_id, position) =
-            if let (Some(window_id), Some(WindowEvent::CursorMoved { position, .. })) =
-                &*window_event
-            {
-                (window_id, position)
-            } else {
-                continue;
-            };
-
-        if window.id() != *window_id {
-            continue;
-        }
-
-        let norm_x = ((position.x as f32 / surface_config.width as f32) * 2.0) - 1.0;
-        let norm_y = ((position.y as f32 / surface_config.height as f32) * 2.0) - 1.0;
-
-        ***view_matrix = super::view_matrix((norm_x, norm_y));
-        view_matrix.set_changed(true);
+    match key_event.virtual_keycode {
+        Some(key) => match key {
+            winit::event::VirtualKeyCode::D => player_input.back = key_value(),
+            winit::event::VirtualKeyCode::E => player_input.forward = key_value(),
+            winit::event::VirtualKeyCode::F => player_input.right = key_value(),
+            winit::event::VirtualKeyCode::S => player_input.left = key_value(),
+            winit::event::VirtualKeyCode::W => player_input.down = key_value(),
+            winit::event::VirtualKeyCode::R => player_input.up = key_value(),
+            _ => (),
+        },
+        _ => (),
     }
+}
+
+pub fn phosphor_camera_position_system(world: &mut World) {
+    let mut query = world.query::<&mut PlayerInputComponent>();
+    let (_, player_input) = query.into_iter().next().unwrap();
+
+    let mut query = world
+        .query::<&mut Changed<PositionComponent>>()
+        .with::<Camera>();
+    let (_, position) = query.into_iter().next().unwrap();
+
+    position.x += player_input.right;
+    position.x -= player_input.left;
+    position.z -= player_input.forward;
+    position.z += player_input.back;
+    position.y += player_input.up;
+    position.y -= player_input.down;
+
+    position.set_changed(true);
 }
 
 pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {

@@ -2,14 +2,15 @@ use antigen_core::{ChangedFlag, Construct, With};
 use winit::dpi::PhysicalSize;
 
 use crate::{
-    WindowComponent, WindowEntityMap, WindowEventComponent, WindowSizeComponent,
-    WindowTitleComponent,
+    DeviceEventComponent, WindowComponent, WindowEntityMap, WindowEventComponent,
+    WindowSizeComponent, WindowTitleComponent,
 };
 
 #[derive(Default, hecs::Bundle)]
 pub struct BackendBundle {
     window_entity_map: WindowEntityMap,
     window_event: WindowEventComponent,
+    device_event: DeviceEventComponent,
 }
 
 #[derive(hecs::Bundle)]

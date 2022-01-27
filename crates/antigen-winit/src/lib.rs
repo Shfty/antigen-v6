@@ -9,8 +9,9 @@ pub use systems::*;
 pub use winit;
 
 use winit::{
-    event::{Event, WindowEvent},
+    event::{DeviceEvent, DeviceId, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget},
+    window::WindowId,
 };
 
 use hecs::World;
@@ -69,6 +70,26 @@ pub fn wrap_event_loop<T>(
     }
 }
 
+fn get_window_event_component(
+    world: &mut World,
+) -> &mut (Option<WindowId>, Option<WindowEvent<'static>>) {
+    let (_, window_event) = world
+        .query_mut::<&mut WindowEventComponent>()
+        .into_iter()
+        .next()
+        .unwrap();
+    window_event
+}
+
+fn get_device_event_component(world: &mut World) -> &mut (Option<DeviceId>, Option<DeviceEvent>) {
+    let (_, device_event) = world
+        .query_mut::<&mut DeviceEventComponent>()
+        .into_iter()
+        .next()
+        .unwrap();
+    device_event
+}
+
 /// Extend an event loop closure with ECS event loop handling and window functionality
 pub fn winit_event_handler<T: Clone>(mut f: impl EventLoopHandler<T>) -> impl EventLoopHandler<T> {
     move |world: &mut World,
@@ -76,12 +97,15 @@ pub fn winit_event_handler<T: Clone>(mut f: impl EventLoopHandler<T>) -> impl Ev
           event: Event<'static, T>,
           event_loop_window_target: &EventLoopWindowTarget<T>,
           control_flow: &mut ControlFlow| {
-        let (_, window_event) = world
-            .query_mut::<&mut WindowEventComponent>()
-            .into_iter()
-            .next()
-            .unwrap();
-        *window_event = (None, None);
+        {
+            let window_event = get_window_event_component(world);
+            *window_event = (None, None);
+        }
+
+        {
+            let device_event = get_device_event_component(world);
+            *device_event = (None, None);
+        }
 
         match &event {
             winit::event::Event::MainEventsCleared => {
@@ -90,10 +114,10 @@ pub fn winit_event_handler<T: Clone>(mut f: impl EventLoopHandler<T>) -> impl Ev
                 redraw_unconditionally_system(world);
             }
             winit::event::Event::RedrawRequested(window_id) => {
-                window_event.0 = Some(*window_id);
+                get_window_event_component(world).0 = Some(*window_id);
             }
             winit::event::Event::WindowEvent { window_id, event } => {
-                *window_event = (Some(*window_id), Some(event.clone()));
+                *get_window_event_component(world) = (Some(*window_id), Some(event.clone()));
                 match event {
                     WindowEvent::Resized(_) => {
                         resize_window_system(world);
@@ -103,6 +127,9 @@ pub fn winit_event_handler<T: Clone>(mut f: impl EventLoopHandler<T>) -> impl Ev
                     }
                     _ => (),
                 }
+            }
+            winit::event::Event::DeviceEvent { device_id, event } => {
+                *get_device_event_component(world) = (Some(*device_id), Some(event.clone()))
             }
             _ => (),
         }

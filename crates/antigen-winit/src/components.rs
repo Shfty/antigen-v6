@@ -1,6 +1,6 @@
 use antigen_core::{Changed, LazyComponent, Usage};
 
-use winit::{dpi::PhysicalSize, event::WindowEvent, window::WindowId};
+use winit::{dpi::PhysicalSize, event::{WindowEvent, DeviceEvent, DeviceId}, window::WindowId};
 
 use std::collections::BTreeMap;
 use hecs::Entity;
@@ -17,6 +17,9 @@ pub type WindowEntityMap = BTreeMap<WindowId, Entity>;
 
 /// Window event wrapper
 pub type WindowEventComponent = (Option<WindowId>, Option<WindowEvent<'static>>);
+
+/// Window event wrapper
+pub type DeviceEventComponent = (Option<DeviceId>, Option<DeviceEvent>);
 
 /// Usage tag for SizeComponent
 pub enum WindowSize {}

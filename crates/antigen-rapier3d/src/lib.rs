@@ -1,13 +1,18 @@
+use parking_lot::{RwLock, RwLockReadGuard};
+
 pub use rapier3d;
 
 use antigen_core::{
     Construct, Indirect, LazyComponent, PositionComponent, RotationComponent, Usage,
 };
 use hecs::{EntityBuilder, Query, World};
-use rapier3d::prelude::{
-    BroadPhase, CCDSolver, Collider, ColliderHandle, ColliderSet, IntegrationParameters,
-    IslandManager, JointSet, NarrowPhase, PhysicsPipeline, RigidBody, RigidBodyHandle,
-    RigidBodySet,
+use rapier3d::{
+    pipeline::EventHandler,
+    prelude::{
+        BroadPhase, CCDSolver, Collider, ColliderHandle, ColliderSet, ContactEvent, ContactPair,
+        IntegrationParameters, IntersectionEvent, IslandManager, JointSet, NarrowPhase,
+        PhysicsPipeline, RigidBody, RigidBodyHandle, RigidBodySet,
+    },
 };
 
 // Gravity
@@ -22,6 +27,45 @@ pub type LinearVelocityComponent = Usage<LinearVelocity, nalgebra::Vector3<f32>>
 pub enum AngularVelocity {}
 pub type AngularVelocityComponent = Usage<AngularVelocity, nalgebra::Vector3<f32>>;
 
+// Event Handler
+#[derive(Default)]
+pub struct EventCollector {
+    pub intersection_events: parking_lot::RwLock<Vec<IntersectionEvent>>,
+    pub contact_events: parking_lot::RwLock<Vec<(ContactEvent, ContactPair)>>,
+}
+
+impl EventHandler for EventCollector {
+    fn handle_intersection_event(&self, event: IntersectionEvent) {
+        self.intersection_events.write().push(event);
+    }
+
+    fn handle_contact_event(
+        &self,
+        event: rapier3d::prelude::ContactEvent,
+        contact_pair: &rapier3d::prelude::ContactPair,
+    ) {
+        self.contact_events
+            .write()
+            .push((event, contact_pair.clone()));
+    }
+}
+
+impl EventCollector {
+    pub fn intersection_events(&self) -> RwLockReadGuard<Vec<IntersectionEvent>> {
+        self.intersection_events.read()
+    }
+
+    pub fn contact_events(&self) -> RwLockReadGuard<Vec<(ContactEvent, ContactPair)>> {
+        self.contact_events.read()
+    }
+
+    pub fn clear(&self) {
+        self.intersection_events.write().clear();
+        self.contact_events.write().clear();
+    }
+}
+
+// Physics backend
 #[derive(Query)]
 pub struct PhysicsQuery<'a> {
     pub gravity: &'a GravityComponent,
@@ -34,6 +78,7 @@ pub struct PhysicsQuery<'a> {
     pub collider_set: &'a mut ColliderSet,
     pub joint_set: &'a mut JointSet,
     pub ccd_solver: &'a mut CCDSolver,
+    pub event_collector: &'a EventCollector,
 }
 
 pub fn physics_backend_builder(gravity: nalgebra::Vector3<f32>) -> EntityBuilder {
@@ -51,6 +96,7 @@ pub fn physics_backend_builder(gravity: nalgebra::Vector3<f32>) -> EntityBuilder
     builder.add(ColliderSet::new());
     builder.add(JointSet::new());
     builder.add(CCDSolver::new());
+    builder.add(EventCollector::default());
 
     builder
 }
@@ -69,6 +115,7 @@ pub fn step_physics_system(world: &mut World) {
             collider_set,
             joint_set,
             ccd_solver,
+            event_collector,
         },
     ) in world.query_mut::<PhysicsQuery>().into_iter()
     {
@@ -83,8 +130,14 @@ pub fn step_physics_system(world: &mut World) {
             joint_set,
             ccd_solver,
             &(),
-            &(),
+            event_collector,
         );
+    }
+}
+
+pub fn clear_physics_events_system(world: &mut World) {
+    for (_, event_collector) in world.query_mut::<&EventCollector>().into_iter() {
+        event_collector.clear()
     }
 }
 

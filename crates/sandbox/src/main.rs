@@ -130,8 +130,10 @@
 //               * Would be useful to have a TB-side wiring solution for this
 //                 * Ex. triggers -> doors, timers, etc
 //           [ ] Kinematic Controller
-// 
-// [ ] Consistent use_target_targetname overrides for all name-identified properties
+//
+// TODO: [✓] Fix lines projecting from behind the camera
+//
+// TODO: [ ] Consistent use_target_targetname overrides for all name-identified properties
 //     * Visual meshes, convex hulls, trimeshes, etc.
 //     * Allows for nice TrenchBroom visualization
 //     * Nice to have enabled by default for subclass entities
@@ -158,8 +160,6 @@
 //                 * Fading, text animations, etc
 //             * Damage system for reusing untouched text mesh instances
 //           * Use-case for parent/child relation - transforms
-//
-// TODO: [ ] Fix lines projecting from behind the camera
 //
 // TODO: [ ] Figure out why lower-case z is missing from text test
 //
@@ -219,6 +219,10 @@
 //
 // TODO: [ ] Implement HDR bloom pass
 //
+// TODO: [ ] Calculate exact near plane intersection for line clipping
+//           * Currently using an arbitrarily large value
+//           * Could have overdraw implications
+//           * Should probably clip in view space instead of NDC for this
 //
 
 mod demos;
@@ -394,7 +398,19 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
 
             antigen_rapier3d::insert_colliders_system(&mut world);
             antigen_rapier3d::insert_rigid_bodies_system(&mut world);
+
             antigen_rapier3d::step_physics_system(&mut world);
+
+            // Handle physics events
+            for (_, event_collector) in world.query_mut::<&antigen_rapier3d::EventCollector>() {
+                let intersections = event_collector.intersection_events();
+                if intersections.len() > 0 {
+                    println!("Intersections: {intersections:?}");
+                }
+            }
+            
+            antigen_rapier3d::clear_physics_events_system(&mut world);
+
             antigen_rapier3d::read_back_rigid_body_isometries_system(&mut world);
 
             antigen_core::copy_to_system::<TriangleMeshInstance, PositionComponent>(&mut world);

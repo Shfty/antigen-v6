@@ -109,7 +109,7 @@ use antigen_rapier3d::{
 };
 pub use assemblage::*;
 pub use components::*;
-use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder, SharedShape};
+use rapier3d::prelude::{ActiveEvents, ColliderBuilder, RigidBodyBuilder, SharedShape};
 pub use render_passes::*;
 pub use svg_lines::*;
 pub use systems::*;
@@ -119,6 +119,7 @@ use std::{
     borrow::Cow, collections::BTreeMap, error::Error, path::PathBuf, sync::atomic::Ordering,
     time::Instant,
 };
+use winit::event::DeviceEvent;
 
 use antigen_winit::{
     winit::{
@@ -183,32 +184,17 @@ pub const BLUE: (f32, f32, f32) = (0.0, 0.0, 1.0);
 pub const WHITE: (f32, f32, f32) = (1.0, 1.0, 1.0);
 
 pub fn orthographic_matrix(aspect: f32, zoom: f32) -> nalgebra::Matrix4<f32> {
-    let mut ortho = nalgebra_glm::ortho_rh_zo(
-        -zoom * aspect,
-        zoom * aspect,
-        -zoom,
-        zoom,
-        0.0,
-        zoom * 50.0,
-    );
+    let mut ortho =
+        nalgebra_glm::ortho_rh_zo(-zoom * aspect, zoom * aspect, -zoom, zoom, 0.0, zoom * 50.0);
     ortho.append_nonuniform_scaling_mut(&nalgebra::vector![1.0, 1.0, -1.0]);
     ortho
 }
 
 pub fn perspective_matrix(aspect: f32, near: f32) -> nalgebra::Matrix4<f32> {
     let mut projection =
-        nalgebra_glm::reversed_infinite_perspective_rh_zo(aspect, (45.0f32).to_radians(), near);
-    projection.append_nonuniform_scaling_mut(&nalgebra::vector![-1.0, 1.0, 1.0]);
+        nalgebra_glm::reversed_infinite_perspective_rh_zo(aspect, (70.0f32).to_radians(), near);
+    //projection.append_nonuniform_scaling_mut(&nalgebra::vector![-1.0, 1.0, 1.0]);
     projection
-}
-
-pub fn view_matrix((ofs_x, ofs_y): (f32, f32)) -> nalgebra::Matrix4<f32> {
-    let x = -ofs_x * std::f32::consts::PI;
-    nalgebra_glm::look_at_rh(
-        &nalgebra::vector![x.sin() * 300.0, ofs_y * 150.0, -x.cos() * 300.0],
-        &nalgebra::vector![0.0, 0.0, 0.0],
-        &nalgebra::Vector3::y_axis(),
-    )
 }
 
 fn circle_strip(subdiv: usize, z_ofs: f32) -> Vec<LineVertexData> {
@@ -540,7 +526,8 @@ fn total_time_builder(uniform_entity: Entity) -> EntityBuilder {
         .add(StartTimeComponent::construct(Instant::now()))
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             TotalTimeComponent::construct(0.0),
-            buffer_size_of::<nalgebra::Matrix4<f32>>() * 3,
+            buffer_size_of::<[nalgebra::Matrix4<f32>; 2]>()
+                + buffer_size_of::<nalgebra::Vector4<f32>>() * 2,
             uniform_entity,
         ));
     builder
@@ -552,7 +539,9 @@ fn delta_time_bundle(uniform_entity: Entity) -> EntityBuilder {
         .add(TimestampComponent::construct(Instant::now()))
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
             DeltaTimeComponent::construct(1.0 / 60.0),
-            (buffer_size_of::<nalgebra::Matrix4<f32>>() * 3) + buffer_size_of::<f32>(),
+            buffer_size_of::<[nalgebra::Matrix4<f32>; 2]>()
+                + buffer_size_of::<nalgebra::Vector4<f32>>() * 2
+                + buffer_size_of::<f32>(),
             uniform_entity,
         ));
     builder
@@ -574,23 +563,27 @@ fn orthographic_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
     builder
         .add(OrthographicMatrix)
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
-            OrthographicMatrixComponent::construct(orthographic_matrix(
-                640.0 / 480.0,
-                200.0,
-            )),
+            OrthographicMatrixComponent::construct(orthographic_matrix(640.0 / 480.0, 200.0)),
             buffer_size_of::<nalgebra::Matrix4<f32>>(),
             uniform_entity,
         ));
     builder
 }
 
-fn view_matrix_bundle(uniform_entity: Entity) -> EntityBuilder {
+fn camera_bundle(uniform_entity: Entity) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
     builder
-        .add(ViewMatrix)
+        .add(Camera)
+        .add(EulerAnglesComponent::default())
         .add_bundle(antigen_wgpu::BufferDataBundle::new(
-            ViewMatrixComponent::construct(view_matrix((0.0, 0.0))),
-            buffer_size_of::<nalgebra::Matrix4<f32>>() * 2,
+            PositionComponent::construct(Default::default()),
+            buffer_size_of::<[nalgebra::Matrix4<f32>; 2]>(),
+            uniform_entity,
+        ))
+        .add_bundle(antigen_wgpu::BufferDataBundle::new(
+            RotationComponent::construct(Default::default()),
+            buffer_size_of::<[nalgebra::Matrix4<f32>; 2]>()
+                + buffer_size_of::<nalgebra::Vector4<f32>>(),
             uniform_entity,
         ));
     builder
@@ -801,10 +794,10 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     world.spawn(total_time_builder(uniform_entity).build());
     world.spawn(delta_time_bundle(uniform_entity).build());
 
-    // Projection matrix entities
+    // Camera entities
     world.spawn(perspective_matrix_bundle(uniform_entity).build());
     world.spawn(orthographic_matrix_bundle(uniform_entity).build());
-    world.spawn(view_matrix_bundle(uniform_entity).build());
+    world.spawn(camera_bundle(uniform_entity).build());
 
     // Texture entities
     let beam_buffer_entity = world.spawn(beam_buffer_bundle().build());
@@ -996,6 +989,8 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     let mut builder = EntityBuilder::new();
 
     builder.add(PhosphorRenderer);
+
+    builder.add(PlayerInputComponent::default());
 
     // Phosphor sampler
     builder.add_bundle(antigen_wgpu::SamplerBundle::new(SamplerDescriptor {
@@ -1405,8 +1400,7 @@ impl MapData {
         let face_vertices = &self.face_vertices[&face_id];
         face_vertices.iter().map(move |v| VertexData {
             position: [v.x * scale_factor, v.z * scale_factor, v.y * scale_factor],
-            //surface_color: [color.0 * 0.015, color.1 * 0.015, color.2 * 0.015],
-            surface_color: [color.0, color.1, color.2],
+            surface_color: [color.0 * 0.015, color.1 * 0.015, color.2 * 0.015],
             line_color: [color.0, color.1, color.2],
             intensity,
             delta_intensity: -30.0,
@@ -1463,7 +1457,7 @@ impl MapData {
                     position: [
                         vertex.position[0] - entity_center[0],
                         vertex.position[1] - entity_center[2],
-                        vertex.position[2] - entity_center[1],
+                        -vertex.position[2] - -entity_center[1],
                     ],
                     ..vertex
                 })
@@ -1980,19 +1974,19 @@ impl MapData {
     fn property_origin(properties: &Properties) -> Option<nalgebra::Vector3<f32>> {
         Self::property_f32_3("origin", properties)
             .ok()
-            .map(|(x, z, y)| nalgebra::vector![x, y, z])
+            .map(|(x, z, y)| nalgebra::vector![x, y, -z])
     }
 
     fn property_rotation(properties: &Properties, convert: bool) -> nalgebra::UnitQuaternion<f32> {
-        let y_ofs = if convert { -90.0f32.to_radians() } else { 0.0 };
+        let y_ofs = if convert { 90.0f32.to_radians() } else { 0.0 };
         if let Ok((x, y, z)) = Self::property_f32_3("mangle", properties) {
             nalgebra::UnitQuaternion::from_euler_angles(
-                -z.to_radians(),
-                -y.to_radians() + y_ofs,
+                z.to_radians(),
+                y.to_radians() + y_ofs,
                 -x.to_radians(),
             )
         } else if let Ok(y) = Self::property_f32("angle", properties) {
-            nalgebra::UnitQuaternion::from_euler_angles(0.0, -y.to_radians() + y_ofs, 0.0)
+            nalgebra::UnitQuaternion::from_euler_angles(0.0, y.to_radians() + y_ofs, 0.0)
         } else {
             nalgebra::UnitQuaternion::default()
         }
@@ -2108,7 +2102,7 @@ impl MapData {
             let origin = Self::property_origin(properties).unwrap_or_else(|| {
                 self.entity_centers
                     .get(entity)
-                    .map(nalgebra::Vector3::xzy)
+                    .map(|center| nalgebra::vector![center.x, center.z, -center.y])
                     .unwrap_or(nalgebra::Vector3::zeros())
             });
             let rotation = Self::property_rotation(properties, false);
@@ -2248,6 +2242,21 @@ impl MapData {
                             collider_builder
                         };
 
+                    let collider_builder = if let Ok(active_events) =
+                        Self::property_usize("collider.active_events", properties)
+                    {
+                        let mut ae = ActiveEvents::default();
+                        if active_events & 1 > 0 {
+                            ae |= ActiveEvents::CONTACT_EVENTS;
+                        }
+                        if active_events & 2 > 0 {
+                            ae |= ActiveEvents::INTERSECTION_EVENTS;
+                        }
+                        collider_builder.active_events(ae)
+                    } else {
+                        collider_builder
+                    };
+
                     builder.add(ColliderComponent::construct(collider_builder.build()));
                 }
             }
@@ -2315,7 +2324,6 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             antigen_wgpu::buffer_write_system::<DeltaTimeComponent>(world);
             antigen_wgpu::buffer_write_system::<PerspectiveMatrixComponent>(world);
             antigen_wgpu::buffer_write_system::<OrthographicMatrixComponent>(world);
-            antigen_wgpu::buffer_write_system::<ViewMatrixComponent>(world);
             antigen_wgpu::buffer_write_slice_system::<VertexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<TriangleIndexDataComponent, _>(world);
             antigen_wgpu::buffer_write_slice_system::<TriangleMeshDataComponent, _>(world);
@@ -2360,12 +2368,18 @@ pub fn winit_event_handler<T>(mut f: impl EventLoopHandler<T>) -> impl EventLoop
             Event::MainEventsCleared => {
                 phosphor_resize_system(world);
                 prepare_schedule(world);
+                phosphor_camera_position_system(world);
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(_) => {
                     phosphor_resize_system(world);
                 }
-                WindowEvent::CursorMoved { .. } => phosphor_cursor_moved_system(world),
+                //WindowEvent::CursorMoved { .. } => phosphor_cursor_moved_system(world),
+                _ => (),
+            },
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseMotion { delta } => phosphor_mouse_moved_system(world, *delta),
+                DeviceEvent::Key(key) => phosphor_key_event_system(world, *key),
                 _ => (),
             },
             Event::RedrawEventsCleared => {
