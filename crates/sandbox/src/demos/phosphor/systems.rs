@@ -314,11 +314,20 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
     let mut query = world.query::<&ShaderModuleComponent>().with::<Beam>();
 
     let (_, beam_shader) = query.into_iter().next()?;
-    println!("Fetched beam mesh pass entity");
+    println!("Fetched beam shader entity");
 
     let mut query = world
         .query::<&mut RenderPipelineComponent>()
-        .with::<BeamMesh>();
+        .with::<BeamClear>();
+
+    let (_, beam_clear_pipeline) = query.into_iter().next()?;
+    println!("Fetched beam clear pass entity");
+
+    phosphor_prepare_beam_clear(device, beam_shader, beam_clear_pipeline)?;
+
+    let mut query = world
+        .query::<&mut RenderPipelineComponent>()
+        .with::<BeamTriangles>();
 
     let (_, beam_mesh_pipeline) = query.into_iter().next()?;
     println!("Fetched beam mesh pass entity");
@@ -333,7 +342,7 @@ pub fn phosphor_prepare(world: &World, entity: Entity, device: &DeviceComponent)
 
     let mut query = world
         .query::<&mut RenderPipelineComponent>()
-        .with::<BeamLine>();
+        .with::<BeamLines>();
     let (_, beam_line_pipeline) = query.into_iter().next()?;
     println!("Fetched beam line pass entity");
 
@@ -624,16 +633,23 @@ pub fn phosphor_camera_position_system(world: &mut World) {
     let (_, player_input) = query.into_iter().next().unwrap();
 
     let mut query = world
-        .query::<&mut Changed<PositionComponent>>()
+        .query::<(
+            &mut Changed<PositionComponent>,
+            &mut Changed<RotationComponent>,
+        )>()
         .with::<Camera>();
-    let (_, position) = query.into_iter().next().unwrap();
+    let (_, (position, rotation)) = query.into_iter().next().unwrap();
 
-    position.x += player_input.right;
-    position.x -= player_input.left;
-    position.z -= player_input.forward;
-    position.z += player_input.back;
-    position.y += player_input.up;
-    position.y -= player_input.down;
+    let mut delta = nalgebra::Vector3::<f32>::default();
+
+    delta.x += player_input.right;
+    delta.x -= player_input.left;
+    delta.z -= player_input.forward;
+    delta.z += player_input.back;
+    delta.y += player_input.up;
+    delta.y -= player_input.down;
+
+    ***position += rotation.conjugate() * delta;
 
     position.set_changed(true);
 }
@@ -646,7 +662,7 @@ pub fn phosphor_update_beam_mesh_draw_count_system(world: &mut World) {
 
     let mut query = world
         .query::<&mut Changed<TriangleMeshDataComponent>>()
-        .with::<BeamMesh>();
+        .with::<BeamTriangles>();
 
     for (i, (_, triangle_mesh_data)) in query.into_iter().enumerate() {
         triangle_mesh_data[0].instance_count = mesh_instance_counts.read()[i] as u32;
@@ -662,7 +678,7 @@ pub fn phosphor_update_beam_line_draw_count_system(world: &mut World) {
 
     let mut query = world
         .query::<&mut RenderPassDrawComponent>()
-        .with::<BeamLine>();
+        .with::<BeamLines>();
     let (_, render_pass_draw) = query.into_iter().next().unwrap();
 
     render_pass_draw.1 = 0..(line_instance_count.load(Ordering::Relaxed) as u32);

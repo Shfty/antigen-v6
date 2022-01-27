@@ -204,10 +204,7 @@
 "triangle_mesh_instance" "true"
 "visual_mesh" "true"
 "visual_mesh.type" "triangles_and_lines"
-"visual_mesh.cull_interior_faces" "true"
-"visual_mesh.cull_brush_face_containment" "true"
-"visual_mesh.cull_face_face_containment" "true"
-"visual_mesh.cull_duplicate_faces" "true"
+"visual_mesh.cull" "15"
 "_tb_layer" "2"
 // brush 0
 {
@@ -743,9 +740,9 @@
 "convex_hull.name" "box_bot"
 "convex_hull.type" "single"
 "visual_mesh" "true"
-"visual_mesh.cull_brush_face_containment" "true"
 "visual_mesh.name" "box_bot"
 "visual_mesh.type" "triangles_and_lines"
+"visual_mesh.cull" "4"
 "_tb_layer" "3"
 // brush 0
 {
@@ -950,8 +947,8 @@
 "collider.shape" "trimesh"
 "visual_mesh" "true"
 "trimesh" "true"
-"trimesh.cull_interior_faces" "true"
-"visual_mesh.cull_interior_faces" "true"
+"visual_mesh.cull" "8"
+"trimesh.cull" "8"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1222,6 +1219,7 @@
 "portal.use_target_targetname" "true"
 "targetname" "portal_0"
 "target" "portal_1"
+"visual_mesh.cull" "8"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1239,12 +1237,12 @@
 "visual_mesh.type" "triangles_and_lines"
 "line_mesh_instance" "true"
 "visual_mesh" "true"
-"visual_mesh.cull_interior_faces" "true"
 "triangle_mesh_instance" "true"
 "portal" "true"
 "portal.use_target_targetname" "true"
 "targetname" "portal_3"
 "target" "portal_2"
+"visual_mesh.cull" "8"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1262,12 +1260,12 @@
 "visual_mesh.type" "triangles_and_lines"
 "line_mesh_instance" "true"
 "visual_mesh" "true"
-"visual_mesh.cull_interior_faces" "true"
 "triangle_mesh_instance" "true"
 "portal" "true"
 "portal.use_target_targetname" "true"
 "targetname" "portal_2"
 "target" "portal_3"
+"visual_mesh.cull" "8"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1285,12 +1283,12 @@
 "visual_mesh.type" "triangles_and_lines"
 "line_mesh_instance" "true"
 "visual_mesh" "true"
-"visual_mesh.cull_interior_faces" "true"
 "triangle_mesh_instance" "true"
 "portal" "true"
 "portal.use_target_targetname" "true"
 "targetname" "portal_1"
 "target" "portal_0"
+"visual_mesh.cull" "8"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1306,21 +1304,15 @@
 {
 "classname" "brush"
 "collider" "true"
-"visual_mesh.cull_interior_faces" "true"
-"visual_mesh.cull_duplicate_faces" "true"
-"visual_mesh.cull_face_face_containment" "true"
-"visual_mesh.cull_brush_face_containment" "true"
 "visual_mesh" "true"
 "collider.shape" "trimesh"
 "line_mesh_instance" "true"
-"visual_mesh.type" "triangles_and_lines"
+"visual_mesh.type" "wesrd"
 "triangle_mesh_instance" "true"
 "room" "true"
 "trimesh" "true"
-"trimesh.cull_brush_face_containment" "true"
-"trimesh.cull_duplicate_faces" "true"
-"trimesh.cull_face_face_containment" "true"
-"trimesh.cull_interior_faces" "true"
+"visual_mesh.cull" "15"
+"trimesh.cull" "15"
 "_tb_layer" "6"
 // brush 0
 {
@@ -1566,7 +1558,6 @@
 "_tb_name" "Polyhedrons"
 "_tb_id" "7"
 "_tb_layer_sort_index" "6"
-"_tb_layer_hidden" "1"
 }
 // entity 56
 {
@@ -1577,7 +1568,7 @@
 "convex_hull" "true"
 "convex_hull.name" "polyhedron"
 "convex_hull.type" "single"
-"visual_mesh.cull_face_face_containment" "true"
+"visual_mesh.cull" "2"
 "_tb_layer" "7"
 // brush 0
 {

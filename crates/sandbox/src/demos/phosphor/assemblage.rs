@@ -11,7 +11,7 @@ use antigen_wgpu::{
 use hecs::{EntityBuilder, World};
 
 use super::{
-    BeamBuffer, BeamDepthBuffer, BeamMesh, BeamMultisample, LineIndices, LineInstanceData,
+    BeamBuffer, BeamDepthBuffer, BeamTriangles, BeamMultisample, LineIndices, LineInstanceData,
     LineInstances, LineMeshData, LineMeshIdComponent, LineMeshIds, LineMeshIdsComponent,
     LineMeshInstanceData, LineMeshInstances, LineMeshes, Oscilloscope, PhosphorRenderer,
     StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshIds, TriangleMeshIdsComponent,
@@ -372,7 +372,7 @@ fn triangle_indexed_indirect_builder(world: &mut World, offset: u64) -> EntityBu
     let beam_buffer_entity = get_tagged_entity::<BeamBuffer>(world).unwrap();
     let beam_multisample_entity = get_tagged_entity::<BeamMultisample>(world).unwrap();
     let beam_depth_buffer_entity = get_tagged_entity::<BeamDepthBuffer>(world).unwrap();
-    let beam_mesh_pass_entity = get_tagged_entity::<BeamMesh>(world).unwrap();
+    let beam_mesh_pass_entity = get_tagged_entity::<BeamTriangles>(world).unwrap();
     let uniform_entity = get_tagged_entity::<Uniform>(world).unwrap();
     let storage_bind_group_entity = get_tagged_entity::<StorageBuffers>(world).unwrap();
     let renderer_entity = get_tagged_entity::<PhosphorRenderer>(world).unwrap();
@@ -381,32 +381,24 @@ fn triangle_indexed_indirect_builder(world: &mut World, offset: u64) -> EntityBu
     let triangle_index_entity = get_tagged_entity::<TriangleIndices>(world).unwrap();
     let triangle_mesh_entity = get_tagged_entity::<TriangleMeshes>(world).unwrap();
 
-    builder.add(BeamMesh);
+    builder.add(BeamTriangles);
 
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw_indexed_indirect(
-            0,
+            1,
             Some("Beam Meshes".into()),
             vec![(
                 beam_multisample_entity,
                 Some(beam_buffer_entity),
                 Operations {
-                    load: if offset == 0 {
-                        LoadOp::Clear(CLEAR_COLOR)
-                    } else {
-                        LoadOp::Load
-                    },
+                    load: LoadOp::Load,
                     store: true,
                 },
             )],
             Some((
                 beam_depth_buffer_entity,
                 Some(Operations {
-                    load: if offset == 0 {
-                        LoadOp::Clear(0.0)
-                    } else {
-                        LoadOp::Load
-                    },
+                    load: LoadOp::Load,
                     store: true,
                 }),
                 None,

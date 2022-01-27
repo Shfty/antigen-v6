@@ -50,8 +50,9 @@ pub struct PhosphorDecay;
 pub struct PhosphorFrontBuffer;
 pub struct PhosphorBackBuffer;
 pub struct Beam;
-pub struct BeamLine;
-pub struct BeamMesh;
+pub struct BeamClear;
+pub struct BeamLines;
+pub struct BeamTriangles;
 pub struct Tonemap;
 
 pub enum MapFile {}

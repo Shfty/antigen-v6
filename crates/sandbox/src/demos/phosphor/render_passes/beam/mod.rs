@@ -12,16 +12,67 @@ use antigen_wgpu::{
 
 use crate::demos::phosphor::{LineVertexData, VertexData, HDR_TEXTURE_FORMAT};
 
+pub fn phosphor_prepare_beam_clear(
+    device: &DeviceComponent,
+    beam_shader: &ShaderModuleComponent,
+    beam_clear_pipeline: &mut RenderPipelineComponent,
+) -> Option<()> {
+    let beam_shader = beam_shader.get()?;
+
+    if beam_clear_pipeline.is_pending() {
+        let pipeline_layout = device.create_pipeline_layout(&mut PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
+
+        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            vertex: VertexState {
+                module: &beam_shader,
+                entry_point: "vs_clear",
+                buffers: &[],
+            },
+            fragment: Some(FragmentState {
+                module: &beam_shader,
+                entry_point: "fs_main",
+                targets: &[HDR_TEXTURE_FORMAT.into()],
+            }),
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::PointList,
+                ..Default::default()
+            },
+            depth_stencil: Some(DepthStencilState {
+                format: TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: CompareFunction::Greater,
+                stencil: StencilState::default(),
+                bias: DepthBiasState::default(),
+            }),
+            multisample: MultisampleState {
+                count: 4,
+                ..Default::default()
+            },
+            multiview: None,
+        });
+
+        beam_clear_pipeline.set_ready_with(pipeline);
+    }
+
+    Some(())
+}
+
 pub fn phosphor_prepare_beam_mesh(
     device: &DeviceComponent,
     uniform_bind_group_layout: &BindGroupLayoutComponent,
     storage_bind_group_layout: &BindGroupLayoutComponent,
-    beam_mesh_shader: &ShaderModuleComponent,
+    beam_shader: &ShaderModuleComponent,
     beam_mesh_pipeline: &mut RenderPipelineComponent,
 ) -> Option<()> {
     let uniform_bind_group_layout = uniform_bind_group_layout.get()?;
     let storage_bind_group_layout = storage_bind_group_layout.get()?;
-    let beam_mesh_shader = beam_mesh_shader.get()?;
+    let beam_mesh_shader = beam_shader.get()?;
 
     if beam_mesh_pipeline.is_pending() {
         let pipeline_layout = device.create_pipeline_layout(&mut PipelineLayoutDescriptor {

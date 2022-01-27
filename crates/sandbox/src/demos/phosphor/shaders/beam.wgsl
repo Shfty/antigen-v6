@@ -153,6 +153,17 @@ var<storage, read> line_mesh_instances: LineMeshInstances;
 [[group(1), binding(5)]]
 var<storage, read> line_instances: LineInstances;
 
+// Clear vertex shader
+[[stage(vertex)]]
+fn vs_clear() -> VertexOutput {
+    var output: VertexOutput;
+    output.position = vec4<f32>(0.0);
+    output.color = vec3<f32>(0.0);
+    output.intensity = 0.0;
+    output.delta_intensity = 0.0;
+    return output;
+}
+
 // Triangle vertex shader
 [[stage(vertex)]]
 fn vs_triangle(

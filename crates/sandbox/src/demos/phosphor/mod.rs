@@ -152,6 +152,7 @@ use antigen_shambler::shambler::{
     brush::BrushId,
     entity::EntityId,
     face::FaceId,
+    line::LineId,
     shalrath::repr::{Properties, Property},
     GeoMap,
 };
@@ -843,17 +844,60 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
         BindGroupComponent::default(),
     ));
 
+    // Clear pass
+    let beam_clear_pass_entity = world.reserve_entity();
+    let mut builder = EntityBuilder::new();
+    builder.add(BeamClear);
+    builder.add(RenderPipelineComponent::default());
+    builder.add_bundle(
+        antigen_wgpu::RenderPassBundle::draw(
+            0,
+            Some("Beam Clear".into()),
+            vec![(
+                beam_multisample_entity,
+                Some(beam_buffer_entity),
+                Operations {
+                    load: LoadOp::Clear(CLEAR_COLOR),
+                    store: true,
+                },
+            )],
+            Some((
+                beam_depth_buffer_entity,
+                Some(Operations {
+                    load: LoadOp::Clear(0.0),
+                    store: false,
+                }),
+                None,
+            )),
+            beam_clear_pass_entity,
+            vec![],
+            None,
+            vec![],
+            vec![],
+            None,
+            None,
+            None,
+            None,
+            (0..1, 0..1),
+            renderer_entity,
+        )
+        .build(),
+    );
+    world
+        .insert(beam_clear_pass_entity, builder.build())
+        .unwrap();
+
     // Beam mesh pass
-    let beam_mesh_pass_entity = world.spawn((BeamMesh, RenderPipelineComponent::default()));
+    let beam_mesh_pass_entity = world.spawn((BeamTriangles, RenderPipelineComponent::default()));
 
     // Beam line pass
     let beam_line_pass_entity = world.reserve_entity();
     let mut builder = EntityBuilder::new();
-    builder.add(BeamLine);
+    builder.add(BeamLines);
     builder.add(RenderPipelineComponent::default());
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw(
-            1,
+            2,
             Some("Beam Lines".into()),
             vec![(
                 beam_multisample_entity,
@@ -910,7 +954,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     builder.add(BindGroupLayoutComponent::default());
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw(
-            2,
+            3,
             Some("Phosphor Decay".into()),
             vec![(
                 phosphor_front_entity,
@@ -951,7 +995,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     builder.add(RenderPipelineComponent::default());
     builder.add_bundle(
         antigen_wgpu::RenderPassBundle::draw(
-            3,
+            4,
             Some("Tonemap".into()),
             vec![(
                 window_entity,
@@ -1033,7 +1077,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     insert_tagged_entity::<BeamDepthBuffer>(world, beam_depth_buffer_entity);
     insert_tagged_entity::<BeamMultisample>(world, beam_multisample_entity);
     insert_tagged_entity::<StorageBuffers>(world, storage_bind_group_entity);
-    insert_tagged_entity::<BeamMesh>(world, beam_mesh_pass_entity);
+    insert_tagged_entity::<BeamTriangles>(world, beam_mesh_pass_entity);
     insert_tagged_entity::<PhosphorRenderer>(world, renderer_entity);
 
     insert_tagged_entity::<Vertices>(world, vertex_entity);
@@ -1112,7 +1156,8 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     load_map::<MapFile, Filesystem, _>(
         channel,
-        "crates/sandbox/src/demos/phosphor/maps/line_index_test.map",
+        "crates/sandbox/src/demos/phosphor/maps/non_manifold_line.map",
+        //"crates/sandbox/src/demos/phosphor/maps/line_index_test.map",
     );
 }
 
@@ -1180,6 +1225,8 @@ struct MapData {
     face_bases: antigen_shambler::shambler::face::FaceBases,
     face_face_containment: antigen_shambler::shambler::face::FaceFaceContainment,
     brush_face_containment: antigen_shambler::shambler::brush::BrushFaceContainment,
+    manifold_lines: antigen_shambler::shambler::line::ManifoldLines,
+    non_manifold_lines: antigen_shambler::shambler::line::NonManifoldLines,
 }
 
 impl From<GeoMap> for MapData {
@@ -1298,6 +1345,17 @@ impl From<GeoMap> for MapData {
             &face_vertices,
         );
 
+        // Line-face connections
+        let line_faces = antigen_shambler::shambler::line::line_faces(&face_lines);
+        let line_face_connections = antigen_shambler::shambler::line::line_face_connections(
+            &lines,
+            &line_faces,
+            &face_vertices,
+        );
+        let (manifold_lines, non_manifold_lines) =
+            antigen_shambler::shambler::line::manifold_lines(line_face_connections);
+        //panic!("Manifold lines: {manifold_lines:?}\nNon-manifold lines: {non_manifold_lines:?}");
+
         MapData {
             brush_entities,
             face_brushes,
@@ -1317,6 +1375,8 @@ impl From<GeoMap> for MapData {
             face_bases,
             face_face_containment,
             brush_face_containment,
+            manifold_lines,
+            non_manifold_lines,
         }
     }
 }
@@ -1399,7 +1459,7 @@ impl MapData {
     ) -> impl Iterator<Item = VertexData> + '_ {
         let face_vertices = &self.face_vertices[&face_id];
         face_vertices.iter().map(move |v| VertexData {
-            position: [v.x * scale_factor, v.z * scale_factor, v.y * scale_factor],
+            position: [v.x * scale_factor, v.z * scale_factor, -v.y * scale_factor],
             surface_color: [color.0 * 0.015, color.1 * 0.015, color.2 * 0.015],
             line_color: [color.0, color.1, color.2],
             intensity,
@@ -1431,9 +1491,9 @@ impl MapData {
         &self,
         entity: &EntityId,
         cull_face: impl Fn(&FaceId) -> bool,
+        cull_line: impl Fn(&LineId) -> bool,
     ) -> (Vec<VertexData>, Vec<TriangleIndexData>, Vec<LineIndexData>) {
         let brushes = &self.geo_map.entity_brushes[entity];
-        let properties = &self.geo_map.entity_properties[entity];
 
         let mut mesh_vertices: Vec<VertexData> = Default::default();
         let mut triangle_indices: Vec<TriangleIndexData> = Default::default();
@@ -1457,7 +1517,7 @@ impl MapData {
                     position: [
                         vertex.position[0] - entity_center[0],
                         vertex.position[1] - entity_center[2],
-                        -vertex.position[2] - -entity_center[1],
+                        vertex.position[2] - -entity_center[1],
                     ],
                     ..vertex
                 })
@@ -1465,8 +1525,23 @@ impl MapData {
             let vertex_count = verts.len();
             mesh_vertices.extend(verts);
 
-            triangle_indices.extend(self.face_triangle_indices(face_id, local_vertex_head));
-            line_indices.extend(self.face_line_indices(face_id, local_index_head));
+            let face_triangle_indices = &self.face_triangle_indices[&face_id];
+            triangle_indices.extend(
+                face_triangle_indices
+                    .iter()
+                    .map(move |i| *i as u16 + local_vertex_head),
+            );
+
+            let face_lines = &self.face_lines[&face_id];
+            line_indices.extend(face_lines.iter().filter(|line| cull_line(line)).flat_map(
+                move |line_id| {
+                    let antigen_shambler::shambler::line::Line { i0, i1 } = self.lines[line_id];
+                    [
+                        (i0 + local_index_head as usize) as u32,
+                        (i1 + local_index_head as usize) as u32,
+                    ]
+                },
+            ));
 
             local_vertex_head += vertex_count as u16;
             local_index_head += vertex_count as u32;
@@ -1494,6 +1569,7 @@ impl MapData {
                 .assemble_brush_entity_triangle_mesh(
                     entity,
                     self.face_cull_predicate(entity, "visual_mesh"),
+                    self.line_cull_predicate(entity, "visual_mesh"),
                 );
 
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
@@ -1601,54 +1677,58 @@ impl MapData {
         let properties = &self.geo_map.entity_properties[entity];
         let component_property = component_property.to_string();
         move |face_id| {
-            if matches!(
-                Self::property_bool(
-                    &(component_property.clone() + ".cull_duplicate_faces"),
-                    properties
-                ),
-                Ok(true),
-            ) && self.face_duplicates.iter().any(|(_, b)| b == face_id)
+            if let Ok(cull) =
+                Self::property_usize(&(component_property.clone() + ".cull"), properties)
             {
-                return false;
+                if cull & 1 > 0 && self.face_duplicates.iter().any(|(_, b)| b == face_id) {
+                    return false;
+                }
+
+                if cull & 2 > 0
+                    && self
+                        .face_face_containment
+                        .iter()
+                        .any(|(_, b)| b.contains(face_id))
+                {
+                    return false;
+                }
+
+                if cull & 4 > 0
+                    && self
+                        .brush_face_containment
+                        .iter()
+                        .any(|(_, b)| b.contains(face_id))
+                {
+                    return false;
+                }
+
+                if cull & 8 > 0 && !self.interior_faces.contains(&face_id) {
+                    return false;
+                }
             }
 
-            if matches!(
-                Self::property_bool(
-                    &(component_property.clone() + ".cull_face_face_containment"),
-                    properties
-                ),
-                Ok(true)
-            ) && self
-                .face_face_containment
-                .iter()
-                .any(|(_, b)| b.contains(face_id))
-            {
-                return false;
-            }
+            true
+        }
+    }
 
-            if matches!(
-                Self::property_bool(
-                    &(component_property.clone() + ".cull_brush_face_containment"),
-                    properties
-                ),
-                Ok(true)
-            ) && self
-                .brush_face_containment
-                .iter()
-                .any(|(_, b)| b.contains(face_id))
+    pub fn line_cull_predicate(
+        &self,
+        entity: &EntityId,
+        component_property: &str,
+    ) -> impl Fn(&LineId) -> bool + '_ {
+        let properties = &self.geo_map.entity_properties[entity];
+        let component_property = component_property.to_string();
+        move |line_id| {
+            if let Ok(cull) =
+                Self::property_usize(&(component_property.clone() + ".cull"), properties)
             {
-                return false;
-            }
-
-            if matches!(
-                Self::property_bool(
-                    &(component_property.clone() + ".cull_interior_faces"),
-                    properties
-                ),
-                Ok(true)
-            ) && !self.interior_faces.contains(&face_id)
-            {
-                return false;
+                if cull & 16 > 0 && self.manifold_lines.iter().any(|id| id == line_id) {
+                    return false;
+                }
+                
+                if cull & 32 > 0 && self.non_manifold_lines.iter().any(|id| id == line_id) {
+                    return false;
+                }
             }
 
             true
@@ -1765,6 +1845,7 @@ impl MapData {
                     .assemble_brush_entity_triangle_mesh(
                         entity,
                         self.face_cull_predicate(entity, "trimesh"),
+                        |_| false,
                     );
 
                 let mesh_vertices = mesh_vertices

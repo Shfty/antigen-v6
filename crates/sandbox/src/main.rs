@@ -120,7 +120,7 @@
 //                 * Scale vertices for convex hulls and trimeshes
 //           [✓] Trimesh brush collision
 //           [>] Sensors
-//           [ ] Contact / intersection event handling
+//           [>] Contact / intersection event handling
 //               * Receiver component queues up events during collision tick
 //                 * Use custom EventHandler to queue
 //                 * Better than querying NarrowPhase
@@ -132,6 +132,9 @@
 //           [ ] Kinematic Controller
 //
 // TODO: [✓] Fix lines projecting from behind the camera
+// 
+// TODO: [ ] Use AABBs to determine brush entity center
+//           * Current method allows brush splits to influence center
 //
 // TODO: [ ] Consistent use_target_targetname overrides for all name-identified properties
 //     * Visual meshes, convex hulls, trimeshes, etc.
@@ -163,10 +166,10 @@
 //
 // TODO: [ ] Figure out why lower-case z is missing from text test
 //
-// TODO: [ ] Implement camera abstraction
+// TODO: [>] Implement camera abstraction
+//           [>] First-person controls
 //           [ ] Spawn at first player start
 //           [ ] Mouse capture
-//           [ ] First-person controls
 //
 // TODO: [ ] Implement compute-based frustum culling
 //
