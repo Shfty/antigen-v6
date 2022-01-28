@@ -629,9 +629,11 @@ pub fn phosphor_key_event_system(world: &mut World, key_event: KeyboardInput) {
 }
 
 pub fn phosphor_camera_position_system(world: &mut World) {
+    // Get player input
     let mut query = world.query::<&mut PlayerInputComponent>();
     let (_, player_input) = query.into_iter().next().unwrap();
 
+    // Get camera entity
     let mut query = world
         .query::<(
             &mut Changed<PositionComponent>,

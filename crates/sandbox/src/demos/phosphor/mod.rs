@@ -1156,8 +1156,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     load_map::<MapFile, Filesystem, _>(
         channel,
-        "crates/sandbox/src/demos/phosphor/maps/non_manifold_line.map",
-        //"crates/sandbox/src/demos/phosphor/maps/line_index_test.map",
+        //"crates/sandbox/src/demos/phosphor/maps/non_manifold_line.map",
+        //"crates/sandbox/src/demos/phosphor/maps/non_manifold_room.map",
+        "crates/sandbox/src/demos/phosphor/maps/line_index_test.map",
     );
 }
 
@@ -1256,6 +1257,8 @@ impl From<GeoMap> for MapData {
             &brush_hulls,
         );
 
+        let face_normals = antigen_shambler::shambler::face::normals_flat(&face_vertices, &face_planes);
+
         // Find duplicate faces
         println!("Generating face duplicates");
         let face_duplicates = antigen_shambler::shambler::face::face_duplicates(
@@ -1295,25 +1298,6 @@ impl From<GeoMap> for MapData {
         println!("Generating lines");
         let (lines, face_lines) = antigen_shambler::shambler::line::lines(&face_indices);
 
-        println!("Generating line duplicates");
-        let line_duplicates = antigen_shambler::shambler::line::line_duplicates(
-            &geo_map.brushes,
-            &lines,
-            &geo_map.brush_faces,
-            &face_duplicates,
-            &face_vertices,
-            &face_lines,
-        );
-
-        println!("Generating interior faces");
-        let interior_faces = antigen_shambler::shambler::face::interior_faces(
-            &geo_map.brushes,
-            &geo_map.brush_faces,
-            &face_duplicates,
-            &face_lines,
-            &line_duplicates,
-        );
-
         // Generate tangents
         println!("Generating face bases");
         let face_bases = antigen_shambler::shambler::face::face_bases(
@@ -1347,14 +1331,36 @@ impl From<GeoMap> for MapData {
 
         // Line-face connections
         let line_faces = antigen_shambler::shambler::line::line_faces(&face_lines);
+
+        let mut culled_lines = lines.clone();
+        for line in culled_lines.keys().copied().collect::<Vec<_>>() {
+            let face = &line_faces[&line];
+            if brush_face_containment
+                .iter()
+                .any(|(_, rhs)| rhs.contains(face))
+            {
+                culled_lines.remove(&line);
+            }
+        }
+
         let line_face_connections = antigen_shambler::shambler::line::line_face_connections(
-            &lines,
+            &culled_lines,
             &line_faces,
             &face_vertices,
         );
         let (manifold_lines, non_manifold_lines) =
-            antigen_shambler::shambler::line::manifold_lines(line_face_connections);
+            antigen_shambler::shambler::line::manifold_lines(&line_face_connections);
         //panic!("Manifold lines: {manifold_lines:?}\nNon-manifold lines: {non_manifold_lines:?}");
+
+        println!("Generating interior faces");
+        let interior_faces = antigen_shambler::shambler::face::interior_faces(
+            &geo_map.faces,
+            &face_lines,
+            &face_normals,
+            &face_centers,
+            &non_manifold_lines,
+            &line_face_connections,
+        );
 
         MapData {
             brush_entities,
@@ -1705,6 +1711,10 @@ impl MapData {
                 if cull & 8 > 0 && !self.interior_faces.contains(&face_id) {
                     return false;
                 }
+
+                if cull & 16 > 0 && self.interior_faces.contains(&face_id) {
+                    return false;
+                }
             }
 
             true
@@ -1722,11 +1732,11 @@ impl MapData {
             if let Ok(cull) =
                 Self::property_usize(&(component_property.clone() + ".cull"), properties)
             {
-                if cull & 16 > 0 && self.manifold_lines.iter().any(|id| id == line_id) {
+                if cull & 32 > 0 && self.manifold_lines.iter().any(|id| id == line_id) {
                     return false;
                 }
-                
-                if cull & 32 > 0 && self.non_manifold_lines.iter().any(|id| id == line_id) {
+
+                if cull & 64 > 0 && self.non_manifold_lines.iter().any(|id| id == line_id) {
                     return false;
                 }
             }
