@@ -827,3 +827,60 @@ pub fn assemble_line_mesh_instances_system(world: &mut World) {
         }
     }
 }
+
+pub fn movers_position_system(world: &mut World) {
+    for (_, (position, position_offset, speed, mover_open)) in world
+        .query_mut::<(
+            &mut PositionComponent,
+            &mut PositionOffsetComponent,
+            &SpeedComponent,
+            &MoverOpenComponent,
+        )>()
+        .into_iter()
+    {
+        let (offset_from, offset_to) = &mut **position_offset;
+
+        let (from, to) = if **mover_open {
+            (offset_from, offset_to)
+        } else {
+            (offset_to, offset_from)
+        };
+
+        let from_mag = from.magnitude();
+        if from_mag > 0.0 {
+            let amount = from.normalize() * from_mag.min(**speed);
+            *from -= amount;
+            *to += amount;
+            **position += amount;
+        }
+    }
+}
+
+pub fn movers_rotation_system(world: &mut World) {
+    for (_, (rotation, rotation_offset, speed, mover_open)) in world
+        .query_mut::<(
+            &mut RotationComponent,
+            &mut RotationOffsetComponent,
+            &SpeedComponent,
+            &MoverOpenComponent,
+        )>()
+        .into_iter()
+    {
+        let (offset_from, offset_to) = &mut **rotation_offset;
+
+        let (from, to) = if **mover_open {
+            (offset_from, offset_to)
+        } else {
+            (offset_to, offset_from)
+        };
+
+        let from_mag = from.magnitude();
+        if from_mag > 0.0 {
+            let amount = from.normalize() * from_mag.min(**speed);
+            *from -= amount;
+            *to += amount;
+            **rotation *= nalgebra::UnitQuaternion::from_euler_angles(amount.x, amount.y, amount.z);
+        }
+    }
+}
+

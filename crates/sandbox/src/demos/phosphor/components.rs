@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use parking_lot::RwLock;
-use std::{borrow::Cow, collections::BTreeMap, sync::Arc, time::Instant};
+use std::{borrow::Cow, collections::{BTreeMap, BTreeSet}, sync::Arc, time::Instant};
 
 use antigen_core::{Changed, LazyComponent, Usage};
 
@@ -84,11 +84,10 @@ pub struct PlayerInputComponent {
 /// Mesh ID map
 #[derive(Copy, Clone)]
 pub struct TriangleMeshIds;
+pub type TriangleMeshIdsComponent = Arc<RwLock<BTreeMap<Cow<'static, str>, u32>>>;
 
 #[derive(Copy, Clone)]
 pub struct LineMeshIds;
-
-pub type TriangleMeshIdsComponent = Arc<RwLock<BTreeMap<Cow<'static, str>, u32>>>;
 pub type LineMeshIdsComponent = Arc<RwLock<BTreeMap<Cow<'static, str>, (u32, u32)>>>;
 
 // Line Mesh ID
@@ -270,3 +269,34 @@ pub type SharedShapesComponent = Usage<
 
 pub struct EulerAngles;
 pub type EulerAnglesComponent = Usage<EulerAngles, nalgebra::Vector3<f32>>;
+
+pub struct PositionOffset;
+pub type PositionOffsetComponent =
+    Usage<PositionOffset, (nalgebra::Vector3<f32>, nalgebra::Vector3<f32>)>;
+
+pub struct RotationOffset;
+pub type RotationOffsetComponent =
+    Usage<RotationOffset, (nalgebra::Vector3<f32>, nalgebra::Vector3<f32>)>;
+
+pub struct Speed;
+pub type SpeedComponent = Usage<Speed, f32>;
+
+pub struct MoverOpen;
+pub type MoverOpenComponent = Usage<MoverOpen, bool>;
+
+pub struct ColliderEventTarget;
+pub type ColliderEventTargetComponent = Usage<ColliderEventTarget, String>;
+
+#[derive(Copy, Clone)]
+pub struct EventTargetEntities;
+pub type EventTargetEntitiesComponent =
+    Usage<EventTargetEntities, BTreeMap<Cow<'static, str>, BTreeSet<hecs::Entity>>>;
+
+pub struct EventInput;
+pub type EventInputComponent = Usage<EventInput, Cow<'static, str>>;
+
+pub struct EventOutput;
+pub type EventOutputComponent = Usage<EventOutput, Cow<'static, str>>;
+
+pub struct EventTarget;
+pub type EventTargetComponent = Usage<EventTarget, Cow<'static, str>>;

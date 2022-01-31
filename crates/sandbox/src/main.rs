@@ -106,9 +106,13 @@
 //           * Semantically, oscilloscope is an animation over a line segment
 //             * Should be able to split off into an animation component
 //             * Leave line mesh creation and instancing to their respective properties
-// 
+//
 // TODO: [✓] Refactor TB text handling
 //
+// TODO: [✓] Consistent use_target_targetname overrides for all name-identified properties
+//     * Visual meshes, convex hulls, trimeshes, etc.
+//     * Allows for nice TrenchBroom visualization
+//     * Nice to have enabled by default for subclass entities
 //
 // TODO: [>] Integrate rapier physics
 //           [✓] Create collision from brush hulls
@@ -131,15 +135,15 @@
 //                 * Ex. triggers -> doors, timers, etc
 //           [ ] Kinematic Controller
 //
-// TODO: [✓] Fix lines projecting from behind the camera
-// 
+// TODO: [>] Fix lines projecting from behind the camera
+//           [ ] Fix corner case
+//               * Appears to be a precision issue
+//               * May be using camera position instead of near plane as clipping predicate
+//
+// TODO: [ ] Fix compound convex hulls behaving incorrectly under scaling
+//
 // TODO: [ ] Use AABBs to determine brush entity center
 //           * Current method allows brush splits to influence center
-//
-// TODO: [ ] Consistent use_target_targetname overrides for all name-identified properties
-//     * Visual meshes, convex hulls, trimeshes, etc.
-//     * Allows for nice TrenchBroom visualization
-//     * Nice to have enabled by default for subclass entities
 //
 // [ ] 'component' point entity class
 //     * Inherit from base entity class
@@ -156,7 +160,7 @@
 //
 // TODO: [ ] Text entity refactor
 //           * Needs to work as a component that controls a set of text mesh instance entities
-//           * Should be able to update mesh instances when the underlying string changes 
+//           * Should be able to update mesh instances when the underlying string changes
 //           * Take inspiration from terminal emulators
 //             * Use control characters for color, blink, etc
 //               * Could extend if unused control characters exist
@@ -231,23 +235,23 @@
 mod demos;
 
 use antigen_core::{
-    receive_messages, send_clone_query, try_receive_messages, PositionComponent, RotationComponent,
-    ScaleComponent, TaggedEntitiesComponent, WorldChannel, WorldExchange,
+    receive_messages, send_clone_query, try_receive_messages, LazyComponent, PositionComponent,
+    RotationComponent, ScaleComponent, TaggedEntitiesComponent, WorldChannel, WorldExchange,
 };
 use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
 };
 use antigen_winit::EventLoopHandler;
-use demos::phosphor::{LineMeshInstance, TriangleMeshInstance};
+use demos::phosphor::{ColliderEventTargetComponent, LineMeshInstance, TriangleMeshInstance, EventTargetEntitiesComponent};
 use std::{
     thread::JoinHandle,
-    time::{Duration, Instant},
+    time::{Duration, Instant}, borrow::Cow,
 };
 use winit::{event::Event, event_loop::ControlFlow, event_loop::EventLoopWindowTarget};
 
 use hecs::{EntityBuilder, World};
 
-use antigen_rapier3d::physics_backend_builder;
+use antigen_rapier3d::{physics_backend_builder, ColliderComponent};
 
 const GAME_THREAD_TICK: Duration = Duration::from_nanos(16670000);
 
@@ -276,6 +280,7 @@ fn main() {
 
     // Setup game world
     game_world.spawn((TaggedEntitiesComponent::default(),));
+    game_world.spawn((EventTargetEntitiesComponent::default(),));
 
     let mut builder = EntityBuilder::new();
     builder.add(demos::phosphor::SharedShapes);
@@ -402,16 +407,53 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
             antigen_rapier3d::insert_colliders_system(&mut world);
             antigen_rapier3d::insert_rigid_bodies_system(&mut world);
 
+            demos::phosphor::movers_position_system(&mut world);
+            demos::phosphor::movers_rotation_system(&mut world);
+
+            antigen_rapier3d::write_rigid_body_isometries_system(&mut world);
+
             antigen_rapier3d::step_physics_system(&mut world);
 
             // Handle physics events
-            for (_, event_collector) in world.query_mut::<&antigen_rapier3d::EventCollector>() {
-                let intersections = event_collector.intersection_events();
-                if intersections.len() > 0 {
-                    println!("Intersections: {intersections:?}");
+            {
+                let mut query = world.query::<&antigen_rapier3d::EventCollector>();
+                for (_, event_collector) in query.into_iter() {
+                    for intersection in event_collector.intersection_events().iter() {
+                        // Find the entity corresponding to this collider
+                        let mut query =
+                            world.query::<(&ColliderComponent, &ColliderEventTargetComponent)>();
+
+                        for (_, (_, target)) in
+                            query
+                                .into_iter()
+                                .filter(|(_, (collider, _))| match collider {
+                                    LazyComponent::Ready(collider) => {
+                                        if *collider == intersection.collider1
+                                            || *collider == intersection.collider2
+                                        {
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
+                                    _ => false,
+                                })
+                        {
+                            // TODO:
+                            // Fetch target entities from singleton event target list
+                            // For each of them, check their in event
+                            // If it corresponds to intersection.intersecting,
+                            // match on their out event, look up target, and fire appropriate logic
+                            if intersection.intersecting {
+                                println!("Intersection enter, event target: {target:?}");
+                            } else {
+                                println!("Intersection exit, event target: {target:?}");
+                            }
+                        }
+                    }
                 }
             }
-            
+
             antigen_rapier3d::clear_physics_events_system(&mut world);
 
             antigen_rapier3d::read_back_rigid_body_isometries_system(&mut world);

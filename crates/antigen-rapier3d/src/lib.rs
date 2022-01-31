@@ -11,7 +11,7 @@ use rapier3d::{
     prelude::{
         BroadPhase, CCDSolver, Collider, ColliderHandle, ColliderSet, ContactEvent, ContactPair,
         IntegrationParameters, IntersectionEvent, IslandManager, JointSet, NarrowPhase,
-        PhysicsPipeline, RigidBody, RigidBodyHandle, RigidBodySet,
+        PhysicsPipeline, RigidBody, RigidBodyHandle, RigidBodySet, RigidBodyType,
     },
 };
 
@@ -273,6 +273,64 @@ pub fn insert_rigid_bodies_system(world: &mut World) {
     }
 }
 
+pub fn write_rigid_body_isometries_system(world: &mut World) {
+    let mut query = world.query::<&mut RigidBodySet>();
+    let (_, rigid_body_set) = query.into_iter().next().unwrap();
+
+    for (_, (rigid_body, position, rotation, linear_velocity, angular_velocity)) in world
+        .query::<(
+            &mut RigidBodyComponent,
+            Option<&mut PositionComponent>,
+            Option<&mut RotationComponent>,
+            Option<&mut LinearVelocityComponent>,
+            Option<&mut AngularVelocityComponent>,
+        )>()
+        .into_iter()
+    {
+        if let LazyComponent::Ready(handle) = **rigid_body {
+            let rb = &mut rigid_body_set[handle];
+
+            match rb.body_type() {
+                RigidBodyType::Dynamic => continue,
+                RigidBodyType::Static => continue,
+                RigidBodyType::KinematicPositionBased => {
+                    if let Some(position) = position {
+                        rb.set_next_kinematic_translation(
+                            rapier3d::prelude::nalgebra::Vector3::new(
+                                position.x, position.y, position.z,
+                            ),
+                        );
+                    }
+
+                    if let Some(rotation) = rotation {
+                        let (x, y, z) = rotation.euler_angles();
+                        rb.set_next_kinematic_rotation(rapier3d::prelude::nalgebra::Vector3::new(
+                            x, y, z,
+                        ));
+                    }
+                }
+                RigidBodyType::KinematicVelocityBased => {
+                    if let Some(linear_velocity) = linear_velocity {
+                        rb.set_linvel(rapier3d::prelude::nalgebra::Vector3::new(
+                            linear_velocity.x,
+                            linear_velocity.y,
+                            linear_velocity.z,
+                        ), linear_velocity.magnitude() > 0.0);
+                    }
+
+                    if let Some(angular_velocity) = angular_velocity {
+                        rb.set_angvel(rapier3d::prelude::nalgebra::Vector3::new(
+                            angular_velocity.x,
+                            angular_velocity.y,
+                            angular_velocity.z,
+                        ), angular_velocity.magnitude() > 0.0);
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn read_back_rigid_body_isometries_system(world: &mut World) {
     let mut query = world.query::<&mut RigidBodySet>();
     let (_, rigid_body_set) = query.into_iter().next().unwrap();
@@ -289,6 +347,10 @@ pub fn read_back_rigid_body_isometries_system(world: &mut World) {
     {
         if let LazyComponent::Ready(handle) = **rigid_body {
             let rb = &rigid_body_set[handle];
+
+            if rb.body_type() != RigidBodyType::Dynamic {
+                continue;
+            }
 
             if let Some(position) = position {
                 let pos = rb.translation();

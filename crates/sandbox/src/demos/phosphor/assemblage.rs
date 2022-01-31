@@ -16,7 +16,7 @@ use super::{
     LineMeshInstanceData, LineMeshInstances, LineMeshes, Oscilloscope, PhosphorRenderer,
     StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshIds, TriangleMeshIdsComponent,
     TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes, Uniform, VertexData, Vertices,
-    BLACK, BLUE, CLEAR_COLOR, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE,
+    BLACK, BLUE, CLEAR_COLOR, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE, EventTargetEntities, EventTargetEntitiesComponent,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -536,3 +536,4 @@ pub fn register_line_mesh_id(world: &mut World, key: Cow<'static, str>, line_mes
     let (_, mesh_ids) = query.into_iter().next().unwrap();
     mesh_ids.write().insert(key.into(), line_mesh);
 }
+

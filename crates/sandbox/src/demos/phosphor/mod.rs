@@ -192,10 +192,7 @@ pub fn orthographic_matrix(aspect: f32, zoom: f32) -> nalgebra::Matrix4<f32> {
 }
 
 pub fn perspective_matrix(aspect: f32, near: f32) -> nalgebra::Matrix4<f32> {
-    let mut projection =
-        nalgebra_glm::reversed_infinite_perspective_rh_zo(aspect, (70.0f32).to_radians(), near);
-    //projection.append_nonuniform_scaling_mut(&nalgebra::vector![-1.0, 1.0, 1.0]);
-    projection
+    nalgebra_glm::reversed_infinite_perspective_rh_zo(aspect, (70.0f32).to_radians(), near)
 }
 
 fn circle_strip(subdiv: usize, z_ofs: f32) -> Vec<LineVertexData> {
@@ -360,7 +357,7 @@ fn assemble_map_game_thread(
 
         map_data.assemble_brush_entities_game_thread(world);
 
-        let mut point_entities = map_data.assemble_point_entities_game_thread(world);
+        let mut point_entities = map_data.assemble_entities_game_thread(world);
         let bundles = point_entities.iter_mut().map(EntityBuilder::build);
         world.extend(bundles);
 
@@ -1210,20 +1207,13 @@ fn assemble_test_geometry(world: &mut World) {
 struct MapData {
     geo_map: antigen_shambler::shambler::GeoMap,
     lines: antigen_shambler::shambler::line::Lines,
-    brush_entities: antigen_shambler::shambler::brush::BrushEntities,
-    face_brushes: antigen_shambler::shambler::face::FaceBrushes,
     entity_centers: antigen_shambler::shambler::entity::EntityCenters,
     brush_centers: antigen_shambler::shambler::brush::BrushCenters,
-    face_planes: antigen_shambler::shambler::face::FacePlanes,
-    brush_hulls: antigen_shambler::shambler::brush::BrushHulls,
     face_vertices: antigen_shambler::shambler::face::FaceVertices,
     face_duplicates: antigen_shambler::shambler::face::FaceDuplicates,
-    face_centers: antigen_shambler::shambler::face::FaceCenters,
-    face_indices: antigen_shambler::shambler::face::FaceIndices,
     face_triangle_indices: antigen_shambler::shambler::face::FaceTriangleIndices,
     face_lines: antigen_shambler::shambler::face::FaceLines,
     interior_faces: antigen_shambler::shambler::face::InteriorFaces,
-    face_bases: antigen_shambler::shambler::face::FaceBases,
     face_face_containment: antigen_shambler::shambler::face::FaceFaceContainment,
     brush_face_containment: antigen_shambler::shambler::brush::BrushFaceContainment,
     manifold_lines: antigen_shambler::shambler::line::ManifoldLines,
@@ -1232,35 +1222,28 @@ struct MapData {
 
 impl From<GeoMap> for MapData {
     fn from(geo_map: GeoMap) -> Self {
-        // Reverse lookup tables for brush -> entity, face -> brush
-        println!("Generating brush entities");
+        let face_brushes = antigen_shambler::shambler::face::face_brushes(&geo_map.brush_faces);
         let brush_entities =
             antigen_shambler::shambler::brush::brush_entities(&geo_map.entity_brushes);
 
-        println!("Generating face brushes");
-        let face_brushes = antigen_shambler::shambler::face::face_brushes(&geo_map.brush_faces);
-
         // Create geo planes from brush planes
-        println!("Generating face planes");
         let face_planes = antigen_shambler::shambler::face::face_planes(&geo_map.face_planes);
 
         // Create per-brush hulls from brush planes
-        println!("Generating brush hulls");
         let brush_hulls =
             antigen_shambler::shambler::brush::brush_hulls(&geo_map.brush_faces, &face_planes);
 
         // Generate face vertices
-        println!("Generating face vertices");
         let (face_vertices, _) = antigen_shambler::shambler::face::face_vertices(
             &geo_map.brush_faces,
             &face_planes,
             &brush_hulls,
         );
 
-        let face_normals = antigen_shambler::shambler::face::normals_flat(&face_vertices, &face_planes);
+        let face_normals =
+            antigen_shambler::shambler::face::normals_flat(&face_vertices, &face_planes);
 
         // Find duplicate faces
-        println!("Generating face duplicates");
         let face_duplicates = antigen_shambler::shambler::face::face_duplicates(
             &geo_map.faces,
             &face_planes,
@@ -1268,21 +1251,17 @@ impl From<GeoMap> for MapData {
         );
 
         // Generate centers
-        println!("Generating face centers");
         let face_centers = antigen_shambler::shambler::face::face_centers(&face_vertices);
 
-        println!("Generating brush centers");
         let brush_centers =
             antigen_shambler::shambler::brush::brush_centers(&geo_map.brush_faces, &face_centers);
 
-        println!("Generating entity centers");
         let entity_centers = antigen_shambler::shambler::entity::entity_centers(
             &geo_map.entity_brushes,
             &brush_centers,
         );
 
         // Generate per-plane CCW face indices
-        println!("Generating face indices");
         let face_indices = antigen_shambler::shambler::face::face_indices(
             &geo_map.face_planes,
             &face_planes,
@@ -1291,15 +1270,12 @@ impl From<GeoMap> for MapData {
             antigen_shambler::shambler::face::FaceWinding::Clockwise,
         );
 
-        println!("Generating face triangle indices");
         let face_triangle_indices =
             antigen_shambler::shambler::face::face_triangle_indices(&face_indices);
 
-        println!("Generating lines");
         let (lines, face_lines) = antigen_shambler::shambler::line::lines(&face_indices);
 
         // Generate tangents
-        println!("Generating face bases");
         let face_bases = antigen_shambler::shambler::face::face_bases(
             &geo_map.faces,
             &face_planes,
@@ -1309,7 +1285,6 @@ impl From<GeoMap> for MapData {
         );
 
         // Calculate face-face containment
-        println!("Generating face-face containment");
         let face_face_containment = antigen_shambler::shambler::face::face_face_containment(
             &geo_map.faces,
             &lines,
@@ -1320,14 +1295,27 @@ impl From<GeoMap> for MapData {
         );
 
         // Calculate brush-face containment
-        println!("Generating brush-face containment");
-        let brush_face_containment = antigen_shambler::shambler::brush::brush_face_containment(
+        let mut brush_face_containment = antigen_shambler::shambler::brush::brush_face_containment(
             &geo_map.brushes,
             &geo_map.faces,
             &geo_map.brush_faces,
             &brush_hulls,
             &face_vertices,
         );
+
+        // Remove non-culled faced from brush-face containment
+        // TODO: This is a hack for the sake of omitting brushes from the culling process.
+        //       It should be replaced with a more robust filtering system.
+        for brush in brush_face_containment.keys().copied().collect::<Vec<_>>() {
+            let entity = &brush_entities[&brush];
+            let properties = &geo_map.entity_properties[entity];
+            if matches!(
+                Self::property_usize("mesh.visual.cull.faces", properties),
+                Err(_)
+            ) {
+                brush_face_containment.remove(&brush);
+            }
+        }
 
         // Line-face connections
         let line_faces = antigen_shambler::shambler::line::line_faces(&face_lines);
@@ -1350,9 +1338,7 @@ impl From<GeoMap> for MapData {
         );
         let (manifold_lines, non_manifold_lines) =
             antigen_shambler::shambler::line::manifold_lines(&line_face_connections);
-        //panic!("Manifold lines: {manifold_lines:?}\nNon-manifold lines: {non_manifold_lines:?}");
 
-        println!("Generating interior faces");
         let interior_faces = antigen_shambler::shambler::face::interior_faces(
             &geo_map.faces,
             &face_lines,
@@ -1363,22 +1349,15 @@ impl From<GeoMap> for MapData {
         );
 
         MapData {
-            brush_entities,
-            face_brushes,
             geo_map,
             lines,
             entity_centers,
             brush_centers,
-            face_planes,
-            brush_hulls,
             face_vertices,
             face_duplicates,
-            face_centers,
-            face_indices,
             face_triangle_indices,
             face_lines,
             interior_faces,
-            face_bases,
             face_face_containment,
             brush_face_containment,
             manifold_lines,
@@ -1561,58 +1540,99 @@ impl MapData {
         let mut builders = vec![];
 
         // Brush entity meshes
-        for (entity, _) in entity_brushes.into_iter().filter(|(entity, _)| {
+        for (entity, _) in entity_brushes {
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            matches!(Self::property_bool("visual_mesh", properties), Ok(true))
-        }) {
-            let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            let entity_mesh_name = Self::property_string("visual_mesh.name", properties)
-                .map(ToString::to_string)
-                .unwrap_or_else(|_| Self::default_entity_name(entity));
 
-            // Generate mesh
-            let (mesh_vertices, triangle_indices, line_indices) = self
-                .assemble_brush_entity_triangle_mesh(
-                    entity,
-                    self.face_cull_predicate(entity, "visual_mesh"),
-                    self.line_cull_predicate(entity, "visual_mesh"),
-                );
+            if matches!(Self::property_bool("mesh.visual", properties), Ok(true)) {
+                let entity_mesh_name = Self::property_targetname("mesh.visual.name", properties)
+                    .unwrap_or_else(|_| Self::default_entity_name(entity));
 
-            let properties = self.geo_map.entity_properties.get(entity).unwrap();
-            let ty = Self::property_string("visual_mesh.type", properties)
-                .expect("No mesh.type property");
-            builders.extend(match ty {
-                "triangles_and_lines" => Self::build_brush_entity_triangle_line_meshes(
-                    self,
-                    world,
-                    entity,
-                    &entity_mesh_name,
-                    mesh_vertices,
-                    triangle_indices,
-                    line_indices,
-                ),
+                // Generate mesh
+                let (mesh_vertices, triangle_indices, line_indices) = self
+                    .assemble_brush_entity_triangle_mesh(
+                        entity,
+                        self.face_cull_predicate(entity, "mesh.visual"),
+                        self.line_cull_predicate(entity, "mesh.visual"),
+                    );
 
-                "triangles" => Self::build_brush_entity_triangle_meshes(
-                    self,
-                    world,
-                    entity,
-                    &entity_mesh_name,
-                    mesh_vertices,
-                    triangle_indices,
-                ),
-                "lines" => Self::build_brush_entity_line_meshes(
-                    self,
-                    world,
-                    entity,
-                    &entity_mesh_name,
-                    mesh_vertices,
-                    line_indices,
-                ),
-                _ => unimplemented!(),
-            });
+                let ty = Self::property_usize("mesh.visual.type", properties)
+                    .expect("No mesh.visual.type property");
+                builders.extend(match ty {
+                    1 => Self::build_brush_entity_triangle_meshes(
+                        world,
+                        &entity_mesh_name,
+                        mesh_vertices,
+                        triangle_indices,
+                    ),
+                    2 => Self::build_brush_entity_line_meshes(
+                        world,
+                        &entity_mesh_name,
+                        mesh_vertices,
+                        line_indices,
+                    ),
+                    3 => Self::build_brush_entity_triangle_line_meshes(
+                        world,
+                        &entity_mesh_name,
+                        mesh_vertices,
+                        triangle_indices,
+                        line_indices,
+                    ),
+                    _ => unimplemented!(),
+                });
+            }
         }
 
         builders
+    }
+
+    fn entity_line(world: &mut World, entity: &EntityId, properties: &Properties) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if matches!(Self::property_bool("line", properties), Ok(true)) {
+            let name = Self::property_string("line.name", properties)
+                .map(ToString::to_string)
+                .unwrap_or_else(|_| Self::default_entity_name(entity));
+
+            let line_count = Self::property_usize("line.segments", properties).unwrap_or(1);
+            let color =
+                Self::property_f32_3("line.color", properties).unwrap_or_else(|_| (1.0, 1.0, 1.0));
+            let intensity = Self::property_f32("line.intensity", properties).unwrap_or(1.0);
+            let delta_intensity =
+                Self::property_f32("line.delta_intensity", properties).unwrap_or(1.0);
+
+            builder.add_bundle(
+                line_builder(
+                    world,
+                    name.into(),
+                    line_count,
+                    color,
+                    intensity,
+                    delta_intensity,
+                )
+                .build(),
+            );
+        }
+        builder
+    }
+
+    fn entity_oscilloscope(properties: &Properties) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if matches!(Self::property_bool("oscilloscope", properties), Ok(true)) {
+            let speed = Self::property_f32("oscilloscope.speed", properties).unwrap_or(1.0);
+            let magnitude = Self::property_f32("oscilloscope.magnitude", properties).unwrap_or(1.0);
+
+            let x = Self::property_expression_f32("oscilloscope.x", properties)
+                .unwrap_or(Expression::Val(0.0));
+            let y = Self::property_expression_f32("oscilloscope.y", properties)
+                .unwrap_or(Expression::Val(0.0));
+            let z = Self::property_expression_f32("oscilloscope.z", properties)
+                .unwrap_or(Expression::Val(0.0));
+
+            builder.add(Oscilloscope::new(speed, magnitude, move |f| {
+                let vars = [("f", f)].into_iter().collect::<BTreeMap<_, _>>();
+                (x.eval(&vars), y.eval(&vars), z.eval(&vars))
+            }));
+        }
+        builder
     }
 
     pub fn assemble_point_entities_render_thread(&self, world: &mut World) -> Vec<EntityBuilder> {
@@ -1623,51 +1643,8 @@ impl MapData {
 
             let properties = self.geo_map.entity_properties.get(entity).unwrap();
 
-            // Lines
-            if matches!(Self::property_bool("line", properties), Ok(true)) {
-                let properties = self.geo_map.entity_properties.get(entity).unwrap();
-                let name = Self::property_string("line.name", properties)
-                    .map(ToString::to_string)
-                    .unwrap_or_else(|_| Self::default_entity_name(entity));
-
-                let line_count = Self::property_usize("line.segments", properties).unwrap_or(1);
-                let color = Self::property_f32_3("line.color", properties)
-                    .unwrap_or_else(|_| (1.0, 1.0, 1.0));
-                let intensity = Self::property_f32("line.intensity", properties).unwrap_or(1.0);
-                let delta_intensity =
-                    Self::property_f32("line.delta_intensity", properties).unwrap_or(1.0);
-
-                builder.add_bundle(
-                    line_builder(
-                        world,
-                        name.into(),
-                        line_count,
-                        color,
-                        intensity,
-                        delta_intensity,
-                    )
-                    .build(),
-                );
-            }
-
-            // Oscilloscopes
-            if matches!(Self::property_bool("oscilloscope", properties), Ok(true)) {
-                let speed = Self::property_f32("oscilloscope.speed", properties).unwrap_or(1.0);
-                let magnitude =
-                    Self::property_f32("oscilloscope.magnitude", properties).unwrap_or(1.0);
-
-                let x = Self::property_expression_f32("oscilloscope.x", properties)
-                    .unwrap_or(Expression::Val(0.0));
-                let y = Self::property_expression_f32("oscilloscope.y", properties)
-                    .unwrap_or(Expression::Val(0.0));
-                let z = Self::property_expression_f32("oscilloscope.z", properties)
-                    .unwrap_or(Expression::Val(0.0));
-
-                builder.add(Oscilloscope::new(speed, magnitude, move |f| {
-                    let vars = [("f", f)].into_iter().collect::<BTreeMap<_, _>>();
-                    (x.eval(&vars), y.eval(&vars), z.eval(&vars))
-                }));
-            }
+            builder.add_bundle(Self::entity_line(world, entity, properties).build());
+            builder.add_bundle(Self::entity_oscilloscope(properties).build());
 
             builders.push(builder);
         }
@@ -1684,7 +1661,7 @@ impl MapData {
         let component_property = component_property.to_string();
         move |face_id| {
             if let Ok(cull) =
-                Self::property_usize(&(component_property.clone() + ".cull"), properties)
+                Self::property_usize(&(component_property.clone() + ".cull.faces"), properties)
             {
                 if cull & 1 > 0 && self.face_duplicates.iter().any(|(_, b)| b == face_id) {
                     return false;
@@ -1730,13 +1707,13 @@ impl MapData {
         let component_property = component_property.to_string();
         move |line_id| {
             if let Ok(cull) =
-                Self::property_usize(&(component_property.clone() + ".cull"), properties)
+                Self::property_usize(&(component_property.clone() + ".cull.lines"), properties)
             {
-                if cull & 32 > 0 && self.manifold_lines.iter().any(|id| id == line_id) {
+                if cull & 1 > 0 && self.manifold_lines.iter().any(|id| id == line_id) {
                     return false;
                 }
 
-                if cull & 64 > 0 && self.non_manifold_lines.iter().any(|id| id == line_id) {
+                if cull & 2 > 0 && self.non_manifold_lines.iter().any(|id| id == line_id) {
                     return false;
                 }
             }
@@ -1758,8 +1735,7 @@ impl MapData {
             let entity_center = self.entity_centers[entity];
 
             if matches!(Self::property_bool("convex_hull", properties), Ok(true)) {
-                let key = Self::property_string("convex_hull.name", properties)
-                    .map(ToString::to_string)
+                let key = Self::property_targetname("convex_hull.name", properties)
                     .unwrap_or_else(|_| Self::default_entity_name(entity));
 
                 let shape = match Self::property_string("convex_hull.type", properties).unwrap() {
@@ -1821,10 +1797,18 @@ impl MapData {
 
                 let shape_fn = move |scale: nalgebra::Vector3<f32>| {
                     let mut compound = vec![];
-                    for (isometry, convex_hull) in &shape {
+                    for (mut isometry, convex_hull) in &shape {
+                        isometry.translation.x *= scale.x;
+                        isometry.translation.y *= scale.y;
+                        isometry.translation.z *= scale.z;
+
                         let mut scaled_hull = vec![];
                         for vertex in convex_hull {
-                            let scaled_vert = vertex.component_mul(&scale.xzy());
+                            let scaled_vert = nalgebra::vector![
+                                vertex.x * scale.x,
+                                vertex.y * scale.y,
+                                vertex.z * scale.z
+                            ];
                             scaled_hull.push(rapier3d::prelude::nalgebra::Point3::new(
                                 scaled_vert.x,
                                 scaled_vert.y,
@@ -1832,7 +1816,7 @@ impl MapData {
                             ));
                         }
                         compound.push((
-                            *isometry,
+                            isometry,
                             SharedShape::convex_hull(&scaled_hull[..]).unwrap(),
                         ))
                     }
@@ -1846,15 +1830,14 @@ impl MapData {
                 shared_shapes.insert(key.to_owned(), Box::new(shape_fn));
             }
 
-            if matches!(Self::property_bool("trimesh", properties), Ok(true)) {
-                let key = Self::property_string("trimesh.name", properties)
-                    .map(ToString::to_string)
+            if matches!(Self::property_bool("mesh.collision", properties), Ok(true)) {
+                let key = Self::property_targetname("mesh.collision.name", properties)
                     .unwrap_or_else(|_| Self::default_entity_name(entity));
 
                 let (mesh_vertices, triangle_indices, _) = self
                     .assemble_brush_entity_triangle_mesh(
                         entity,
-                        self.face_cull_predicate(entity, "trimesh"),
+                        self.face_cull_predicate(entity, "mesh.collision"),
                         |_| false,
                     );
 
@@ -1883,9 +1866,7 @@ impl MapData {
     }
 
     fn build_brush_entity_triangle_line_meshes(
-        _: &MapData,
         world: &mut World,
-        _: &EntityId,
         entity_mesh_name: &str,
         vertices: Vec<VertexData>,
         triangle_indices: Vec<TriangleIndexData>,
@@ -1962,9 +1943,7 @@ impl MapData {
     }
 
     fn build_brush_entity_triangle_meshes(
-        _: &MapData,
         world: &mut World,
-        _: &EntityId,
         entity_mesh_name: &str,
         vertices: Vec<VertexData>,
         triangle_indices: Vec<TriangleIndexData>,
@@ -2010,9 +1989,7 @@ impl MapData {
     }
 
     fn build_brush_entity_line_meshes(
-        _: &MapData,
         world: &mut World,
-        _: &EntityId,
         entity_mesh_name: &str,
         vertices: Vec<VertexData>,
         line_indices: Vec<LineIndexData>,
@@ -2084,7 +2061,7 @@ impl MapData {
     }
 
     fn property_scale(properties: &Properties) -> nalgebra::Vector3<f32> {
-        if let Ok((x, z, y)) = Self::property_f32_3("scale", properties) {
+        if let Ok((x, y, z)) = Self::property_f32_3("scale", properties) {
             nalgebra::vector![x, z, y]
         } else {
             nalgebra::vector![1.0, 1.0, 1.0]
@@ -2172,11 +2149,284 @@ impl MapData {
         )
     }
 
-    pub fn assemble_point_entities_game_thread(&self, world: &mut World) -> Vec<EntityBuilder> {
+    fn property_target(property: &str, properties: &Properties) -> Result<String, Box<dyn Error>> {
+        if let Ok(mesh) = Self::property_string(property, properties) {
+            Ok(mesh.to_owned())
+        } else if matches!(
+            Self::property_bool(&format!("{property}.use_target"), properties),
+            Ok(true)
+        ) {
+            Ok(Self::property_string("target", properties)?.to_owned())
+        } else {
+            Err("No such property".into())
+        }
+    }
+
+    fn property_targetname(
+        property: &str,
+        properties: &Properties,
+    ) -> Result<String, Box<dyn Error>> {
+        if let Ok(mesh) = Self::property_string(property, properties) {
+            Ok(mesh.to_owned())
+        } else if matches!(
+            Self::property_bool(&format!("{property}.use_targetname"), properties),
+            Ok(true)
+        ) {
+            Ok(Self::property_string("targetname", properties)?.to_owned())
+        } else {
+            Err("No such property".into())
+        }
+    }
+
+    fn entity_line_mesh_instance(entity: &EntityId, properties: &Properties) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if let Ok(true) = MapData::property_bool("mesh_instance.line", properties) {
+            let mesh = MapData::property_target("mesh_instance.line.mesh", properties)
+                .unwrap_or_else(|_| Self::default_entity_name(entity));
+            builder.add(LineMeshInstanceComponent::construct(Cow::Owned(mesh)));
+        }
+        builder
+    }
+
+    fn entity_triangle_mesh_instance(entity: &EntityId, properties: &Properties) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if let Ok(true) = Self::property_bool("mesh_instance.triangle", properties) {
+            let mesh = Self::property_target("mesh_instance.triangle.mesh", properties)
+                .unwrap_or_else(|_| Self::default_entity_name(entity));
+            builder.add(TriangleMeshInstanceComponent::construct(Cow::Owned(mesh)));
+        }
+        builder
+    }
+
+    fn entity_rigid_body(properties: &Properties) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if let Ok(true) = Self::property_bool("rigid_body", properties) {
+            if let Ok(ty) = Self::property_string("rigid_body.type", properties) {
+                let rigid_body_builder = match ty {
+                    "dynamic" => RigidBodyBuilder::new_dynamic(),
+                    "kinematic_position_based" => RigidBodyBuilder::new_kinematic_position_based(),
+                    "kinematic_velocity_based" => RigidBodyBuilder::new_kinematic_velocity_based(),
+                    "static" => RigidBodyBuilder::new_static(),
+                    _ => panic!("Incorrect variant for rigid_body.type"),
+                };
+                builder.add(RigidBodyComponent::construct(rigid_body_builder.build()));
+            }
+
+            if let Ok(vel) = Self::property_f32_3("rigid_body.linear_velocity", properties) {
+                builder.add(LinearVelocityComponent::construct(nalgebra::vector![
+                    vel.0, vel.1, vel.2
+                ]));
+            }
+
+            if let Ok(vel) = Self::property_f32_3("rigid_body.angular_velocity", properties) {
+                builder.add(AngularVelocityComponent::construct(nalgebra::vector![
+                    vel.0, vel.1, vel.2
+                ]));
+            }
+        }
+        builder
+    }
+
+    fn entity_collider(
+        world: &mut World,
+        entity: &EntityId,
+        properties: &Properties,
+        scale: nalgebra::Vector3<f32>,
+    ) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if let Ok(true) = Self::property_bool("collider", properties) {
+            if let Ok(shape) = Self::property_string("collider.shape", properties) {
+                let collider_builder = match shape {
+                    "ball" => {
+                        let radius =
+                            Self::property_f32("collider.ball.radius", properties).unwrap();
+                        ColliderBuilder::ball(radius * scale.x.max(scale.y).max(scale.z))
+                    }
+                    "cuboid" => {
+                        let extents =
+                            Self::property_f32_3("collider.cuboid.extents", properties).unwrap();
+                        ColliderBuilder::cuboid(
+                            extents.0 * scale.x,
+                            extents.1 * scale.y,
+                            extents.2 * scale.z,
+                        )
+                    }
+                    "convex_hull" => {
+                        let mesh = Self::property_target("collider.convex_hull.mesh", properties)
+                            .unwrap_or_else(|_| Self::default_entity_name(entity));
+
+                        let (_, shared_shapes) = world
+                            .query_mut::<&SharedShapesComponent>()
+                            .into_iter()
+                            .next()
+                            .expect("No SharedShapesComponent");
+
+                        let shape = shared_shapes[&mesh](scale);
+
+                        ColliderBuilder::new(shape)
+                    }
+                    "trimesh" => {
+                        let mesh = Self::property_target("collider.trimesh.mesh", properties)
+                            .unwrap_or_else(|_| Self::default_entity_name(entity));
+
+                        let (_, shared_shapes) = world
+                            .query_mut::<&SharedShapesComponent>()
+                            .into_iter()
+                            .next()
+                            .expect("No SharedShapesComponent");
+
+                        let shape = shared_shapes[&mesh](scale);
+
+                        ColliderBuilder::new(shape)
+                    }
+                    _ => panic!("Incorrect variant for collider.shape"),
+                };
+
+                let collider_builder = if let Ok(restitution) =
+                    Self::property_f32("collider.restitution", properties)
+                {
+                    collider_builder.restitution(restitution)
+                } else {
+                    collider_builder
+                };
+
+                let collider_builder =
+                    if let Ok(ty) = Self::property_string("collider.type", properties) {
+                        match ty {
+                            "solid" => collider_builder,
+                            "sensor" => collider_builder.sensor(true),
+                            _ => unimplemented!(),
+                        }
+                    } else {
+                        collider_builder
+                    };
+
+                let collider_builder = if let Ok(active_events) =
+                    Self::property_usize("collider.events.active", properties)
+                {
+                    let mut ae = ActiveEvents::default();
+
+                    if active_events & 1 > 0 {
+                        ae |= ActiveEvents::CONTACT_EVENTS;
+                    }
+
+                    if active_events & 2 > 0 {
+                        ae |= ActiveEvents::INTERSECTION_EVENTS;
+                    }
+
+                    if active_events > 0 {
+                        let target = Self::property_target("collider.events.target", properties);
+
+                        if let Ok(target) = target {
+                            builder
+                                .add(ColliderEventTargetComponent::construct(target.to_string()));
+                        }
+                    }
+
+                    collider_builder.active_events(ae)
+                } else {
+                    collider_builder
+                };
+
+                builder.add(ColliderComponent::construct(collider_builder.build()));
+            }
+        }
+        builder
+    }
+
+    fn entity_mover(properties: &Properties) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if let Ok(true) = Self::property_bool("mover", properties) {
+            if let Ok((x, y, z)) = Self::property_f32_3("mover.offset.position", properties) {
+                builder.add(PositionOffsetComponent::construct((
+                    nalgebra::vector![x, z, y],
+                    nalgebra::vector![0.0, 0.0, 0.0],
+                )));
+            }
+
+            if let Ok((x, y, z)) = Self::property_f32_3("mover.offset.rotation", properties) {
+                builder.add(RotationOffsetComponent::construct((
+                    nalgebra::vector![x, z, y],
+                    nalgebra::vector![0.0, 0.0, 0.0],
+                )));
+            }
+
+            if let Ok(speed) = Self::property_f32("mover.speed", properties) {
+                builder.add(SpeedComponent::construct(speed));
+            }
+
+            if let Ok(open) = Self::property_bool("mover.open", properties) {
+                builder.add(MoverOpenComponent::construct(open));
+            }
+        }
+        builder
+    }
+
+    fn entity_event(properties: &Properties) -> EntityBuilder {
+        let mut builder = EntityBuilder::new();
+        if let Ok(true) = Self::property_bool("event", properties) {
+            let input = Self::property_string("event.in", properties).unwrap();
+            builder.add(EventInputComponent::construct(input.to_owned().into()));
+
+            let output = Self::property_string("event.out", properties).unwrap();
+            builder.add(EventOutputComponent::construct(output.to_owned().into()));
+
+            let target =
+                Self::property_target("event.target", properties).expect("Event has no target");
+            builder.add(EventTargetComponent::construct(target.to_owned().into()));
+        }
+        builder
+    }
+
+    fn entity_text(
+        properties: &Properties,
+        origin: nalgebra::Vector3<f32>,
+        scale: nalgebra::Vector3<f32>,
+    ) -> Vec<EntityBuilder> {
+        let mut builders = vec![];
+        if let Ok(true) = Self::property_bool("text", properties) {
+            let string = Self::property_string("text.string", properties).unwrap();
+            let rotation = Self::property_rotation(properties, true);
+
+            let lines = string
+                .split("\\n")
+                .map(|line| line.chars().collect::<Vec<_>>())
+                .collect::<Vec<_>>();
+
+            let step = 20.0;
+            for (iy, chars) in lines.iter().enumerate() {
+                for (ix, c) in chars.iter().enumerate() {
+                    if *c == ' ' {
+                        continue;
+                    }
+
+                    let ofs = nalgebra::vector![
+                        (-step * 13.0) + ix as f32 * 20.0,
+                        (iy as f32 * -30.0),
+                        0.0
+                    ];
+                    let ofs = ofs.component_mul(&scale);
+                    let ofs = rotation * ofs;
+
+                    let key = format!("char_{}", c.to_string().as_str());
+
+                    let mut builder = EntityBuilder::new();
+                    builder.add(PositionComponent::construct(origin + ofs));
+                    builder.add(RotationComponent::construct(rotation));
+                    builder.add(ScaleComponent::construct(scale));
+                    builder.add(LineMeshInstanceComponent::construct(Cow::Owned(key)));
+                    builders.push(builder);
+                }
+            }
+        }
+        builders
+    }
+
+    pub fn assemble_entities_game_thread(&self, world: &mut World) -> Vec<EntityBuilder> {
         let mut builders: Vec<EntityBuilder> = vec![];
 
         // Spawn generic point entities
-        let point_entities = self.geo_map.entities.iter().flat_map(|entity| {
+        let entities = self.geo_map.entities.iter().flat_map(|entity| {
             let properties = self.geo_map.entity_properties.get(entity)?;
             if let Some(classname) = properties.0.iter().find(|p| p.key == "classname") {
                 if classname.value == "point" || classname.value == "brush" {
@@ -2189,7 +2439,7 @@ impl MapData {
             }
         });
 
-        for (entity, properties) in point_entities.into_iter() {
+        for (entity, properties) in entities.into_iter() {
             let origin = Self::property_origin(properties).unwrap_or_else(|| {
                 self.entity_centers
                     .get(entity)
@@ -2204,191 +2454,15 @@ impl MapData {
             builder.add(RotationComponent::construct(rotation));
             builder.add(ScaleComponent::construct(scale));
 
-            if let Ok(true) = Self::property_bool("line_mesh_instance", properties) {
-                let mesh = if let Ok(mesh) =
-                    Self::property_string("line_mesh_instance.mesh", properties)
-                {
-                    mesh.to_owned()
-                } else {
-                    Self::default_entity_name(entity)
-                };
-                builder.add(LineMeshInstanceComponent::construct(Cow::Owned(mesh)));
-            }
-
-            if let Ok(true) = Self::property_bool("triangle_mesh_instance", properties) {
-                let mesh = if let Ok(mesh) =
-                    Self::property_string("triangle_mesh_instance.mesh", properties)
-                {
-                    mesh.to_owned()
-                } else {
-                    Self::default_entity_name(entity)
-                };
-                builder.add(TriangleMeshInstanceComponent::construct(Cow::Owned(mesh)));
-            }
-
-            if let Ok(true) = Self::property_bool("rigid_body", properties) {
-                if let Ok(ty) = Self::property_string("rigid_body.type", properties) {
-                    let rigid_body_builder = match ty {
-                        "dynamic" => RigidBodyBuilder::new_dynamic(),
-                        "kinematic_position_based" => {
-                            RigidBodyBuilder::new_kinematic_position_based()
-                        }
-                        "kinematic_velocity_based" => {
-                            RigidBodyBuilder::new_kinematic_velocity_based()
-                        }
-                        "static" => RigidBodyBuilder::new_static(),
-                        _ => panic!("Incorrect variant for rigid_body.type"),
-                    };
-                    builder.add(RigidBodyComponent::construct(rigid_body_builder.build()));
-                }
-
-                if let Ok(vel) = Self::property_f32_3("rigid_body.linear_velocity", properties) {
-                    builder.add(LinearVelocityComponent::construct(nalgebra::vector![
-                        vel.0, vel.1, vel.2
-                    ]));
-                }
-
-                if let Ok(vel) = Self::property_f32_3("rigid_body.angular_velocity", properties) {
-                    builder.add(AngularVelocityComponent::construct(nalgebra::vector![
-                        vel.0, vel.1, vel.2
-                    ]));
-                }
-            }
-
-            if let Ok(true) = Self::property_bool("collider", properties) {
-                if let Ok(shape) = Self::property_string("collider.shape", properties) {
-                    let collider_builder = match shape {
-                        "ball" => {
-                            let radius =
-                                Self::property_f32("collider.ball.radius", properties).unwrap();
-                            ColliderBuilder::ball(radius * scale.x.max(scale.y).max(scale.z))
-                        }
-                        "cuboid" => {
-                            let extents =
-                                Self::property_f32_3("collider.cuboid.extents", properties)
-                                    .unwrap();
-                            ColliderBuilder::cuboid(
-                                extents.0 * scale.x,
-                                extents.1 * scale.y,
-                                extents.2 * scale.z,
-                            )
-                        }
-                        "convex_hull" => {
-                            let mesh = if let Ok(mesh) =
-                                Self::property_string("collider.convex_hull.mesh", properties)
-                            {
-                                mesh.to_owned()
-                            } else {
-                                Self::default_entity_name(entity)
-                            };
-
-                            let (_, shared_shapes) = world
-                                .query_mut::<&SharedShapesComponent>()
-                                .into_iter()
-                                .next()
-                                .expect("No SharedShapesComponent");
-
-                            let shape = shared_shapes[&mesh](scale);
-
-                            ColliderBuilder::new(shape)
-                        }
-                        "trimesh" => {
-                            let mesh = if let Ok(mesh) =
-                                Self::property_string("collider.trimesh.mesh", properties)
-                            {
-                                mesh.to_owned()
-                            } else {
-                                Self::default_entity_name(entity)
-                            };
-
-                            let (_, shared_shapes) = world
-                                .query_mut::<&SharedShapesComponent>()
-                                .into_iter()
-                                .next()
-                                .expect("No SharedShapesComponent");
-
-                            let shape = shared_shapes[&mesh](scale);
-
-                            ColliderBuilder::new(shape)
-                        }
-                        _ => panic!("Incorrect variant for collider.shape"),
-                    };
-
-                    let collider_builder = if let Ok(restitution) =
-                        Self::property_f32("collider.restitution", properties)
-                    {
-                        collider_builder.restitution(restitution)
-                    } else {
-                        collider_builder
-                    };
-
-                    let collider_builder =
-                        if let Ok(ty) = Self::property_string("collider.type", properties) {
-                            match ty {
-                                "solid" => collider_builder,
-                                "sensor" => collider_builder.sensor(true),
-                                _ => unimplemented!(),
-                            }
-                        } else {
-                            collider_builder
-                        };
-
-                    let collider_builder = if let Ok(active_events) =
-                        Self::property_usize("collider.active_events", properties)
-                    {
-                        let mut ae = ActiveEvents::default();
-                        if active_events & 1 > 0 {
-                            ae |= ActiveEvents::CONTACT_EVENTS;
-                        }
-                        if active_events & 2 > 0 {
-                            ae |= ActiveEvents::INTERSECTION_EVENTS;
-                        }
-                        collider_builder.active_events(ae)
-                    } else {
-                        collider_builder
-                    };
-
-                    builder.add(ColliderComponent::construct(collider_builder.build()));
-                }
-            }
-
-            if let Ok(true) = Self::property_bool("text", properties) {
-                let string = Self::property_string("text.string", properties).unwrap();
-                let rotation = Self::property_rotation(properties, true);
-
-                let lines = string
-                    .split("\\n")
-                    .map(|line| line.chars().collect::<Vec<_>>())
-                    .collect::<Vec<_>>();
-
-                let step = 20.0;
-                for (iy, chars) in lines.iter().enumerate() {
-                    for (ix, c) in chars.iter().enumerate() {
-                        if *c == ' ' {
-                            continue;
-                        }
-
-                        let ofs = nalgebra::vector![
-                            (-step * 13.0) + ix as f32 * 20.0,
-                            (iy as f32 * -30.0),
-                            0.0
-                        ];
-                        let ofs = ofs.component_mul(&scale);
-                        let ofs = rotation * ofs;
-
-                        let key = format!("char_{}", c.to_string().as_str());
-
-                        let mut builder = EntityBuilder::new();
-                        builder.add(PositionComponent::construct(origin + ofs));
-                        builder.add(RotationComponent::construct(rotation));
-                        builder.add(ScaleComponent::construct(scale));
-                        builder.add(LineMeshInstanceComponent::construct(Cow::Owned(key)));
-                        builders.push(builder);
-                    }
-                }
-            }
-
+            builder.add_bundle(Self::entity_line_mesh_instance(entity, properties).build());
+            builder.add_bundle(Self::entity_triangle_mesh_instance(entity, properties).build());
+            builder.add_bundle(Self::entity_rigid_body(properties).build());
+            builder.add_bundle(Self::entity_collider(world, entity, properties, scale).build());
+            builder.add_bundle(Self::entity_mover(properties).build());
+            builder.add_bundle(Self::entity_event(properties).build());
             builders.push(builder);
+
+            builders.extend(Self::entity_text(properties, origin, scale));
         }
 
         builders
