@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
 use parking_lot::RwLock;
-use std::{borrow::Cow, collections::{BTreeMap, BTreeSet}, sync::Arc, time::Instant};
+use rapier3d::prelude::IntersectionEvent;
+use std::{borrow::Cow, collections::{BTreeMap, BTreeSet}, sync::Arc, time::Instant, marker::PhantomData};
 
 use antigen_core::{Changed, LazyComponent, Usage};
 
@@ -267,6 +268,36 @@ pub type SharedShapesComponent = Usage<
     >,
 >;
 
+pub struct EventInput;
+pub type EventInputComponent<T> = Usage<EventInput, Vec<T>>;
+
+pub struct EventOutput;
+pub type EventOutputComponent<T> = Usage<EventOutput, Vec<T>>;
+
+pub struct EventTransformComponent<I, O>(PhantomData<(I, O)>);
+
+impl<I, O> Default for EventTransformComponent<I, O> {
+    fn default() -> Self {
+        EventTransformComponent(PhantomData)
+    }
+}
+
+impl EventTransformComponent<(), ()> {
+    pub fn unit() -> Self {
+        Default::default()
+    }
+}
+
+impl<I, O> EventTransformComponent<I, O> {
+    pub fn with_input_type<T>(self) -> EventTransformComponent<T, O> {
+        Default::default()
+    }
+
+    pub fn with_output_type<T>(self) -> EventTransformComponent<I, T> {
+        Default::default()
+    }
+}
+
 pub struct EulerAngles;
 pub type EulerAnglesComponent = Usage<EulerAngles, nalgebra::Vector3<f32>>;
 
@@ -284,19 +315,23 @@ pub type SpeedComponent = Usage<Speed, f32>;
 pub struct MoverOpen;
 pub type MoverOpenComponent = Usage<MoverOpen, bool>;
 
-pub struct ColliderEventTarget;
-pub type ColliderEventTargetComponent = Usage<ColliderEventTarget, String>;
+#[derive(Debug, Copy, Clone)]
+pub enum MoverEvent {
+    Open,
+    Close,
+}
 
-#[derive(Copy, Clone)]
-pub struct EventTargetEntities;
-pub type EventTargetEntitiesComponent =
-    Usage<EventTargetEntities, BTreeMap<Cow<'static, str>, BTreeSet<hecs::Entity>>>;
+pub type MoverEventInputComponent = EventInputComponent<MoverEvent>;
+pub type MoverEventOutputComponent = EventOutputComponent<MoverEvent>;
 
-pub struct EventInput;
-pub type EventInputComponent = Usage<EventInput, Cow<'static, str>>;
+pub type ColliderEventInputComponent = EventInputComponent<IntersectionEvent>;
+pub type ColliderEventOutputComponent = EventOutputComponent<IntersectionEvent>;
 
-pub struct EventOutput;
-pub type EventOutputComponent = Usage<EventOutput, Cow<'static, str>>;
+pub struct EventIn;
+pub type EventInComponent = Usage<EventIn, Cow<'static, str>>;
 
-pub struct EventTarget;
-pub type EventTargetComponent = Usage<EventTarget, Cow<'static, str>>;
+pub struct EventOut;
+pub type EventOutComponent = Usage<EventOut, Cow<'static, str>>;
+
+pub struct EventTarget<T>(PhantomData<T>);
+pub type EventTargetComponent<T> = Usage<EventTarget<T>, Cow<'static, str>>;

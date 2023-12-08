@@ -8,4 +8,4 @@ hecs = { version = "0.7.1", features = ["macros"] }
 
 antigen-core = { path = "../antigen-core" }
 antigen-fs = { path = "../antigen-fs" }
-shambler = { path = "../../../sif/crates/shambler" }
+shambler = { path = "../shambler" }

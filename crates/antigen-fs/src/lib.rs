@@ -69,7 +69,7 @@ pub fn load_file_string<'a, 'b, P: Into<PathBuf>>(
 
         println!("Loaded file, spawning into world...");
         world.spawn(FileStringBundle::new(path, file));
-
+        
         Ok(ctx)
     }
 }

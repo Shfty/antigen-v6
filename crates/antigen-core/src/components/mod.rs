@@ -4,6 +4,7 @@ mod indirect;
 mod lazy_component;
 mod swap_with;
 mod tagged_entities;
+mod named_entities;
 mod usage;
 
 pub use ::usage::*;
@@ -13,6 +14,7 @@ pub use indirect::*;
 pub use lazy_component::*;
 pub use swap_with::*;
 pub use tagged_entities::*;
+pub use named_entities::*;
 
 // Position
 pub enum Position {}

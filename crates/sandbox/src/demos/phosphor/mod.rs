@@ -109,7 +109,9 @@ use antigen_rapier3d::{
 };
 pub use assemblage::*;
 pub use components::*;
-use rapier3d::prelude::{ActiveEvents, ColliderBuilder, RigidBodyBuilder, SharedShape};
+use rapier3d::prelude::{
+    ActiveEvents, ColliderBuilder, IntersectionEvent, RigidBodyBuilder, SharedShape,
+};
 pub use render_passes::*;
 pub use svg_lines::*;
 pub use systems::*;
@@ -131,8 +133,8 @@ use antigen_winit::{
 
 use antigen_core::{
     get_tagged_entity, insert_tagged_entity, insert_tagged_entity_by_query, send_clone_query,
-    send_component, Construct, Indirect, Lift, MessageContext, MessageResult, PositionComponent,
-    RotationComponent, ScaleComponent, SendTo, WorldChannel,
+    send_component, Construct, Indirect, Lift, MessageContext, MessageResult, NamedEntityComponent,
+    PositionComponent, RotationComponent, ScaleComponent, SendTo, WorldChannel,
 };
 
 use antigen_wgpu::{
@@ -735,7 +737,15 @@ fn window_bundle() -> EntityBuilder {
     builder
         .add_bundle(antigen_winit::WindowBundle::default())
         .add_bundle(antigen_winit::WindowTitleBundle::new("Phosphor"))
-        .add_bundle(antigen_wgpu::WindowSurfaceBundle::new())
+        .add_bundle(antigen_wgpu::WindowSurfaceBundle::new(
+            antigen_wgpu::wgpu::SurfaceConfiguration {
+                usage: TextureUsages::RENDER_ATTACHMENT,
+                format: TextureFormat::Bgra8UnormSrgb,
+                present_mode: antigen_wgpu::wgpu::PresentMode::Fifo,
+                width: 0,
+                height: 0,
+            },
+        ))
         .add(RedrawUnconditionally);
     builder
 }
@@ -940,7 +950,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     load_shader::<Filesystem, _>(
         channel,
         beam_entity,
-        "crates/sandbox/src/demos/phosphor/shaders/beam.wgsl",
+        "test-data/shaders/beam.wgsl",
     );
 
     // Phosphor pass
@@ -981,7 +991,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     load_shader::<Filesystem, _>(
         channel,
         phosphor_pass_entity,
-        "crates/sandbox/src/demos/phosphor/shaders/phosphor_decay.wgsl",
+        "test-data/shaders/phosphor_decay.wgsl",
     );
 
     // Tonemap pass
@@ -1023,7 +1033,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
     load_shader::<Filesystem, _>(
         channel,
         tonemap_pass_entity,
-        "crates/sandbox/src/demos/phosphor/shaders/tonemap.wgsl",
+        "test-data/shaders/tonemap.wgsl",
     );
 
     // Renderer
@@ -1110,7 +1120,7 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     // Load SVG meshes
     {
-        let svg = SvgLayers::parse("crates/sandbox/src/demos/phosphor/fonts/basic.svg")
+        let svg = SvgLayers::parse("test-data/fonts/basic.svg")
             .expect("Failed to parse SVG");
         let meshes = svg.meshes();
         for (_, graphemes) in meshes.iter() {
@@ -1153,9 +1163,9 @@ pub fn assemble(world: &mut World, channel: &WorldChannel) {
 
     load_map::<MapFile, Filesystem, _>(
         channel,
-        //"crates/sandbox/src/demos/phosphor/maps/non_manifold_line.map",
-        //"crates/sandbox/src/demos/phosphor/maps/non_manifold_room.map",
-        "crates/sandbox/src/demos/phosphor/maps/line_index_test.map",
+        //"test-data/maps/non_manifold_line.map",
+        //"test-data/maps/non_manifold_room.map",
+        "test-data/maps/line_index_test.map",
     );
 }
 
@@ -2315,11 +2325,14 @@ impl MapData {
                     }
 
                     if active_events > 0 {
+                        builder.add(ColliderEventOutputComponent::construct(Default::default()));
+
                         let target = Self::property_target("collider.events.target", properties);
 
                         if let Ok(target) = target {
-                            builder
-                                .add(ColliderEventTargetComponent::construct(target.to_string()));
+                            builder.add(EventTargetComponent::<IntersectionEvent>::construct(
+                                target.to_owned().into(),
+                            ));
                         }
                     }
 
@@ -2358,6 +2371,14 @@ impl MapData {
             if let Ok(open) = Self::property_bool("mover.open", properties) {
                 builder.add(MoverOpenComponent::construct(open));
             }
+
+            if let Ok(true) = Self::property_bool("mover.events", properties) {
+                let name =
+                    Self::property_targetname("mover.name", properties).expect("Mover has no name");
+                builder.add(NamedEntityComponent::construct(name.to_owned().into()));
+
+                builder.add(MoverEventInputComponent::construct(Default::default()));
+            }
         }
         builder
     }
@@ -2365,15 +2386,37 @@ impl MapData {
     fn entity_event(properties: &Properties) -> EntityBuilder {
         let mut builder = EntityBuilder::new();
         if let Ok(true) = Self::property_bool("event", properties) {
+            let transform = EventTransformComponent::unit();
+
             let input = Self::property_string("event.in", properties).unwrap();
-            builder.add(EventInputComponent::construct(input.to_owned().into()));
+            let transform = match input {
+                "collider.intersection.enter" | "collider.intersection.exit" => {
+                    builder.add(ColliderEventInputComponent::construct(Default::default()));
+                    transform.with_input_type::<IntersectionEvent>()
+                }
+                _ => unimplemented!(),
+            };
 
             let output = Self::property_string("event.out", properties).unwrap();
-            builder.add(EventOutputComponent::construct(output.to_owned().into()));
+            let transform = match output {
+                "mover.open" => {
+                    builder.add(MoverEventOutputComponent::construct(Default::default()));
+                    transform.with_output_type::<MoverEvent>()
+                }
+                _ => unimplemented!(),
+            };
+
+            builder.add(transform);
 
             let target =
                 Self::property_target("event.target", properties).expect("Event has no target");
-            builder.add(EventTargetComponent::construct(target.to_owned().into()));
+            builder.add(EventTargetComponent::<MoverEvent>::construct(
+                target.to_owned().into(),
+            ));
+
+            let name =
+                Self::property_targetname("event.name", properties).expect("Event has no name");
+            builder.add(NamedEntityComponent::construct(name.to_owned().into()));
         }
         builder
     }

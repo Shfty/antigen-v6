@@ -1,0 +1,49 @@
+* Need a more flexible structure for building arbitrary data from map files
+
+* Problems to solve:
+  * Data Coherency
+    * For instance:
+    * Calculating interior faces currently takes the whole map as input
+      * This prevents excluding certain brushes, such as triggers
+      * Also requires hardcoded brush-face containment check for proper output, undesirable
+    * Filtering near the callsite is possible, but overcomplicated
+      * Requires filtering each source of data individually
+      * Multiple lookup tables need to be updated to avoid referencing a culled entity / brush / face / line
+    * Filtering closer to GeoMap is more robust, as culled entities aren't present in any downstream processing
+      * Split GeoMap data into a set of passes that contain only the relevant data
+        * ex. Visual mesh data, collision data, point entity data
+        * However, this introduces the possibility of duplicated work
+  * Composition
+    * Current MapData implementation is monolithic, highly specific to antigen
+    * Should have some machinery to easily define data dependencies, process them into arbitrary output
+    * Dependencies should remain compile-time checked
+
+* Iterators seem like a promising route
+  * Laziness means only the necessary data gets generated
+  * However, not sure if implementing a bunch of iterator wrappers is actually useful
+  * And again, duplicated work is a concern
+
+* Feels like there's some conceptual split between crunch-once and crunch-on-demand operations
+  * For example, triplanar vertex intersection is an expensive brute-force operation that should happen once only
+    * However, this may also be wasted work if the generated vertices aren't used
+    * Ex. In a pipeline that ignores worldspawn, processing worldspawn brushes as part of a whole-map pass is wasted work
+      * This falls in favor of the pass-based approach, since that can prefilter unused geometry
+      * Perhaps passes should be compositional
+        * Filter out completely unused data, then split further into pass-specific parts?
+
+Interior faces dependency graph:
+
+Interior Faces <- Faces
+                  Face Lines <---------- Face Indices <- Face Triangle Planes
+                                                         Face Planes
+                                                         Face Vertices
+                                                         Face Centers
+
+                  Face Normals <-------- Face Vertices
+                                         Face Planes
+
+                  Face Centers <-------- Face Vertices
+
+                  Non-Manifold Lines
+
+                  Line-Face Connections

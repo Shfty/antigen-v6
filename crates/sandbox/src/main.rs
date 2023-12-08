@@ -13,18 +13,6 @@
 //
 // TODO: [✓] Finish generalized compute pipeline dispatch
 //
-// TODO: [>] Implement generalized render pass dispatch
-//           [✓] Draw implementation
-//           [✓] Draw indexed implementation
-//           [✓] Implement remaining RenderPass parameters
-//           [✓] Draw indirect implementation
-//           [✓] Draw indexed indirect implementation
-//           [ ] Multi-draw implementations
-//           [ ] Execute Bundles implementation
-//           [ ] Struct parameters for bundle constructors
-//               * wgpu descriptors, but with entities instead of references
-//           [ ] Builder pattern for RenderPass bundles?
-//
 // TODO: [✓] Codify buffer flipping as components + systems
 //           * Will allow phosphor decay and tonemap to draw via ECS
 //           [✓] Phosphor-specific implementation
@@ -113,6 +101,33 @@
 //     * Visual meshes, convex hulls, trimeshes, etc.
 //     * Allows for nice TrenchBroom visualization
 //     * Nice to have enabled by default for subclass entities
+// 
+// TODO: [✗] Fix wayland behavior
+//           * PresentMode::Fifo seems to work when windowed
+//             * Other modes cause flickering
+//             * Fullscreen causes flickering
+//               * Need to see if setting the winit window to fullscreen will fix this
+//           * No global keyboard input
+//             * Probably best to switch to window events rather than device events
+//
+//           * Works as expected with WINIT_UNIX_BACKEND=x11
+//             * Only issue is fullscreen running at 60FPS instead of monitor-native refresh
+//               * Performance appears to scale with window size,
+//                 so this may be down to the renderer implementation
+//             * Rendering issues likely specific to nvidia + wayland
+//             * Keyboard issues may be a result of wayland security protocols
+//
+// TODO: [>] Implement generalized render pass dispatch
+//           [✓] Draw implementation
+//           [✓] Draw indexed implementation
+//           [✓] Implement remaining RenderPass parameters
+//           [✓] Draw indirect implementation
+//           [✓] Draw indexed indirect implementation
+//           [ ] Multi-draw implementations
+//           [ ] Execute Bundles implementation
+//           [ ] Struct parameters for bundle constructors
+//               * wgpu descriptors, but with entities instead of references
+//           [ ] Builder pattern for RenderPass bundles?
 //
 // TODO: [>] Integrate rapier physics
 //           [✓] Create collision from brush hulls
@@ -139,6 +154,13 @@
 //           [ ] Fix corner case
 //               * Appears to be a precision issue
 //               * May be using camera position instead of near plane as clipping predicate
+//               * When very far away from the camera,
+//                 lines begin to duplicate at the opposite end of world space
+//
+// TODO: [>] Implement camera abstraction
+//           [>] First-person controls
+//           [ ] Spawn at first player start
+//           [ ] Mouse capture
 //
 // TODO: [ ] Fix compound convex hulls behaving incorrectly under scaling
 //
@@ -169,11 +191,6 @@
 //           * Use-case for parent/child relation - transforms
 //
 // TODO: [ ] Figure out why lower-case z is missing from text test
-//
-// TODO: [>] Implement camera abstraction
-//           [>] First-person controls
-//           [ ] Spawn at first player start
-//           [ ] Mouse capture
 //
 // TODO: [ ] Implement compute-based frustum culling
 //
@@ -235,23 +252,25 @@
 mod demos;
 
 use antigen_core::{
-    receive_messages, send_clone_query, try_receive_messages, LazyComponent, PositionComponent,
-    RotationComponent, ScaleComponent, TaggedEntitiesComponent, WorldChannel, WorldExchange,
+    receive_messages, send_clone_query, try_receive_messages, NamedEntitiesComponent,
+    PositionComponent, RotationComponent, ScaleComponent, TaggedEntitiesComponent, WorldChannel,
+    WorldExchange,
 };
 use antigen_wgpu::{
     wgpu::DeviceDescriptor, AdapterComponent, DeviceComponent, InstanceComponent, QueueComponent,
 };
 use antigen_winit::EventLoopHandler;
-use demos::phosphor::{ColliderEventTargetComponent, LineMeshInstance, TriangleMeshInstance, EventTargetEntitiesComponent};
+use demos::phosphor::{LineMeshInstance, MoverEvent, TriangleMeshInstance};
+use rapier3d::prelude::IntersectionEvent;
 use std::{
     thread::JoinHandle,
-    time::{Duration, Instant}, borrow::Cow,
+    time::{Duration, Instant},
 };
 use winit::{event::Event, event_loop::ControlFlow, event_loop::EventLoopWindowTarget};
 
 use hecs::{EntityBuilder, World};
 
-use antigen_rapier3d::{physics_backend_builder, ColliderComponent};
+use antigen_rapier3d::physics_backend_builder;
 
 const GAME_THREAD_TICK: Duration = Duration::from_nanos(16670000);
 
@@ -280,7 +299,7 @@ fn main() {
 
     // Setup game world
     game_world.spawn((TaggedEntitiesComponent::default(),));
-    game_world.spawn((EventTargetEntitiesComponent::default(),));
+    game_world.spawn((NamedEntitiesComponent::default(),));
 
     let mut builder = EntityBuilder::new();
     builder.add(demos::phosphor::SharedShapes);
@@ -401,71 +420,72 @@ fn game_thread(mut world: World, channel: WorldChannel) -> impl FnMut() {
         spin_loop(GAME_THREAD_TICK, || {
             try_receive_messages(&mut world, &channel).expect("Error handling message");
 
+            // Preparation systems
             demos::phosphor::assemble_triangle_mesh_instances_system(&mut world);
             demos::phosphor::assemble_line_mesh_instances_system(&mut world);
 
             antigen_rapier3d::insert_colliders_system(&mut world);
             antigen_rapier3d::insert_rigid_bodies_system(&mut world);
 
+            antigen_core::insert_named_entities_system(&mut world);
+
+            // Entity transform systems
             demos::phosphor::movers_position_system(&mut world);
             demos::phosphor::movers_rotation_system(&mut world);
 
+            // Write component transforms to physics system
             antigen_rapier3d::write_rigid_body_isometries_system(&mut world);
 
+            // Step physics
             antigen_rapier3d::step_physics_system(&mut world);
 
-            // Handle physics events
-            {
-                let mut query = world.query::<&antigen_rapier3d::EventCollector>();
-                for (_, event_collector) in query.into_iter() {
-                    for intersection in event_collector.intersection_events().iter() {
-                        // Find the entity corresponding to this collider
-                        let mut query =
-                            world.query::<(&ColliderComponent, &ColliderEventTargetComponent)>();
+            // Event output
+            demos::phosphor::intersection_event_output_system(&mut world);
 
-                        for (_, (_, target)) in
-                            query
-                                .into_iter()
-                                .filter(|(_, (collider, _))| match collider {
-                                    LazyComponent::Ready(collider) => {
-                                        if *collider == intersection.collider1
-                                            || *collider == intersection.collider2
-                                        {
-                                            true
-                                        } else {
-                                            false
-                                        }
-                                    }
-                                    _ => false,
-                                })
-                        {
-                            // TODO:
-                            // Fetch target entities from singleton event target list
-                            // For each of them, check their in event
-                            // If it corresponds to intersection.intersecting,
-                            // match on their out event, look up target, and fire appropriate logic
-                            if intersection.intersecting {
-                                println!("Intersection enter, event target: {target:?}");
-                            } else {
-                                println!("Intersection exit, event target: {target:?}");
-                            }
-                        }
+            // Intersection event dispatch
+            demos::phosphor::event_dispatch_system::<IntersectionEvent>(&mut world);
+
+            // Event transformation
+            demos::phosphor::event_transform_system::<IntersectionEvent, MoverEvent, _>(
+                &mut world,
+                |intersection| {
+                    if intersection.intersecting {
+                        MoverEvent::Close
+                    } else {
+                        MoverEvent::Open
                     }
-                }
-            }
+                },
+            );
 
-            antigen_rapier3d::clear_physics_events_system(&mut world);
+            // Mover event dispatch
+            demos::phosphor::event_dispatch_system::<MoverEvent>(&mut world);
 
+            // Event input
+            demos::phosphor::movers_event_input_system(&mut world);
+
+            // Event clear
+            demos::phosphor::clear_event_input_system::<IntersectionEvent>(&mut world);
+            demos::phosphor::clear_event_input_system::<MoverEvent>(&mut world);
+
+            demos::phosphor::clear_event_output_system::<IntersectionEvent>(&mut world);
+            demos::phosphor::clear_event_output_system::<MoverEvent>(&mut world);
+
+            antigen_rapier3d::clear_physics_event_collector_system(&mut world);
+
+            // Read physics transforms back into components
             antigen_rapier3d::read_back_rigid_body_isometries_system(&mut world);
 
+            // Copy transform components to triangle mesh instances
             antigen_core::copy_to_system::<TriangleMeshInstance, PositionComponent>(&mut world);
             antigen_core::copy_to_system::<TriangleMeshInstance, RotationComponent>(&mut world);
             antigen_core::copy_to_system::<TriangleMeshInstance, ScaleComponent>(&mut world);
 
+            // Copy transform components to line mesh instances
             antigen_core::copy_to_system::<LineMeshInstance, PositionComponent>(&mut world);
             antigen_core::copy_to_system::<LineMeshInstance, RotationComponent>(&mut world);
             antigen_core::copy_to_system::<LineMeshInstance, ScaleComponent>(&mut world);
 
+            // Write buffers to GPU
             antigen_wgpu::buffer_write_slice_system::<
                 demos::phosphor::TriangleMeshInstanceDataComponent,
                 _,

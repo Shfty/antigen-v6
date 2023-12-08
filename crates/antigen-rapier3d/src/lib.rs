@@ -135,7 +135,7 @@ pub fn step_physics_system(world: &mut World) {
     }
 }
 
-pub fn clear_physics_events_system(world: &mut World) {
+pub fn clear_physics_event_collector_system(world: &mut World) {
     for (_, event_collector) in world.query_mut::<&EventCollector>().into_iter() {
         event_collector.clear()
     }

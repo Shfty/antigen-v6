@@ -86,14 +86,8 @@ pub struct WindowSurfaceBundle {
 }
 
 impl WindowSurfaceBundle {
-    pub fn new() -> Self {
-        let surface_config = SurfaceConfigurationComponent::construct(SurfaceConfiguration {
-            usage: TextureUsages::RENDER_ATTACHMENT,
-            format: TextureFormat::Bgra8UnormSrgb,
-            width: 0,
-            height: 0,
-            present_mode: wgpu::PresentMode::Immediate,
-        })
+    pub fn new(surface_config: SurfaceConfiguration) -> Self {
+        let surface_config = SurfaceConfigurationComponent::construct(surface_config)
         .with(ChangedFlag(false));
 
         let surface_texture = SurfaceTextureComponent::construct(None).with(ChangedFlag(false));

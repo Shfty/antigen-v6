@@ -11,12 +11,12 @@ use antigen_wgpu::{
 use hecs::{EntityBuilder, World};
 
 use super::{
-    BeamBuffer, BeamDepthBuffer, BeamTriangles, BeamMultisample, LineIndices, LineInstanceData,
+    BeamBuffer, BeamDepthBuffer, BeamMultisample, BeamTriangles, LineIndices, LineInstanceData,
     LineInstances, LineMeshData, LineMeshIdComponent, LineMeshIds, LineMeshIdsComponent,
-    LineMeshInstanceData, LineMeshInstances, LineMeshes, Oscilloscope, PhosphorRenderer,
+    LineMeshInstanceData, LineMeshInstances, LineMeshes, PhosphorRenderer,
     StorageBuffers, TriangleIndices, TriangleMeshData, TriangleMeshIds, TriangleMeshIdsComponent,
     TriangleMeshInstanceData, TriangleMeshInstances, TriangleMeshes, Uniform, VertexData, Vertices,
-    BLACK, BLUE, CLEAR_COLOR, GREEN, MAX_TRIANGLE_MESH_INSTANCES, RED, WHITE, EventTargetEntities, EventTargetEntitiesComponent,
+    MAX_TRIANGLE_MESH_INSTANCES,
 };
 
 /// Pad a list of triangle indices to COPY_BUFFER_ALIGNMENT
@@ -536,4 +536,3 @@ pub fn register_line_mesh_id(world: &mut World, key: Cow<'static, str>, line_mes
     let (_, mesh_ids) = query.into_iter().next().unwrap();
     mesh_ids.write().insert(key.into(), line_mesh);
 }
-

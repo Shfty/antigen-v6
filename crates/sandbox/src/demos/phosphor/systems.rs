@@ -1,7 +1,10 @@
 use std::{sync::atomic::Ordering, time::Instant};
 
 use super::*;
-use antigen_core::{Changed, ChangedTrait, CopyToComponent, Indirect, LazyComponent};
+use antigen_core::{
+    get_named_entities_component, Changed, ChangedTrait, CopyToComponent, Indirect, LazyComponent,
+    NamedEntitiesComponent,
+};
 
 use antigen_wgpu::{
     wgpu::{
@@ -884,3 +887,106 @@ pub fn movers_rotation_system(world: &mut World) {
     }
 }
 
+pub fn intersection_event_output_system(world: &mut World) {
+    let mut query = world.query::<&antigen_rapier3d::EventCollector>();
+    for (_, event_collector) in query.into_iter() {
+        for intersection in event_collector.intersection_events().iter() {
+            // Find the entity corresponding to this collider
+            let mut query =
+                world.query::<(&ColliderComponent, &mut ColliderEventOutputComponent)>();
+
+            for (_, (_, output)) in query
+                .into_iter()
+                .filter(|(_, (collider, _))| match collider {
+                    LazyComponent::Ready(collider) => {
+                        if *collider == intersection.collider1
+                            || *collider == intersection.collider2
+                        {
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => false,
+                })
+            {
+                output.push(*intersection);
+            }
+        }
+    }
+}
+
+pub fn movers_event_input_system(world: &mut World) {
+    for (_, (events, mover_open)) in world
+        .query_mut::<(&mut MoverEventInputComponent, &mut MoverOpenComponent)>()
+        .into_iter()
+    {
+        for event in events.drain(..) {
+            match event {
+                MoverEvent::Open => **mover_open = true,
+                MoverEvent::Close => **mover_open = false,
+            }
+        }
+    }
+}
+
+pub fn event_dispatch_system<T>(world: &mut World)
+where
+    T: std::fmt::Debug + Clone + Send + Sync + 'static,
+{
+    let named_entities = get_named_entities_component(world).unwrap();
+
+    let mut query = world.query::<(&EventTargetComponent<T>, &mut EventOutputComponent<T>)>();
+    for (_, (event_target, event_output)) in query.into_iter() {
+        let targets = named_entities
+            .get(&**event_target)
+            .unwrap_or_else(|| panic!("No event target with name {}", **event_target));
+
+        for target in targets {
+            let mut query = world
+                .query_one::<&mut EventInputComponent<T>>(*target)
+                .unwrap();
+            let event_input = query.get().unwrap();
+
+            event_input.extend(event_output.iter().cloned());
+        }
+    }
+}
+
+pub fn event_transform_system<I, O, F>(world: &mut World, mut f: F)
+where
+    I: Send + Sync + 'static,
+    O: Send + Sync + 'static,
+    F: FnMut(I) -> O,
+{
+    for (_, (input, output)) in world
+        .query_mut::<(&mut EventInputComponent<I>, &mut EventOutputComponent<O>)>()
+        .with::<EventTransformComponent<I, O>>()
+        .into_iter()
+    {
+        for event in input.drain(..) {
+            output.push(f(event))
+        }
+    }
+}
+
+pub fn clear_event_input_system<T>(world: &mut World)
+where
+    T: Send + Sync + 'static,
+{
+    for (_, input) in world.query_mut::<&mut EventInputComponent<T>>().into_iter() {
+        input.clear()
+    }
+}
+
+pub fn clear_event_output_system<T>(world: &mut World)
+where
+    T: Send + Sync + 'static,
+{
+    for (_, output) in world
+        .query_mut::<&mut EventOutputComponent<T>>()
+        .into_iter()
+    {
+        output.clear()
+    }
+}
